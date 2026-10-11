@@ -467,6 +467,26 @@ textarea { resize: vertical; }
 .seat details textarea { margin-top: 0.35rem; font-family: var(--font-text); }
 .seat-actions { display: flex; align-items: center; gap: 0.5rem; }
 .seat-actions .seat-cost { margin-left: auto; color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.seat label.sleep { display: flex; gap: 0.3rem; align-items: center; color: var(--muted); font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+.seat label.sleep input { margin: 0; }
+.seat-opts label.sleep { margin-left: auto; }
+/* A sleeping participant: folded to its name and the Sleep box, at the end of the list. */
+.seat.asleep {
+  padding: 0.3rem 0.6rem;
+  border-top-width: 2px;
+  margin-bottom: 0.4rem;
+  background: var(--paper);
+}
+.seat.asleep .seat-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--seat-color) 50%, var(--muted));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seat.asleep .seat-head { min-height: 1.6rem; }
 
 /* ---- dialogs ---- */
 
@@ -4130,7 +4150,8 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
     const taken = new Set(existing.map((s) => s.name));
     let k2 = 2;
     while (taken.has(`${base} ${k2}`)) k2++;
-    return { ...seat, id: newId(), name: `${base} ${k2}`, role: "", color: shade(seat.color, -0.3) };
+    const { asleep: _asleep, ...awake } = seat;
+    return { ...awake, id: newId(), name: `${base} ${k2}`, role: "", color: shade(seat.color, -0.3) };
   }
   function thinkingChoices(model) {
     if (!model) return [{ value: "default", label: "model\u2019s default" }];
@@ -4279,17 +4300,6 @@ ${a.data}
   function hasFileParts(messages) {
     return messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === "file"));
   }
-  function addressedSeat(text2, seats) {
-    const t = text2.replace(/[^\p{L}\p{N}]+$/u, "").toLowerCase();
-    let best;
-    for (const s of seats) {
-      const n = s.name.trim().toLowerCase();
-      if (!n || !t.endsWith(n)) continue;
-      if (/[\p{L}\p{N}]$/u.test(t.slice(0, t.length - n.length))) continue;
-      if (!best || n.length > best.name.trim().length) best = s;
-    }
-    return best;
-  }
   function editDistance(a, b) {
     const d = Array.from({ length: a.length + 1 }, (_2, i) => [i, ...Array(b.length).fill(0)]);
     for (let j2 = 1; j2 <= b.length; j2++) d[0][j2] = j2;
@@ -4318,24 +4328,88 @@ ${a.data}
     if (isIndependently(last) && isTeam(before)) return "independently";
     return void 0;
   }
+  var isWordChar = (c) => c !== void 0 && /[\p{L}\p{N}]/u.test(c);
+  function lastWordEnd(text2, end = text2.length) {
+    let i = end;
+    while (i > 0 && !isWordChar(text2[i - 1])) i--;
+    return i;
+  }
+  function wordEndingAt(text2, end) {
+    const m = /[\p{L}\p{N}']+$/u.exec(text2.slice(0, end));
+    return m ? { start: end - m[0].length, word: m[0].toLowerCase() } : void 0;
+  }
+  function skipSeparators(text2, end) {
+    let i = end;
+    for (; ; ) {
+      const before = text2.slice(0, i);
+      const m = /[\s,;&+/]+$/u.exec(before) ?? (/and$/i.test(before) && !isWordChar(before[before.length - 4]) ? ["and"] : null);
+      if (!m || !m[0].length) return i;
+      i -= m[0].length;
+    }
+  }
+  function nameEndingAt(text2, end, seats) {
+    const lower = text2.slice(0, end).toLowerCase();
+    let best;
+    for (const s of seats) {
+      const n = s.name.trim().toLowerCase();
+      if (!n || !lower.endsWith(n)) continue;
+      const start2 = end - n.length;
+      if (isWordChar(lower[start2 - 1])) continue;
+      if (!best || start2 < best.start) best = { seat: s, start: start2 };
+    }
+    return best;
+  }
   function readAddress(text2, seats) {
-    const words = [...text2.matchAll(/[\p{L}\p{N}']+/gu)];
-    const seat = addressedSeat(text2, seats);
-    const call = seat ? void 0 : teamCall(text2);
-    if (!seat && !call) return { text: text2 };
-    const count = seat ? (seat.name.match(/[\p{L}\p{N}']+/gu) ?? []).length : call === "independently" ? 2 : 1;
-    const first = words[words.length - count];
-    const last = words.at(-1);
-    if (!first || !last || first.index === void 0 || last.index === void 0) return { text: text2 };
-    const before = text2.slice(0, first.index).replace(/[\s,;:–—-]+$/u, "");
-    let after = text2.slice(last.index + last[0].length).trim();
-    if (!before || /[.?!…]$/.test(before)) after = "";
-    return { text: (before + after).trim(), seat, call };
+    const tail = lastWordEnd(text2);
+    const finish = (cut2, rest) => {
+      const before = text2.slice(0, skipSeparators(text2, cut2)).replace(/[\s,;:–—-]+$/u, "");
+      let after = text2.slice(tail).trim();
+      if (!before || /[.?!…]$/.test(before)) after = "";
+      return { text: (before + after).trim(), ...rest };
+    };
+    let end = tail;
+    let independently = false;
+    const last = wordEndingAt(text2, end);
+    if (last && isIndependently(last.word)) {
+      independently = true;
+      end = skipSeparators(text2, last.start);
+    }
+    const found = [];
+    let cut = end;
+    for (let pos = end; ; ) {
+      const n = nameEndingAt(text2, pos, seats);
+      if (!n) break;
+      if (!found.includes(n.seat)) found.unshift(n.seat);
+      cut = n.start;
+      pos = skipSeparators(text2, n.start);
+    }
+    if (found.length) {
+      if (!independently) {
+        const w = wordEndingAt(text2, skipSeparators(text2, cut));
+        if (w && isIndependently(w.word)) {
+          independently = true;
+          cut = w.start;
+        }
+      }
+      return finish(cut, { seats: found, call: found.length > 1 ? independently ? "independently" : "in turn" : void 0 });
+    }
+    const call = teamCall(text2);
+    if (!call) return { text: text2, seats: [] };
+    const w1 = wordEndingAt(text2, tail);
+    const w2 = call === "independently" && w1 ? wordEndingAt(text2, skipSeparators(text2, w1.start)) : void 0;
+    const first = w2 ?? w1;
+    return first ? finish(first.start, { seats: [], everyone: true, call }) : { text: text2, seats: [] };
+  }
+  function nameList(names) {
+    return names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
   }
   function addresseeLabel(a, seats, forModels = false) {
-    if ("seatId" in a) return `to ${seats.find((s) => s.id === a.seatId)?.name ?? a.name}`;
-    if (a.everyone === "in turn") return forModels ? "to everyone, each replying in turn" : "to everyone, in turn";
-    return forModels ? "to everyone, each replying without seeing the others' replies" : "to everyone, independently";
+    const current = (id, name) => seats.find((s) => s.id === id)?.name ?? name;
+    if ("seatId" in a) return `to ${current(a.seatId, a.name)}`;
+    const who = "seats" in a ? nameList(a.seats.map((x2) => current(x2.id, x2.name))) : "everyone";
+    const how = "seats" in a ? a.how : a.everyone;
+    if (how === "in turn") return forModels ? `to ${who}, each replying in turn` : `to ${who}, in turn`;
+    return forModels ? `to ${who}, each replying without seeing the others' replies` : `to ${who}, independently`;
   }
   function stripSelfPrefix(text2, name) {
     const esc2 = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -4975,7 +5049,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
       model: str(v.model, ""),
       role: str(v.role, ""),
       effort,
-      color: str(v.color, SEAT_COLORS[v.name] ?? "#888888")
+      color: str(v.color, SEAT_COLORS[v.name] ?? "#888888"),
+      ...v.asleep === true ? { asleep: true } : {}
     };
   }
   function loadSettings() {
@@ -5006,7 +5081,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
       humanName: s.humanName,
       aboutHuman: s.aboutHuman,
       houseRules: s.houseRules,
-      seats: s.seats.map(({ id, name, model, effort, role, color }) => ({ id, name, model, effort, role, color }))
+      seats: s.seats.map(({ id, name, model, effort, role, color, asleep }) => ({ id, name, model, effort, role, color, ...asleep ? { asleep } : {} }))
     };
     if (includeKeys) {
       out.apiKey = s.apiKey;
@@ -5287,7 +5362,12 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           h2(
             "li",
             {},
-            `Write below. Return adds what you\u2019ve typed and asks a participant to reply: the one named at the end of your message (\u201C\u2026what do you think, Grok?\u201D), or else whoever spoke last; the note beside the button shows who. End with \u201Cteam\u201D and every participant replies once, in turn; \u201Cindependently, team\u201D has each reply without seeing the others\u2019 replies. ${ADD_KEY} or Add to conversation just adds it, and no one replies until you press a participant\u2019s Speak button. ${NEWLINE_KEY} starts a new line. To have one participant answer another, press Speak on the one who should answer.`
+            `Write below. Return adds what you\u2019ve typed and asks a participant to reply: the one named at the end of your message (\u201C\u2026what do you think, Grok?\u201D), or else whoever spoke last; the note beside the button shows who. ${ADD_KEY} or Add to conversation just adds it, and no one replies until you press a participant\u2019s Speak button. ${NEWLINE_KEY} starts a new line. To have one participant answer another, press Speak on the one who should answer.`
+          ),
+          h2(
+            "li",
+            {},
+            "To ask several, end with their names (\u201C\u2026, Claude and Gemini\u201D): just those reply, once each, in the order named. End with \u201Cteam\u201D and every participant replies once, in turn. Add \u201Cindependently\u201D (\u201C\u2026independently, team\u201D) and each replies without seeing the others\u2019 replies. Tick Sleep on a card to have that participant sit out \u201Cteam\u201D rounds; it still replies if you name it."
           ),
           h2("li", {}, "To speak to one participant privately, choose it under To. It replies at once, and the others never see the exchange."),
           h2(
@@ -5586,28 +5666,34 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
     busy?.controller.abort();
   }
   function roundOrder() {
-    const seats = settings.seats.filter((s) => s.model.trim());
+    const seats = settings.seats.filter((s) => s.model.trim() && !s.asleep);
     const last = previousSpeaker();
     const i = last ? seats.findIndex((s) => s.id === last.id) : -1;
     const start2 = i < 0 ? 0 : (i + 1) % Math.max(seats.length, 1);
     return [...seats.slice(start2), ...seats.slice(0, start2)];
   }
-  async function runRound(call) {
+  async function runRound(call, order) {
+    const named = Boolean(order);
+    order ??= roundOrder();
     if (occupied() || !ensureKey()) return;
-    const order = roundOrder();
     if (!order.length) return;
     const r = { cancelled: false };
     round = r;
     const others = /* @__PURE__ */ new Set();
     try {
-      for (const [i, seat] of order.entries()) {
+      let first = true;
+      for (const seat of order) {
         if (r.cancelled) break;
+        const now = seatById(seat.id);
+        if (!now) continue;
+        if (now.asleep && !named) continue;
         const entry = await speak(seat.id, false, {
-          useComposer: i === 0,
+          useComposer: first,
           // your message goes in once, before the first reply
           hide: call === "independently" ? others : void 0,
           independent: call === "independently"
         });
+        first = false;
         if (entry) others.add(entry.id);
       }
     } finally {
@@ -5639,9 +5725,17 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
       const e = session.entries[i];
       if (e.speaker === "human" || e.privateWith) continue;
       const seat = seatById(e.speaker);
-      if (seat) return seat;
+      if (seat && !seat.asleep) return seat;
     }
     return void 0;
+  }
+  function coloredNames(seats) {
+    const out = [];
+    seats.forEach((s, i) => {
+      if (i > 0) out.push(i === seats.length - 1 ? " and " : ", ");
+      out.push(h2("b", { style: `--seat-color: ${s.color}` }, s.name));
+    });
+    return out;
   }
   function updateComposerState() {
     const to = els.composerTo.value;
@@ -5652,30 +5746,39 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
     const name = (s) => h2("b", { style: `--seat-color: ${s.color}` }, s.name);
     const justAdds = () => h2("span", { class: "nowrap" }, ` \xB7 ${ADD_KEY} just adds`);
     const free = !seat && !occupied();
-    const text2 = els.composerText.value;
-    const named = free ? addressedSeat(text2, settings.seats) : void 0;
-    const call = free && !named ? teamCall(text2) : void 0;
+    const a = free ? readAddress(els.composerText.value, settings.seats) : void 0;
+    const listed = a && a.seats.length > 1 ? a.seats : [];
+    const named = a?.seats.length === 1 ? a.seats[0] : void 0;
+    const call = a?.everyone ? a.call : void 0;
     const order = call ? roundOrder() : [];
-    const next = free && !call ? named ?? previousSpeaker() : void 0;
+    const next = free && !call && !listed.length ? named ?? previousSpeaker() : void 0;
     const newline = ` ${NEWLINE_KEY} starts a new line.`;
-    if (seat) {
+    if (listed.length) {
+      const how = a.call === "independently" ? "independently" : "in turn";
+      els.composerHint.replaceChildren(`${ASK_KEY} adds, then `, ...coloredNames(listed), ` reply ${how}`, justAdds());
+      els.composerHint.title = `Return adds your message, then ${listed.map((s) => s.name).join(", ")} reply once each, in that order` + (how === "independently" ? ", each without seeing the others\u2019 replies" : "") + `. ${ADD_KEY} (or Add to conversation) just adds your message.` + newline;
+    } else if (seat) {
       els.composerHint.replaceChildren(`${ASK_KEY} sends; `, name(seat), " replies");
       els.composerHint.title = `Return sends your message privately to ${seat.name}, who replies at once.` + newline;
     } else if (call && order.length) {
       const how = call === "independently" ? "independently" : "in turn";
+      const asleep = settings.seats.filter((s) => s.asleep && s.model.trim()).length;
       els.composerHint.replaceChildren(
-        `${ASK_KEY} adds, then all ${order.length} reply ${how}, `,
+        `${ASK_KEY} adds, then ${asleep ? `the ${order.length} awake` : `all ${order.length}`} reply ${how}, `,
         name(order[0]),
         " first",
         justAdds()
       );
-      els.composerHint.title = `Return adds your message, then each participant replies once, in this order: ${order.map((s) => s.name).join(", ")} (around the table, starting after the last to speak).` + (call === "independently" ? " Each replies without seeing the others\u2019 replies from this round; afterwards everyone sees them all." : "") + ` Stop ends the round. ${ADD_KEY} (or Add to conversation) just adds your message.` + newline;
+      els.composerHint.title = `Return adds your message, then each participant replies once, in this order: ${order.map((s) => s.name).join(", ")} (around the table, starting after the last to speak).` + (asleep ? ` Sleeping participants sit it out.` : "") + (call === "independently" ? " Each replies without seeing the others\u2019 replies from this round; afterwards everyone sees them all." : "") + ` Stop ends the round. ${ADD_KEY} (or Add to conversation) just adds your message.` + newline;
+    } else if (call && settings.seats.some((s) => s.asleep && s.model.trim())) {
+      els.composerHint.replaceChildren(`${ASK_KEY} adds (everyone\u2019s asleep)`);
+      els.composerHint.title = "Return adds your message without \u201Cteam\u201D, but no one replies: every participant is asleep. Uncheck Sleep on a card to wake it." + newline;
     } else if (next) {
       els.composerHint.replaceChildren(`${ASK_KEY} adds, then `, name(next), " replies", justAdds());
-      els.composerHint.title = `Return adds your message to the conversation, then ${next.name}` + (named ? ", named at the end of your message," : ", the last to speak,") + ` replies. End with \u201Cteam\u201D to have everyone reply in turn. ${ADD_KEY} (or Add to conversation) just adds it, without asking anyone.` + newline;
+      els.composerHint.title = `Return adds your message to the conversation, then ${next.name}` + (named ? ", named at the end of your message," : ", the last to speak,") + ` replies. End with several names to ask just those, or with \u201Cteam\u201D to have everyone reply in turn. ${ADD_KEY} (or Add to conversation) just adds it, without asking anyone.` + newline;
     } else {
       els.composerHint.replaceChildren(`${ASK_KEY} adds`);
-      els.composerHint.title = (occupied() ? "Return adds your message to the conversation. (While participants are replying, no one else is asked.)" : "Return adds your message to the conversation. End it with a participant's name to have that one reply, or with \u201Cteam\u201D for everyone in turn.") + newline;
+      els.composerHint.title = (occupied() ? "Return adds your message to the conversation. (While participants are replying, no one else is asked.)" : "Return adds your message to the conversation. End it with a participant's name to have that one reply, with several names for just those, or with \u201Cteam\u201D for everyone in turn.") + newline;
     }
   }
   async function sendAndAsk() {
@@ -5683,25 +5786,34 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
     if (!typed.trim() && !pending.length) return;
     if (els.composerTo.value || occupied()) return submitComposer();
     const a = readAddress(typed, settings.seats);
-    const call = a.call && roundOrder().length ? a.call : void 0;
-    if (!a.seat && !call) {
+    const everyone = a.everyone && a.call && roundOrder().length ? a.call : void 0;
+    if (a.everyone && !everyone) {
+      const files2 = takePending();
+      if (a.text || files2) addHumanEntry(a.text, void 0, files2);
+      els.composerText.value = "";
+      updateComposerState();
+      return;
+    }
+    if (!a.seats.length && !everyone) {
       const next = previousSpeaker();
       if (next) await speak(next.id);
       else submitComposer();
       return;
     }
     if (!ensureKey()) return;
-    if (a.seat && !a.seat.model.trim()) {
-      alert(`Choose a model for ${a.seat.name} first.`);
+    const unready = a.seats.find((s) => !s.model.trim());
+    if (unready) {
+      alert(`Choose a model for ${unready.name} first.`);
       return;
     }
-    const to = a.seat ? { seatId: a.seat.id, name: a.seat.name } : { everyone: call };
+    const to = everyone ? { everyone } : a.seats.length === 1 ? { seatId: a.seats[0].id, name: a.seats[0].name } : { seats: a.seats.map((s) => ({ id: s.id, name: s.name })), how: a.call ?? "in turn" };
     const files = takePending();
     if (a.text || files) addHumanEntry(a.text, void 0, files, to);
     els.composerText.value = "";
     updateComposerState();
-    if (call) await runRound(call);
-    else await speak(a.seat.id);
+    if (everyone) await runRound(everyone);
+    else if (a.seats.length > 1) await runRound(a.call ?? "in turn", a.seats);
+    else await speak(a.seats[0].id);
   }
   function insertNewline(box) {
     let done = false;
@@ -5817,7 +5929,32 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
     window.addEventListener("drop", (ev) => ev.preventDefault());
   }
   var seatControls = /* @__PURE__ */ new Map();
+  function sleepBox(seat) {
+    return h2("input", {
+      type: "checkbox",
+      checked: Boolean(seat.asleep),
+      onchange: (ev) => setAsleep(seat.id, ev.target.checked)
+    });
+  }
+  function sleepingCard(seat) {
+    const sleep = sleepBox(seat);
+    const stopBtn = h2("button", { class: "danger", type: "button", hidden: true, onclick: stop }, "Stop");
+    const card = h2(
+      "div",
+      { class: "seat asleep", "data-seat": seat.id, style: `--seat-color: ${seat.color}` },
+      h2(
+        "div",
+        { class: "seat-head" },
+        h2("span", { class: "seat-name", title: seat.model }, seat.name),
+        stopBtn,
+        h2("label", { class: "sleep", title: "Uncheck to wake this participant and unfold its card." }, sleep, "Sleep")
+      )
+    );
+    seatControls.set(seat.id, { card, stop: stopBtn, sleep });
+    return card;
+  }
   function seatCard(seat) {
+    if (seat.asleep) return sleepingCard(seat);
     const modelBtn = h2("button", { type: "button", class: "model-button", title: "Choose a model", onclick: () => openModelPicker(seat.id) });
     const info = h2("div", { class: "seat-model-info" });
     const effortSelect = h2("select", {
@@ -5880,6 +6017,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
       "\xD7"
     );
     const cost = h2("span", { class: "seat-cost", title: "This seat's cost in this conversation" });
+    const sleep = sleepBox(seat);
     const grip = h2(
       "span",
       {
@@ -5893,7 +6031,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const key = ev.key;
           if (key !== "ArrowUp" && key !== "ArrowDown") return;
           ev.preventDefault();
-          moveSeat(seat.id, seatIndex(seat.id) + (key === "ArrowUp" ? -1 : 1), true);
+          moveAmongAwake(seat.id, key === "ArrowUp" ? -1 : 1);
         }
       },
       "\u283F"
@@ -5933,7 +6071,13 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
       h2(
         "div",
         { class: "seat-opts" },
-        h2("label", {}, "Thinking", effortSelect)
+        h2("label", {}, "Thinking", effortSelect),
+        h2(
+          "label",
+          { class: "sleep", title: "Sleep: this participant sits out \u201Cteam\u201D rounds and isn\u2019t asked by Return unless you name it. Its card folds up at the end of the list." },
+          sleep,
+          "Sleep"
+        )
       ),
       h2(
         "details",
@@ -5955,10 +6099,36 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
       ),
       h2("div", { class: "seat-actions" }, speakBtn, stopBtn, cost)
     );
-    seatControls.set(seat.id, { card, grip, speak: speakBtn, stop: stopBtn, copy: copyBtn, remove: removeBtn, cost, refreshModel });
+    seatControls.set(seat.id, { card, grip, sleep, speak: speakBtn, stop: stopBtn, copy: copyBtn, remove: removeBtn, cost, refreshModel });
     return card;
   }
   var seatIndex = (id) => settings.seats.findIndex((s) => s.id === id);
+  function displayOrder() {
+    return [...settings.seats.filter((s) => !s.asleep), ...settings.seats.filter((s) => s.asleep)];
+  }
+  function arrangeSeatCards() {
+    els.seatList.append(...displayOrder().flatMap((s) => seatControls.get(s.id)?.card ?? []));
+  }
+  function setAsleep(id, asleep) {
+    const seat = seatById(id);
+    if (!seat) return;
+    if (asleep) seat.asleep = true;
+    else delete seat.asleep;
+    persist();
+    const old = seatControls.get(id)?.card;
+    const fresh = seatCard(seat);
+    if (old) old.replaceWith(fresh);
+    else els.seatList.append(fresh);
+    arrangeSeatCards();
+    seatControls.get(id)?.sleep.focus();
+    updateSeatStatus();
+    updateComposerState();
+  }
+  function moveAmongAwake(id, step) {
+    const awake = settings.seats.filter((s) => !s.asleep);
+    const neighbor = awake[awake.findIndex((s) => s.id === id) + step];
+    if (neighbor) moveSeat(id, seatIndex(neighbor.id), true);
+  }
   function moveSeat(id, to, keepFocus = false) {
     const from = seatIndex(id);
     if (from < 0) return;
@@ -5967,9 +6137,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
     const [seat] = settings.seats.splice(from, 1);
     settings.seats.splice(target, 0, seat);
     persist();
-    els.seatList.append(...settings.seats.flatMap((s) => seatControls.get(s.id)?.card ?? []));
+    arrangeSeatCards();
     renderComposerTo();
-    if (keepFocus) seatControls.get(id)?.grip.focus();
+    if (keepFocus) seatControls.get(id)?.grip?.focus();
   }
   var draggingSeat = null;
   function clearDropMarks() {
@@ -5978,7 +6148,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
   function dropSpot(ev) {
     const card = ev.target?.closest?.(".seat");
     const id = card?.dataset.seat;
-    if (!card || !id) return null;
+    if (!card || !id || card.classList.contains("asleep")) return null;
     const r = card.getBoundingClientRect();
     return { id, before: ev.clientY < r.top + r.height / 2 };
   }
@@ -6025,7 +6195,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
   function renderSeats() {
     seatControls.clear();
     els.seatList.replaceChildren(
-      ...settings.seats.length ? settings.seats.map((s) => seatCard(s)) : [h2("p", { class: "seats-empty" }, "No participants yet. Press + Add a seat below and choose a model.")]
+      ...settings.seats.length ? displayOrder().map((s) => seatCard(s)) : [h2("p", { class: "seats-empty" }, "No participants yet. Press + Add a seat below and choose a model.")]
     );
     els.btnAddSeat.classList.toggle("primary", settings.seats.length === 0);
     els.btnAddSeat.classList.toggle("subtle", settings.seats.length > 0);
@@ -6036,13 +6206,18 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
       const c = seatControls.get(seat.id);
       if (!c) continue;
       const speakingNow = busy?.seatId === seat.id;
-      c.speak.hidden = speakingNow;
-      c.speak.disabled = occupied();
+      if (c.speak) {
+        c.speak.hidden = speakingNow;
+        c.speak.disabled = occupied();
+      }
       c.stop.hidden = !speakingNow;
-      c.remove.disabled = speakingNow;
+      if (c.remove) c.remove.disabled = speakingNow;
+      c.sleep.disabled = speakingNow;
       c.card.classList.toggle("speaking", speakingNow);
-      const spent = seatCost(seat.id);
-      c.cost.textContent = spent > 0 ? formatCost(spent) : "";
+      if (c.cost) {
+        const spent = seatCost(seat.id);
+        c.cost.textContent = spent > 0 ? formatCost(spent) : "";
+      }
     }
     els.btnAddSeat.disabled = false;
   }
@@ -6074,7 +6249,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
   }
   var modelInfo = (id) => models.find((m) => m.id === id.trim());
   function refreshModelDisplays() {
-    for (const c of seatControls.values()) c.refreshModel();
+    for (const c of seatControls.values()) c.refreshModel?.();
   }
   async function loadModels() {
     if (models.length) {
@@ -6168,7 +6343,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
       return;
     }
     persist();
-    seatControls.get(seat.id)?.refreshModel();
+    seatControls.get(seat.id)?.refreshModel?.();
   }
   async function refreshKeyInfo() {
     const tasks = [];

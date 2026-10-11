@@ -61,6 +61,7 @@ Each participant ("seat") has a card on the right:
   menu, of the participant list every seat is given, and of Participants in saved files.
   Since that list is part of every seat's instructions, a new order means each seat's
   next turn re-reads the conversation at full price once (no re-reading discount).
+  Sleeping participants' folded cards stay at the end and have no handle.
 - **Name**, at the top of the card, in the seat's color. Click it to rename. The name is
   what the others see ("Skeptic says: …") and what appears in the margin of the
   conversation.
@@ -85,6 +86,14 @@ Each participant ("seat") has a card on the right:
   "not adjustable". Hidden thinking is billed as output.
 - **Role** opens a box for that participant's standing instructions, e.g. "argue the
   skeptic's side". It shows "(set)" or "(none)".
+- **Sleep**, beside Thinking, benches the participant for a while without removing it.
+  Its card folds up to just its name and the Sleep box and moves to the end of the list.
+  While asleep it sits out "team" rounds and isn't the one Return asks when your message
+  names no one. It still replies if you name it at the end of your message, and stays in
+  the To menu for private messages. It keeps its place in the order: untick Sleep and the
+  card unfolds where it was. (If you move other cards meanwhile, it comes back among the
+  same neighbors.) Sleeping participants still appear in the participant list every seat
+  is given, since they may be asked again.
 - **Speak** asks the participant to reply now. Only one participant speaks at a time; while
   one does, its card is outlined, the other Speak buttons wait, and its **Stop** button ends
   the reply early.
@@ -103,8 +112,16 @@ Each participant ("seat") has a card on the right:
     of its own ("Claudeish" doesn't count), and the longest name wins ("…Claude 2" asks
     Claude 2, not Claude). It goes by the last word only, so "I agree with Claude." asks
     Claude too.
-  - Otherwise the participant who spoke last replies. Only the open conversation counts; a
-    private exchange doesn't change who is next.
+  - **A list of names** at the end asks just those participants, once each, in the order
+    you typed them: "…what do you think, Gemini and Claude?" has Gemini reply, then
+    Claude (who sees Gemini's reply). Separate the names with spaces, commas, "and", "&",
+    "+" or "/". Add "independently" before or after the list ("…, Claude and Grok,
+    independently") and each replies without seeing the others' replies from that turn.
+    A name given twice counts once. Your message is marked "(to Gemini and Claude, in
+    turn)".
+  - Otherwise the participant who spoke last replies, unless it has been put to sleep (see
+    Sleep, above); then the last awake one to speak does. Only the open conversation
+    counts; a private exchange doesn't change who is next.
   - **The name is for Dialog, not part of your message.** Dialog takes it off ("What do you
     think, Grok?" becomes "What do you think?") and shows your message with a stage
     direction under your name: "(to Grok)". The participants are told the same thing in
@@ -118,10 +135,11 @@ Each participant ("seat") has a card on the right:
 - **"…, team"** at the end of your message has every participant reply once, in turn,
   when you press Return. Like a name, "team" (and "independently") is for Dialog: it's
   taken off your message, which is marked "(to everyone, in turn)" or "(to everyone,
-  independently)", and the participants are told that in plain words instead. They go around the table in card order, starting with the one
-  after the last speaker, so nobody speaks twice in a row. Each sees the replies before
-  it. The note beside the button says how many and who goes first ("↩ adds, then all 5
-  reply in turn, Claude first"); hover over it for the whole order.
+  independently)", and the participants are told that in plain words instead. They go
+  around the table in card order, starting with the one after the last speaker, so nobody
+  speaks twice in a row. Each sees the replies before it. The note beside the button says
+  how many and who goes first ("↩ adds, then all 5 reply in turn, Claude first", or "the
+  3 awake" when some are asleep); hover over it for the whole order.
   - **"…independently, team"** (or "…team, independently") has each reply without seeing
     the others' replies from that round, which avoids everyone following whoever answered
     first. Those replies are marked "(answering independently)", here and in saved files.
@@ -130,6 +148,9 @@ Each participant ("seat") has a card on the right:
     but real words one slip from "team" don't count: "…in the long term." doesn't start a
     round, nor do "tea", "steam", "teams", "tear", "beam" and the like. A participant's
     name at the end still wins: "…what about you, Grok?" asks Grok alone.
+  - Sleeping participants sit rounds out, including one put to sleep while a round is
+    running (if you'd named it in a list, it still replies). If everyone is asleep,
+    "…, team" just adds your message, without "team", and nobody replies.
   - Participants without a model are skipped. While a round runs, the Speak buttons wait;
     **Stop** ends the reply under way and the rest of the round. A failed reply is skipped
     and the round goes on. A round costs about as much as all the participants' replies
@@ -312,7 +333,7 @@ files by name and size.
   updated to match. An edited copy is left alone, except that a default sentence that has
   since been reworded is updated where it still appears word for word.
 - **Save settings to a file…** downloads your name, About you, the house rules and every
-  participant (name, model, thinking level, role and color) as one small file, named like
+  participant (name, model, thinking level, role, color and whether it's asleep) as one small file, named like
   "Dialog settings 2026 Oct 09 1722.json". Use it as a backup, or to move Dialog to another
   browser or computer. **Include my keys in the saved file** adds your OpenRouter keys; it
   starts unticked each time you open Settings, because anyone who has a file with your keys
