@@ -1269,8 +1269,19 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 1rem;
         color: var(--muted);
         font-size: 0.85rem;
+      }
+
+      .model-foot #model-count.problem {
+        color: var(--error);
+      }
+
+      .model-foot-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex: none;
       }
 
       /* ---- narrow windows ---- */
@@ -1404,7 +1415,12 @@
         <div id="model-results" class="model-results" role="listbox"></div>
         <div class="model-foot">
           <span id="model-count"></span>
-          <button id="model-cancel" type="button">Cancel</button>
+          <span class="model-foot-actions">
+            <button id="model-refresh" type="button" class="subtle"
+              title="Get OpenRouter’s list of models again now, for a model that has only just appeared">Refresh
+              list</button>
+            <button id="model-cancel" type="button">Cancel</button>
+          </span>
         </div>
       </div>
     </dialog>
@@ -10605,6 +10621,11 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
         }
 
+        function formatAsOf(d, now = /* @__PURE__ */ new Date()) {
+          return formatDate(d) === formatDate(now) ? `${formatTime(d)} today` :
+            `${formatDate(d)} at ${formatTime(d)}`;
+        }
+
         function formatBytes(n) {
           if (n < 1024) return `${n} bytes`;
           if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
@@ -11998,9 +12019,11 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           };
         }
         async function fetchModels() {
-          const res = await send(`${BASE}/models`, {});
+          const res = await send(`${BASE}/models`, {
+            cache: "no-store"
+          });
           if (!res.ok) throw new OpenRouterError(
-            `Couldn't load the model list (HTTP ${res.status}).`, res.status);
+            `OpenRouter answered with an error (HTTP ${res.status}).`, res.status);
           const j2 = await res.json();
           const data = isObj(j2) && Array.isArray(j2.data) ? j2.data : [];
           const out = [];
@@ -12312,20 +12335,30 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         function loadCachedModels() {
           const v = read(MODELS_KEY);
           if (!isObj2(v) || typeof v.at !== "number" || !Array.isArray(v.models)) return null;
-          if (Date.now() - v.at > MODELS_MAX_AGE_MS) return null;
-          return v.models;
+          return {
+            models: v.models,
+            at: v.at
+          };
         }
 
-        function saveCachedModels(models2) {
+        function modelsAreStale(at2, now = Date.now()) {
+          return now - at2 > MODELS_MAX_AGE_MS || at2 - now > 5 * 60 * 1e3;
+        }
+
+        function saveCachedModels(models2, at2 = Date.now()) {
           write(MODELS_KEY, {
-            at: Date.now(),
+            at: at2,
             models: models2
           });
         }
         // src/main.ts
         var settings = loadSettings();
         var session = loadSession();
-        var models = loadCachedModels() ?? [];
+        var savedModels = loadCachedModels();
+        var models = savedModels?.models ?? [];
+        var modelsAt = savedModels?.at ?? 0;
+        var modelsLoading = null;
+        var modelsError = "";
         var keyInfo = null;
         var keyInfoFailed = false;
         var credit = null;
@@ -12378,6 +12411,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           modelSearch: byId("model-search"),
           modelResults: byId("model-results"),
           modelCount: byId("model-count"),
+          modelRefresh: byId("model-refresh"),
           modelCancel: byId("model-cancel"),
           btnSave: byId("btn-save"),
           btnNew: byId("btn-new"),
@@ -13873,20 +13907,37 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         function refreshModelDisplays() {
           for (const c of seatControls.values()) c.refreshModel?.();
         }
-        async function loadModels() {
-          if (models.length) {
-            refreshModelDisplays();
-            return;
+
+        function refreshModels() {
+          if (!modelsLoading) {
+            modelsError = "";
+            modelsLoading = fetchAndKeepModels().finally(() => {
+              modelsLoading = null;
+              if (pickerSeatId) renderPicker(true);
+            });
+            if (pickerSeatId) renderPicker(true);
           }
+          return modelsLoading;
+        }
+        async function fetchAndKeepModels() {
           try {
             models = await fetchModels();
-            saveCachedModels(models);
+            modelsAt = Date.now();
+            saveCachedModels(models, modelsAt);
             refreshModelDisplays();
-          } catch {}
+          } catch (err) {
+            modelsError = err instanceof Error ? err.message : String(err);
+          }
+        }
+
+        function loadModels() {
+          refreshModelDisplays();
+          if (modelsAreStale(modelsAt)) void refreshModels();
         }
         var pickerSeatId = null;
         var pickerRows = [];
         var pickerActive = 0;
+        var pickerFound = 0;
 
         function openModelPicker(seatId) {
           const seat = seatById(seatId);
@@ -13900,6 +13951,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           els.modelSearch.focus();
           const current = pickerRows.findIndex((r) => r.id === seat.model);
           if (current >= 0) setPickerActive(current, "center");
+          if (modelsAreStale(modelsAt)) void refreshModels();
         }
 
         function closeModelPicker() {
@@ -13919,7 +13971,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           });
         }
 
-        function renderPicker() {
+        function renderPicker(keep = false) {
+          const keepId = keep ? pickerRows[pickerActive]?.id : void 0;
+          const keepScroll = els.modelResults.scrollTop;
           const seat = pickerSeatId ? seatById(pickerSeatId) : void 0;
           const q2 = els.modelSearch.value.trim();
           const words = q2.toLowerCase().split(/\s+/).filter(Boolean);
@@ -13966,17 +14020,42 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             });
           });
           const empty = models.length ?
-            "No models match. To use an id that isn\u2019t listed, type it in full (it contains a \u201C/\u201D)." :
+            "No models match. For a model that has only just appeared, press Refresh list. To use an id that isn\u2019t listed, type it in full (it contains a \u201C/\u201D)." :
+            modelsLoading ? "Getting OpenRouter\u2019s list of models\u2026" :
             "OpenRouter\u2019s model list hasn\u2019t loaded. Type a model id in full, e.g. anthropic/claude-opus-5.5.";
           els.modelResults.replaceChildren(...pickerRows.length ? pickerRows.map((r) => r.el) : [
             h2("div", {
               class: "model-empty"
             }, empty)
           ]);
-          els.modelCount.textContent = models.length ?
-            `${found.length} of ${models.length} models. Prices are dollars per million tokens, in / out.` :
-            "";
-          setPickerActive(0, "nearest");
+          pickerFound = found.length;
+          updatePickerFoot();
+          const kept = keepId === void 0 ? -1 : pickerRows.findIndex((r) => r.id === keepId);
+          if (kept >= 0) {
+            els.modelResults.scrollTop = keepScroll;
+            setPickerActive(kept, "nearest");
+          } else {
+            setPickerActive(0, "nearest");
+          }
+        }
+
+        function updatePickerFoot() {
+          const loading = modelsLoading !== null;
+          els.modelRefresh.disabled = loading;
+          els.modelRefresh.textContent = loading ? "Refreshing\u2026" : "Refresh list";
+          let text2 = "";
+          if (models.length) {
+            text2 =
+              `${pickerFound} of ${models.length} models, from OpenRouter\u2019s list as of ${formatAsOf(new Date(modelsAt))}.`;
+            if (loading) text2 += " Getting a newer one\u2026";
+            else text2 += (modelsError ?
+                ` A newer list couldn\u2019t be fetched. ${modelsError}` : "") +
+              " Prices are dollars per million tokens, in / out.";
+          } else if (!loading && modelsError) {
+            text2 = `OpenRouter\u2019s list of models couldn\u2019t be fetched. ${modelsError}`;
+          }
+          els.modelCount.textContent = text2;
+          els.modelCount.classList.toggle("problem", Boolean(modelsError) && !loading);
         }
 
         function chooseModel(id) {
@@ -14304,7 +14383,7 @@ Your name (${next.humanName}), About you, the house rules and the participants (
             if (file) restoreSettingsFile(file);
           });
           closeOnClickOutside(els.dialog, closeSettings);
-          els.modelSearch.addEventListener("input", renderPicker);
+          els.modelSearch.addEventListener("input", () => renderPicker());
           els.modelSearch.addEventListener("keydown", (ev) => {
             const step = {
               ArrowDown: 1,
@@ -14321,6 +14400,10 @@ Your name (${next.humanName}), About you, the house rules and the participants (
               const row = pickerRows[pickerActive];
               if (row) chooseModel(row.id);
             }
+          });
+          els.modelRefresh.addEventListener("click", () => {
+            void refreshModels();
+            els.modelSearch.focus();
           });
           els.modelCancel.addEventListener("click", closeModelPicker);
           els.modelDialog.addEventListener("keydown", (ev) => {
@@ -14342,7 +14425,7 @@ Your name (${next.humanName}), About you, the house rules and the participants (
           renderSeats();
           renderComposerTo();
           renderTranscript(true);
-          void loadModels();
+          loadModels();
           void refreshKeyInfo();
         }
         start();
