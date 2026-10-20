@@ -296,12 +296,12 @@
           isn&#39;t in
           OpenRouter&#39;s current list. For an id that always follows a family&#39;s newest model
           (it
-          begins with &quot;<del>&quot;, such as &quot;<del>deepseek/deepseek-flash-latest&quot;),
-              the id shown is that of the
-              model it stands for now, such as &quot;deepseek/deepseek-v4.1-flash-1017&quot;; the
-              &quot;</del>&quot; name is on
-            the model button above it. On a Mac, pointing at the id shows the &quot;</del>&quot; id
-          too.</li>
+          begins with &quot;~&quot;, such as &quot;~deepseek/deepseek-flash-latest&quot;), the id
+          shown is that of the
+          model it stands for now, such as &quot;deepseek/deepseek-v4.1-flash-1017&quot;; the
+          &quot;~&quot; name is on
+          the model button above it. On a Mac, pointing at the id shows the &quot;~&quot; id too.
+        </li>
         <li><strong>The logos</strong> of the models&#39; makers (Anthropic, OpenAI, Google and so
           on) sit on each
           card&#39;s top line, just after the seat&#39;s name, folded cards included. They are the
@@ -482,15 +482,15 @@
             empty.</p>
         </li>
         <li>
-          <p><strong>To: Privately: <name></strong> sends a message to that participant only. The
-            box turns
-            parchment-colored and the button reads &quot;Send privately to <name>&quot;; Return and
-              ⌘↩ do the
-              same. The participant answers at once. Both entries are set on parchment and marked
-              like stage directions,
-              &quot;(privately, to Grok)&quot; and &quot;(privately, to John Doe)&quot;, and no
-              other participant ever sees
-              them. The participant itself remembers them, as it would in its own chat window.</p>
+          <p><strong>To: Privately: &lt;name&gt;</strong> sends a message to that participant only.
+            The box turns
+            parchment-colored and the button reads &quot;Send privately to &lt;name&gt;&quot;;
+            Return and ⌘↩ do the
+            same. The participant answers at once. Both entries are set on parchment and marked like
+            stage directions,
+            &quot;(privately, to Grok)&quot; and &quot;(privately, to John Doe)&quot;, and no other
+            participant ever sees
+            them. The participant itself remembers them, as it would in its own chat window.</p>
         </li>
         <li>
           <p><strong>&quot;…, privately&quot;</strong> as the very last word of your message does
@@ -1104,8 +1104,12 @@
         <code>dist/index.html</code> and <code>dist/README.html</code>, both pretty-printed; the
         build stops if the
         pretty-printer changed what the page&#39;s script or styles do), and <code>npm test</code>
-        (unit tests
-        plus a simulated run of the whole page against a fake OpenRouter).
+        (unit tests,
+        a simulated run of the whole page against a fake OpenRouter, and a check that README.html
+        shows everything README.md says: Markdown would strike out text between two &quot;~&quot;
+        and drop
+        a word in angle brackets, so README.md writes them <code>\~</code> and
+        <code>\&lt;name\&gt;</code>).
       </p>
 
     </main>
