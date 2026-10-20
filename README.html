@@ -251,29 +251,69 @@
         <li><strong>Name</strong>, at the top of the card, in the seat&#39;s color. Click it to
           rename. The name is
           what the others see (&quot;Skeptic says: …&quot;) and what appears in the margin of the
-          conversation.</li>
+          conversation. The logo of the model&#39;s maker comes just after the name (see The logos,
+          below).</li>
         <li><strong>+ copy</strong> adds another seat with the same model and settings, a new name
           (&quot;Claude 2&quot;)
           and a darker shade of the color, without the role.</li>
         <li><strong>×</strong> removes the seat. Its earlier contributions stay in the conversation.
         </li>
-        <li><strong>The model button</strong> opens the model picker, a list of every OpenRouter
-          model with its
-          price (dollars per million tokens, input / output):<ul>
+        <li><strong>The model button</strong> shows the model&#39;s name and opens the model picker,
+          a list of every
+          OpenRouter model with its price (dollars per million tokens, input / output):<ul>
             <li>Type a few words (&quot;opus&quot;, &quot;gemini pro&quot;) to narrow the list; the
               current model is
               marked &quot;(current)&quot;.</li>
+            <li><strong>Sort</strong>, beside the search box, puts the list in order by name, or by
+              input or output
+              price, lowest or highest first. Models at the same price are in name order. Routers,
+              which pass each request to a model they choose and so have no fixed price, are listed
+              with the price &quot;varies&quot; and come last either way. Dialog remembers the order
+              you chose.</li>
             <li>Click a model, or use ↑ ↓ (Page Up / Page Down to jump) and Return.</li>
             <li>Escape, Cancel, or a click outside the list closes it without changing anything.
             </li>
             <li>Any model id can be typed in full (it contains a &quot;/&quot;); a &quot;Use … as
               typed&quot; row appears.</li>
-            <li>The list comes from OpenRouter and is refreshed every 12 hours.</li>
+            <li>The list comes from OpenRouter. Dialog keeps a copy and gets a new one when its copy
+              is
+              more than 12 hours old: when the page opens, and when you open the picker (even if the
+              page has been open all along). The line under the list says how old the copy is
+              (&quot;from
+              OpenRouter&#39;s list as of 15:28 today&quot;).</li>
+            <li><strong>Refresh list</strong>, beside Cancel, gets a new list at once: use it for a
+              model that has
+              only just appeared. While the new list is on its way the button reads
+              &quot;Refreshing…&quot; and
+              the old list stays; your search and the highlighted model stay too. If the new list
+              can&#39;t be fetched, the line under the list says why, and the old list stays.</li>
+            <li>Dialog always asks OpenRouter itself for the list, never a copy the browser kept
+              from an
+              earlier visit.</li>
           </ul>
         </li>
         <li>Under the button: the model&#39;s <strong>id and price</strong>, or a warning if the id
           isn&#39;t in
-          OpenRouter&#39;s current list.</li>
+          OpenRouter&#39;s current list. For an id that always follows a family&#39;s newest model
+          (it
+          begins with &quot;<del>&quot;, such as &quot;<del>deepseek/deepseek-flash-latest&quot;),
+              the id shown is that of the
+              model it stands for now, such as &quot;deepseek/deepseek-v4.1-flash-1017&quot;; the
+              &quot;</del>&quot; name is on
+            the model button above it. On a Mac, pointing at the id shows the &quot;</del>&quot; id
+          too.</li>
+        <li><strong>The logos</strong> of the models&#39; makers (Anthropic, OpenAI, Google and so
+          on) sit on each
+          card&#39;s top line, just after the seat&#39;s name, folded cards included. They are the
+          ones
+          OpenRouter shows beside each model on its own pages, loaded
+          from the same places: OpenRouter&#39;s site, or for some makers (xAI, Z.ai, Xiaomi,
+          NVIDIA,
+          Amazon, MiniMax, StepFun) Google&#39;s service for a website&#39;s icon. Dialog knows the
+          logos of
+          about twenty makers; for any other, or if a logo doesn&#39;t load, the card shows the
+          maker&#39;s
+          initial in a small square instead.</li>
         <li><strong>Web search and page reading</strong> are always on; there is nothing to set (see
           Searching
           and reading web pages, below). If the model can&#39;t use tools, the card says
@@ -289,7 +329,9 @@
           skeptic&#39;s side&quot;. It shows &quot;(set)&quot; or &quot;(none)&quot;.</li>
         <li><strong>Sleep</strong>, beside Thinking, benches the participant for a while without
           removing it.
-          Its card folds up to just its name and the Sleep box and moves to the end of the list.
+          Its card folds up to just its name, its maker&#39;s logo and the Sleep box, and moves to
+          the
+          end of the list.
           While asleep it sits out &quot;team&quot; rounds and isn&#39;t the one Return asks when
           your message
           names no one. It still replies if you name it at the end of your message, and stays in
@@ -451,6 +493,48 @@
               them. The participant itself remembers them, as it would in its own chat window.</p>
         </li>
         <li>
+          <p><strong>&quot;…, privately&quot;</strong> as the very last word of your message does
+            the same without the To
+            menu: &quot;What do you really think, Grok, privately?&quot; goes to Grok alone, and
+            Grok answers.
+            Like a name, the word is for Dialog and comes off your message. While your message ends
+            with it, the box turns parchment-colored, the button reads <strong>Add
+              privately</strong>, and the
+            note beside it says who will reply (&quot;↩ sends privately; Grok replies · ⌘↩ just adds
+            it
+            privately&quot;).</p>
+          <ul>
+            <li><strong>Whom it goes to</strong> follows the usual rules for Return: the names at
+              the end (before
+              &quot;privately&quot;), or, if you name no one, the participant who spoke last. Press
+              a card&#39;s
+              <strong>Speak</strong> instead and, if you named no one, it goes to that participant.
+            </li>
+            <li><strong>Several names</strong> make a private group: &quot;…, Claude and Grok,
+              privately&quot; goes to Claude
+              and Grok, who reply in turn (or at once, with &quot;independently&quot;). Each sees
+              your message
+              and the other&#39;s reply; nobody else ever sees any of it. The entries are marked
+              &quot;(privately, to Claude and Grok, in turn)&quot;, &quot;(privately, to Bill and
+              Grok)&quot; and so on.
+              &quot;…, team, privately&quot; goes to every participant who is awake; sleeping ones
+              never see
+              it.</li>
+            <li><strong>⌘↩ or Add privately</strong> puts the message in privately without asking
+              anyone to reply.</li>
+            <li><strong>Nothing goes in for everyone by mistake.</strong> If no one has spoken yet
+              and you name no
+              one, the note says &quot;Say whom it&#39;s for&quot; and the button waits; while
+              replies are still
+              arriving, it says to wait until they&#39;ve finished.</li>
+            <li>Typing slips are forgiven (&quot;privatly&quot;, &quot;privatley&quot;), but
+              &quot;private&quot; doesn&#39;t count, and
+              neither does &quot;privately&quot; anywhere but at the very end: &quot;We spoke
+              privately, Grok&quot; asks
+              Grok openly.</li>
+          </ul>
+        </li>
+        <li>
           <p><strong>Replies appear as they are written.</strong> &quot;thinking…&quot; shows until
             the first words arrive.
             Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
@@ -460,13 +544,21 @@
         <li>
           <p><strong>Each turn</strong> shows, in the margin, a tick box for saving (see Saving,
             below), the time
-            it began and the speaker&#39;s name; hover over a participant&#39;s name to see the
-            exact model
-            that answered and the thinking level it was given. After the text come any
-            <strong>sources</strong>, then the <strong>cost</strong> (hover for token
-            counts, including how much was re-read at the discount and how much was stored for
-            re-reading), the <strong>speed</strong> (below), and &quot;stopped early&quot; if you
-            stopped it.</p>
+            it began and the speaker&#39;s name. After the text come any <strong>sources</strong>,
+            then the <strong>cost</strong>,
+            the <strong>speed</strong> (below), and &quot;stopped early&quot; if you stopped it.</p>
+        </li>
+        <li>
+          <p><strong>Tap (or click) a reply&#39;s cost and speed</strong> for the full particulars
+            in their place: the
+            exact model that answered (for a &quot;~&quot; id, the model it stood for then) and the
+            thinking
+            level it was given; the cost with its token counts, including how much was re-read at
+            the discount and how much was stored for re-reading; and the speed&#39;s breakdown. Tap
+            again
+            for the short version. Particulars that are open when you save are saved in full too.
+            Nothing needs hovering, so this works on an iPad too. (On a Mac,
+            pointing at a participant&#39;s name also shows the model and thinking level.)</p>
         </li>
         <li>
           <p><strong>× on a turn</strong> (it appears when you hover over the turn) removes it, so
@@ -495,8 +587,9 @@
         <li>
           <p><strong>When a model is withdrawn</strong> from OpenRouter, that seat&#39;s card shows
             &quot;… is not in
-            OpenRouter&#39;s current list&quot; (once Dialog&#39;s copy of the list is refreshed,
-            within 12 hours),
+            OpenRouter&#39;s current list&quot; (once Dialog&#39;s copy of the list is refreshed:
+            within 12 hours,
+            or at once with <strong>Refresh list</strong> in the model picker),
             and pressing its Speak button gives a failed reply that says the model is no longer
             listed and to choose another with the seat&#39;s model button. Nothing else is affected.
             The
@@ -543,7 +636,7 @@
         wrote (its hidden thinking included, since that is billed and takes time) divided by the
         seconds from pressing Speak to the last word. That time includes thinking, any web searches
         and network delay, so it measures how fast the participant answers you, not raw model
-        speed. Hover over it for the breakdown: how long until the first words appeared, and how
+        speed. Tap it for the breakdown: how long until the first words appeared, and how
         fast the visible text arrived after that, which is the closer measure of raw generation
         speed. Stopped and failed replies have no speed (OpenRouter reports no token count for
         them).</p>
@@ -735,7 +828,8 @@
           attached images shown,
           attached text files tucked into a section you click to open, PDFs listed by name; the
           participants&#39; files (see above); sources; costs, with the conversation&#39;s total at
-          the end.
+          the end
+          (in full, as on screen, for any reply whose particulars you have open).
           A reply given with a different model or thinking level from the one its seat has now (you
           changed it since, or removed the seat) is marked with the one it used. Failed replies are
           left out. The file is named like &quot;Dialog 2026 Oct 07 2205.html&quot;.</li>
@@ -910,8 +1004,7 @@
         waits more than 5 minutes between turns, and a cache that has expired costs more than none.
         Each seat&#39;s requests also carry their own label so OpenRouter keeps sending them to the
         host
-        that already holds that seat&#39;s earlier text. Hover over a reply&#39;s cost to see how
-        much was
+        that already holds that seat&#39;s earlier text. Tap a reply&#39;s cost to see how much was
         re-read at the discount and how much was stored.</p>
       <h2>Where your data lives</h2>
       <p>The conversation, attached files, the participants&#39; files, settings and your keys are
@@ -923,7 +1016,10 @@
         <strong>Restore from a file</strong>
         in the other. Messages go only to OpenRouter, which passes each one to the
         model you chose. The management key, if you add one, goes only to OpenRouter&#39;s credit
-        check.</p>
+        check. Drawing the seat cards&#39; logos asks OpenRouter&#39;s site, and for a few makers
+        Google&#39;s
+        icon service, for the logo; that request carries nothing of yours but your computer&#39;s
+        internet address and which logo it wants.</p>
       <h2>Look and credits</h2>
       <p>The page is set like a printed dialogue: each speaker&#39;s name hangs in the left margin,
         private exchanges are set on parchment and marked like stage directions. Controls use Optima
@@ -981,6 +1077,10 @@
           <tr>
             <td><code>attachments.ts</code></td>
             <td>Reading dropped or picked files into attachments</td>
+          </tr>
+          <tr>
+            <td><code>makers.ts</code></td>
+            <td>Who made each model, and where its logo comes from</td>
           </tr>
           <tr>
             <td><code>main.ts</code></td>

@@ -528,8 +528,53 @@
 
       .entry .foot .cost,
       .entry .foot .speed {
-        cursor: help;
         font-variant-numeric: tabular-nums;
+      }
+
+      /* A reply's summary is a button: tap it for the full particulars in its place, tap again for the summary. */
+      .entry button.foot {
+        justify-self: end;
+        align-items: baseline;
+        border: none;
+        background: transparent;
+        padding: 0.1rem 0.25rem;
+        margin-right: -0.25rem;
+        font-size: 0.78rem;
+        color: var(--muted);
+        text-align: right;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      .entry button.foot:hover {
+        color: var(--ink);
+      }
+
+      .entry button.foot .more {
+        font-size: 0.7rem;
+      }
+
+      .entry button.foot.open {
+        justify-self: stretch;
+        display: block;
+        text-align: left;
+        margin: 0.45rem 0 0;
+        padding: 0.45rem 0.7rem;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        font-size: 0.82rem;
+        line-height: 1.5;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .entry button.foot.open .detail {
+        display: block;
+      }
+
+      .entry button.foot.open .more {
+        display: block;
+        text-align: right;
+        margin-top: -1.2em;
       }
 
       .entry .del {
@@ -955,6 +1000,43 @@
         background: var(--paper);
       }
 
+      /* The name box fits the name: an invisible copy of the name, in the same cell of a one-cell
+   grid, sets the width; a long name is cut short by the room there is. */
+      .seat-head .name-fit {
+        display: inline-grid;
+        grid-template-columns: minmax(0, max-content);
+        flex: 0 1 auto;
+        min-width: 3.5em;
+      }
+
+      .seat-head .name-fit>input,
+      .seat-head .name-fit::after {
+        grid-area: 1 / 1;
+      }
+
+      .seat-head .name-fit>input {
+        width: 100%;
+        min-width: 0;
+        padding-right: calc(0.2em + 2px);
+      }
+
+      .seat-head .name-fit::after {
+        content: attr(data-text);
+        visibility: hidden;
+        height: 0;
+        overflow: hidden;
+        white-space: pre;
+        font-weight: 600;
+        font-size: 1.02rem;
+        padding: 0 calc(0.2em + 2px) 0 0.2em;
+        border: 1px solid transparent;
+      }
+
+      /* Pushes the buttons to the right, after the name and logo. */
+      .seat-head .head-gap {
+        flex: 1;
+      }
+
       .seat-head button {
         padding: 0.2em 0.5em;
         font-size: 0.85rem;
@@ -973,9 +1055,46 @@
       }
 
       .model-button .model-name {
+        flex: 1;
+        min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      /* The maker's logo, on the card's top line right of the name, on a small white plate so
+   dark logos show in dark mode; or its initial. */
+      .maker-slot {
+        display: inline-flex;
+        flex: none;
+      }
+
+      .maker-slot:empty {
+        display: none;
+      }
+
+      .maker-logo {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        box-sizing: border-box;
+        padding: 2px;
+        border-radius: 4px;
+        background: #fff;
+        box-shadow: 0 0 0 1px var(--line);
+        object-fit: contain;
+      }
+
+      .maker-logo.initial {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1;
+        color: color-mix(in srgb, var(--seat-color) 80%, #000);
+        background: color-mix(in srgb, var(--seat-color) 16%, #fff);
       }
 
       .model-button .chev {
@@ -989,7 +1108,7 @@
         overflow-wrap: anywhere;
       }
 
-      .seat-model-info span {
+      .seat-model-info>span {
         display: block;
       }
 
@@ -1072,7 +1191,7 @@
       }
 
       .seat.asleep .seat-name {
-        flex: 1;
+        flex: 0 1 auto;
         min-width: 0;
         font-weight: 600;
         color: color-mix(in srgb, var(--seat-color) 50%, var(--muted));
@@ -1265,6 +1384,30 @@
         color: var(--muted);
       }
 
+      .model-search-row {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      .model-search-row input {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .model-sort {
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+        white-space: nowrap;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .model-sort select {
+        width: auto;
+      }
+
       .model-foot {
         display: flex;
         justify-content: space-between;
@@ -1410,8 +1553,19 @@
     <dialog id="model-dialog" class="model-dialog">
       <div class="model-picker">
         <h2 id="model-title">Choose a model</h2>
-        <input id="model-search" type="search" autocomplete="off" spellcheck="false"
-          placeholder="Search by name or id, e.g. “opus”, “gemini pro”, “deepseek”">
+        <div class="model-search-row">
+          <input id="model-search" type="search" autocomplete="off" spellcheck="false"
+            placeholder="Search by name or id, e.g. “opus”, “gemini pro”, “deepseek”">
+          <label class="model-sort">Sort
+            <select id="model-sort">
+              <option value="name">by name</option>
+              <option value="in-asc">by input price, lowest first</option>
+              <option value="in-desc">by input price, highest first</option>
+              <option value="out-asc">by output price, lowest first</option>
+              <option value="out-desc">by output price, highest first</option>
+            </select>
+          </label>
+        </div>
         <div id="model-results" class="model-results" role="listbox"></div>
         <div class="model-foot">
           <span id="model-count"></span>
@@ -10718,6 +10872,47 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return choice ? choice.label : seat.effort === "default" ? "model\u2019s default" : seat
             .effort;
         }
+        var MODEL_SORTS = ["name", "in-asc", "in-desc", "out-asc", "out-desc"];
+
+        function sortModels(list, sort) {
+          const byName = (a, b) => a.name.localeCompare(b.name);
+          if (sort === "name") return [...list].sort(byName);
+          const price = (m) => sort.startsWith("in") ? m.inputPrice : m.outputPrice;
+          const dir = sort.endsWith("desc") ? -1 : 1;
+          return [...list].sort((a, b) => {
+            const [pa, pb] = [price(a), price(b)];
+            if (pa < 0 || pb < 0) return pa < 0 && pb < 0 ? byName(a, b) : pa < 0 ? 1 : -1;
+            return (pa - pb) * dir || byName(a, b);
+          });
+        }
+
+        function privateGroup(e) {
+          const p = e.privateWith;
+          if (!p || Array.isArray(p) && !p.length) return void 0;
+          return Array.isArray(p) ? p : [p];
+        }
+
+        function privateWithFor(group) {
+          if (!group || !group.length) return void 0;
+          return group.length === 1 ? group[0] : [...group];
+        }
+
+        function canSee(seatId, e) {
+          const g = privateGroup(e);
+          return !g || g.includes(seatId);
+        }
+
+        function privateLabel(e, seats, humanName) {
+          const group = privateGroup(e);
+          if (!group) return void 0;
+          const name = (id) => seats.find((s) => s.id === id)?.name ?? "a removed seat";
+          if (e.speaker === "human") {
+            if (e.addressedTo && !("seatId" in e.addressedTo))
+            return `privately, ${addresseeLabel(e.addressedTo, seats)}`;
+            return `privately, to ${nameList(group.map(name))}`;
+          }
+          return `privately, to ${nameList([humanName, ...group.filter((id) => id !== e.speaker).map(name)])}`;
+        }
 
         function isSettled(e) {
           if (e.speaker === "human") return true;
@@ -10768,6 +10963,41 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
             parts.push(line + ".");
           }
           return parts.join(" ");
+        }
+
+        function usageText(e) {
+          const u = e.usage;
+          if (!u) return void 0;
+          const n = (x2) => x2.toLocaleString("en-US");
+          const parts = [];
+          if (u.cachedTokens) parts.push(`${n(u.cachedTokens)} at the re-read discount`);
+          if (u.cacheWriteTokens) parts.push(`${n(u.cacheWriteTokens)} stored for re-reading`);
+          const read2 = `${n(u.promptTokens)} tokens read` + (parts.length ?
+            ` (${parts.join(", ")})` : "");
+          const wrote = `${n(u.completionTokens)} written` + (u.reasoningTokens ?
+            ` (${n(u.reasoningTokens)} of them thinking)` : "");
+          return `${read2}; ${wrote}`;
+        }
+
+        function turnDetails(e, models2) {
+          if (e.speaker === "human") return [];
+          const lines = [];
+          const model = e.model ?? e.seatModel;
+          if (model) {
+            const asked = e.seatModel && e.model && e.seatModel !== e.model ?
+              ` (for ${e.seatModel})` : "";
+            const thinking = e.seatEffort === void 0 ? "" :
+              `; thinking: ${thinkingLabel({ effort: e.seatEffort }, models2?.find((m) => m.id === (e.seatModel ?? model).trim()))}`;
+            lines.push(`Model: ${model}${asked}${thinking}.`);
+          }
+          if (e.cost !== void 0) {
+            const usage = usageText(e);
+            lines.push(`Cost: ${formatCost(e.cost)}` + (usage ? `, for ${usage}.` : "."));
+          }
+          const speed = turnSpeed(e);
+          if (speed) lines.push(`Speed: ${speedDetails(e, speed)}`);
+          if (e.status === "stopped") lines.push("Stopped early.");
+          return lines;
         }
 
         function totalCost(entries2) {
@@ -10920,15 +11150,28 @@ ${role}`;
           return prompt;
         }
 
-        function entryParts(e, humanName, abilities, seats, replaced) {
+        function entryParts(e, humanName, abilities, seats, replaced, viewerId) {
           const files = e.attachments ?? [];
+          const group = privateGroup(e);
+          const name = (id) => seats.find((s) => s.id === id)?.name ?? "a removed seat";
           let label;
           if (e.speaker === "human") {
             const verb = e.text.trim() ? "says" : files.length > 1 ? "shares these files" :
               "shares a file";
             const to = e.addressedTo ? ` (${addresseeLabel(e.addressedTo, seats, true)})` : "";
-            label = e.privateWith ? `${humanName} ${verb} (privately, only you can see this):` :
-              `${humanName} ${verb}${to}:`;
+            if (group) {
+              const others = group.filter((id) => id !== viewerId).map(name);
+              const how = e.addressedTo && !("seatId" in e.addressedTo) ?
+                `; ${addresseeLabel(e.addressedTo, seats, true)}` : "";
+              label =
+                `${humanName} ${verb} (privately, only you${others.length ? ` and ${nameList(others)}` : ""} can see this${how}):`;
+            } else {
+              label = `${humanName} ${verb}${to}:`;
+            }
+          } else if (group) {
+            const others = group.filter((id) => id !== e.speaker && id !== viewerId).map(name);
+            label =
+              `${e.speakerName} says (privately; only ${nameList([humanName, ...others, "you"])} can see this):`;
           } else {
             label = `${e.speakerName} says:`;
           }
@@ -11015,8 +11258,7 @@ ${a.data}
             type: "text",
             text: t
           }];
-          const seen = entries2.filter((e) => isSettled(e) && !(e.privateWith && e.privateWith !==
-            seat.id));
+          const seen = entries2.filter((e) => isSettled(e) && canSee(seat.id, e));
           const replaced = replacedFiles(seen);
           for (const e of seen) {
             if (e.speaker === seat.id) {
@@ -11025,7 +11267,7 @@ ${a.data}
               push("assistant", text2(own.filter((t) => t.trim()).join("\n\n")));
             } else {
               push("user", entryParts(e, settings2.humanName, abilities, settings2.seats,
-                replaced));
+                replaced, seat.id));
             }
           }
           const opener = `(${settings2.humanName} has asked you to open the conversation.)`;
@@ -11110,6 +11352,11 @@ ${a.data}
             2;
         }
 
+        function isPrivately(word) {
+          return word === "privately" || word.length >= 8 && editDistance(word, "privately") ===
+          1;
+        }
+
         function isApart(word) {
           return isIndependently(word) || isParallel(word);
         }
@@ -11185,6 +11432,9 @@ ${a.data}
 
         function readAddress(text2, seats) {
           const tail = lastWordEnd(text2);
+          const lastWord = wordEndingAt(text2, tail);
+          const privately = lastWord !== void 0 && isPrivately(lastWord.word);
+          const stop = privately ? lastWordEnd(text2, lastWord.start) : tail;
           const finish = (cut2, rest) => {
             const before = text2.slice(0, skipSeparators(text2, cut2)).replace(/[\s,;:–—-]+$/u,
               "");
@@ -11192,10 +11442,13 @@ ${a.data}
             if (!before || /[.?!…]$/.test(before)) after = "";
             return {
               text: (before + after).trim(),
-              ...rest
+              ...rest,
+              ...privately ? {
+                privately: true
+              } : {}
             };
           };
-          let end = tail;
+          let end = stop;
           let independently = false;
           const trailing = apartEndingAt(text2, end);
           if (trailing !== void 0) {
@@ -11224,13 +11477,11 @@ ${a.data}
               call: found.length > 1 ? independently ? "independently" : "in turn" : void 0
             });
           }
-          const call = teamCall(text2);
-          if (!call) return {
-            text: text2,
+          const call = teamCall(text2.slice(0, stop));
+          const last = call ? wordEndingAt(text2, stop) : void 0;
+          if (!call || !last) return privately ? finish(lastWord.start, {
             seats: []
-          };
-          const last = wordEndingAt(text2, tail);
-          if (!last) return {
+          }) : {
             text: text2,
             seats: []
           };
@@ -11240,7 +11491,7 @@ ${a.data}
               last.start)) : void 0;
             if (apart !== void 0) first = apart;
           } else {
-            const apart = apartEndingAt(text2, tail) ?? last.start;
+            const apart = apartEndingAt(text2, stop) ?? last.start;
             first = wordEndingAt(text2, skipSeparators(text2, apart))?.start ?? apart;
           }
           return finish(first, {
@@ -11467,14 +11718,10 @@ ${a.data}
         }
 
         function direction(e, settings2) {
-          if (!e.privateWith) {
-            if (e.addressedTo) return `(${addresseeLabel(e.addressedTo, settings2.seats)})`;
-            return e.independent ? "(answering independently)" : "";
-          }
-          if (e.speaker !== "human") return `(privately, to ${settings2.humanName})`;
-          const to = settings2.seats.find((s) => s.id === e.privateWith)?.name ??
-          "a removed seat";
-          return `(privately, to ${to})`;
+          const privately = privateLabel(e, settings2.seats, settings2.humanName);
+          if (privately) return `(${privately})`;
+          if (e.addressedTo) return `(${addresseeLabel(e.addressedTo, settings2.seats)})`;
+          return e.independent ? "(answering independently)" : "";
         }
 
         function modelNote(e, settings2, models2) {
@@ -11532,7 +11779,12 @@ ${a.data}
           return `<div class="sources">Sources:<ul>${lis}</ul></div>`;
         }
 
-        function footHtml(e) {
+        function footHtml(e, opts) {
+          if (opts.details?.has(e.id)) {
+            const lines = turnDetails(e, opts.models);
+            if (lines.length)
+            return `<div class="foot details">${lines.map((l3) => `<p>${esc(l3)}</p>`).join("")}</div>`;
+          }
           const bits = [];
           if (e.cost !== void 0) bits.push(`<span>${formatCost(e.cost)}</span>`);
           const speed = turnSpeed(e);
@@ -11560,7 +11812,7 @@ ${a.data}
             dir ? `<span class="direction">${esc(dir)}</span>` : "",
             model ? `<span class="model">${esc(model)}</span>` : "",
             `</div>`,
-            `<div class="speech">${body}${filesHtml(e.attachments ?? [])}${madeHtml(e)}${sourcesHtml(e)}${footHtml(e)}</div>`,
+            `<div class="speech">${body}${filesHtml(e.attachments ?? [])}${madeHtml(e)}${sourcesHtml(e)}${footHtml(e, opts)}</div>`,
             `</article>`
           ].join("");
         }
@@ -11705,6 +11957,8 @@ details.file summary { cursor: pointer; }
 .sources { padding-left: 1.2rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); }
 .sources ul { margin: 0.15rem 0 0; padding-left: 1.1rem; }
 .foot { display: flex; gap: 1rem; justify-content: flex-end; font-size: 0.78rem; color: var(--muted); margin-top: 0.35rem; }
+.foot.details { display: block; margin-top: 0.45rem; padding: 0.45rem 0.7rem; font-size: 0.82rem; line-height: 1.5; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.foot.details p { margin: 0; }
 footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 @media (max-width: 640px) {
   .turn { grid-template-columns: 1fr; }
@@ -11716,6 +11970,45 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
   details.file[open] summary, details.file summary { list-style: none; }
 }
 `.trim();
+        // src/makers.ts
+        var OPENROUTER_ICON = (file) => `https://openrouter.ai/images/icons/${file}`;
+        var SITE_ICON = (site) =>
+          `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${site}&size=64`;
+        var MAKER_LOGOS = {
+          anthropic: OPENROUTER_ICON("Anthropic.svg"),
+          openai: OPENROUTER_ICON("OpenAI.svg"),
+          google: OPENROUTER_ICON("GoogleGemini.svg"),
+          "x-ai": SITE_ICON("https://x.ai/"),
+          deepseek: OPENROUTER_ICON("DeepSeek.png"),
+          qwen: OPENROUTER_ICON("Qwen.png"),
+          mistralai: OPENROUTER_ICON("Mistral.png"),
+          meta: OPENROUTER_ICON("Meta.png"),
+          "meta-llama": OPENROUTER_ICON("Meta.png"),
+          moonshotai: OPENROUTER_ICON("MoonshotAI.png"),
+          "z-ai": SITE_ICON("https://z.ai/"),
+          xiaomi: SITE_ICON("https://www.mi.com"),
+          cohere: OPENROUTER_ICON("Cohere.png"),
+          perplexity: OPENROUTER_ICON("Perplexity.png"),
+          microsoft: OPENROUTER_ICON("Microsoft.svg"),
+          nvidia: SITE_ICON("https://nvidia.com/"),
+          amazon: SITE_ICON("https://nova.amazon.com/"),
+          minimax: SITE_ICON("https://minimaxi.com/"),
+          stepfun: SITE_ICON("https://platform.stepfun.ai/")
+        };
+
+        function makerOf(modelId, modelName) {
+          const slug = (/^~?([^/]+)\//.exec(modelId.trim())?.[1] ?? "").toLowerCase();
+          const fromName = modelName && modelName.includes(":") ? modelName.slice(0, modelName
+            .indexOf(":")).trim() : "";
+          const name = fromName || slug;
+          const initial = (/[\p{L}\p{N}]/u.exec(name)?.[0] ?? "?").toUpperCase();
+          return {
+            slug,
+            name,
+            logo: MAKER_LOGOS[slug],
+            initial
+          };
+        }
         // src/pretty.ts
         var import_js_beautify = __toESM(require_js(), 1);
         var PRETTY_OPTIONS = {
@@ -12037,6 +12330,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             const ins = Array.isArray(arch.input_modalities) ? arch.input_modalities.filter((
               x2) => typeof x2 === "string") : ["text"];
             const pricing = isObj(m.pricing) ? m.pricing : {};
+            const target = isObj(m.alias_target) ? m.alias_target : void 0;
             out.push({
               id: m.id,
               name: typeof m.name === "string" ? m.name : m.id,
@@ -12047,7 +12341,13 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               reasoning: parseReasoning(m.reasoning),
               // Listed among its supported parameters; assume so if OpenRouter doesn't say.
               tools: Array.isArray(m.supported_parameters) ? m.supported_parameters
-                .includes("tools") : true
+                .includes("tools") : true,
+              ...target && typeof target.slug === "string" ? {
+                aliasOf: {
+                  id: target.slug,
+                  name: typeof target.name === "string" ? target.name : target.slug
+                }
+              } : {}
             });
           }
           return out.sort((a, b) => a.name.localeCompare(b.name));
@@ -12101,7 +12401,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         // src/storage.ts
         var SETTINGS_KEY = "dialog.settings.v1";
         var SESSION_KEY = "dialog.session.v1";
-        var MODELS_KEY = "dialog.models.v4";
+        var MODELS_KEY = "dialog.models.v5";
 
         function read(key) {
           try {
@@ -12351,6 +12651,16 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             models: models2
           });
         }
+        var MODEL_SORT_KEY = "dialog.modelSort.v1";
+
+        function loadModelSort() {
+          const v = read(MODEL_SORT_KEY);
+          return MODEL_SORTS.find((x2) => x2 === v) ?? "name";
+        }
+
+        function saveModelSort(sort) {
+          write(MODEL_SORT_KEY, sort);
+        }
         // src/main.ts
         var settings = loadSettings();
         var session = loadSession();
@@ -12359,6 +12669,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         var modelsAt = savedModels?.at ?? 0;
         var modelsLoading = null;
         var modelsError = "";
+        var modelSort = loadModelSort();
         var keyInfo = null;
         var keyInfoFailed = false;
         var credit = null;
@@ -12409,6 +12720,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           modelDialog: byId("model-dialog"),
           modelTitle: byId("model-title"),
           modelSearch: byId("model-search"),
+          modelSort: byId("model-sort"),
           modelResults: byId("model-results"),
           modelCount: byId("model-count"),
           modelRefresh: byId("model-refresh"),
@@ -12469,7 +12781,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         var hasKey = () => settings.apiKey.trim() !== "";
 
         function priceText(n) {
-          return "$" + String(Number(n.toFixed(2)));
+          return n < 0 ? "varies" : "$" + String(Number(n.toFixed(2)));
         }
         var CREDITS_PAGE = "https://openrouter.ai/settings/credits";
 
@@ -12609,19 +12921,14 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             )
           );
         }
+        var opened = /* @__PURE__ */ new Set();
 
-        function usageTitle(e) {
-          const u = e.usage;
-          if (!u) return void 0;
-          const n = (x2) => x2.toLocaleString("en-US");
-          const parts = [];
-          if (u.cachedTokens) parts.push(`${n(u.cachedTokens)} at the re-read discount`);
-          if (u.cacheWriteTokens) parts.push(`${n(u.cacheWriteTokens)} stored for re-reading`);
-          const read2 = `${n(u.promptTokens)} tokens read` + (parts.length ?
-            ` (${parts.join(", ")})` : "");
-          const wrote = `${n(u.completionTokens)} written` + (u.reasoningTokens ?
-            ` (${n(u.reasoningTokens)} of them thinking)` : "");
-          return `${read2}; ${wrote}`;
+        function toggleDetails(e, article) {
+          if (opened.has(e.id)) opened.delete(e.id);
+          else opened.add(e.id);
+          const fresh = renderEntry(e);
+          article.replaceWith(fresh);
+          fresh.querySelector("button.foot")?.focus();
         }
 
         function replyModelTitle(e) {
@@ -12642,11 +12949,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           let direction2 = e.independent ? "(answering independently)" : void 0;
           if (e.addressedTo && !e.privateWith) direction2 =
             `(${addresseeLabel(e.addressedTo, settings.seats)})`;
-          if (e.privateWith) {
-            direction2 = isHuman ?
-              `(privately, to ${seatById(e.privateWith)?.name ?? "a removed seat"})` :
-              `(privately, to ${settings.humanName})`;
-          }
+          const privately = privateLabel(e, settings.seats, settings.humanName);
+          if (privately) direction2 = `(${privately})`;
           const body = h2("div", {
             class: "body"
           });
@@ -12767,18 +13071,40 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           }
           const foot = [];
           if (e.cost !== void 0) foot.push(h2("span", {
-            class: "cost",
-            title: usageTitle(e)
+            class: "cost"
           }, formatCost(e.cost)));
           const speed = turnSpeed(e);
           if (speed) foot.push(h2("span", {
-            class: "speed",
-            title: speedDetails(e, speed)
+            class: "speed"
           }, speedLabel(speed)));
           if (e.status === "stopped") foot.push(h2("span", {}, "stopped early"));
-          if (foot.length) article.append(h2("div", {
-            class: "foot"
-          }, ...foot));
+          const details = foot.length && !streaming ? turnDetails(e, models) : [];
+          if (details.length) {
+            const open = opened.has(e.id);
+            article.append(
+              h2(
+                "button", {
+                  type: "button",
+                  class: open ? "foot open" : "foot",
+                  "aria-expanded": open ? "true" : "false",
+                  "aria-label": open ? void 0 :
+                    "Show this reply's model, token counts and speed",
+                  onclick: () => toggleDetails(e, article)
+                },
+                ...open ? details.map((line) => h2("span", {
+                  class: "detail"
+                }, line)) : foot,
+                h2("span", {
+                  class: "more",
+                  "aria-hidden": "true"
+                }, open ? "\u25BE" : "\u25B8")
+              )
+            );
+          } else if (foot.length) {
+            article.append(h2("div", {
+              class: "foot"
+            }, ...foot));
+          }
           return article;
         }
 
@@ -13025,7 +13351,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           entry.text = split.text.trim();
           if (split.files.length) entry.made = split.files.map(madeFileFrom);
         }
-        async function speak(seatId, isPrivate = false, {
+        async function speak(seatId, privateTo, {
           useComposer = true,
           independent = false,
           alongside = false
@@ -13037,8 +13363,13 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             alert(`Choose a model for ${seat.name} first.`);
             return void 0;
           }
-          if (useComposer && !isPrivate && !els.composerTo.value) {
+          if (useComposer && !privateTo && !els.composerTo.value) {
             const typed = els.composerText.value.trim();
+            const a = readAddress(typed, settings.seats);
+            if (a.privately) {
+              void sendPrivately(a, seat);
+              return void 0;
+            }
             if (typed || pending.length) {
               addHumanEntry(typed, void 0, takePending());
               els.composerText.value = "";
@@ -13055,7 +13386,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             id: newId(),
             speaker: seat.id,
             speakerName: seat.name,
-            privateWith: isPrivate ? seat.id : void 0,
+            privateWith: privateWithFor(privateTo),
             independent: independent || void 0,
             text: "",
             time: ( /* @__PURE__ */ new Date()).toISOString(),
@@ -13154,7 +13485,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const start2 = i < 0 ? 0 : (i + 1) % Math.max(seats.length, 1);
           return [...seats.slice(start2), ...seats.slice(0, start2)];
         }
-        async function runRound(call, order) {
+        async function runRound(call, order, privateTo) {
           const named = Boolean(order);
           order ??= roundOrder();
           if (occupied() || !ensureKey()) return;
@@ -13179,8 +13510,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 alongside: parallel
               };
               first = false;
-              if (parallel) started.push(speak(seat.id, false, options));
-              else await speak(seat.id, false, options);
+              if (parallel) started.push(speak(seat.id, privateTo, options));
+              else await speak(seat.id, privateTo, options);
             }
             await Promise.allSettled(started);
           } finally {
@@ -13192,7 +13523,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         async function retry(failed) {
           if (occupied()) return;
           session.entries = session.entries.filter((x2) => x2.id !== failed.id);
-          await speak(failed.speaker, Boolean(failed.privateWith), {
+          await speak(failed.speaker, privateGroup(failed), {
             useComposer: false
           });
         }
@@ -13249,6 +13580,48 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const justAdds = () => h2("span", {
             class: "nowrap"
           }, ` \xB7 ${ADD_KEY} just adds`);
+          const newlineNote = ` ${NEWLINE_KEY} starts a new line.`;
+          const typed = !seat ? readAddress(els.composerText.value, settings.seats) : void 0;
+          if (typed?.privately) {
+            els.composer.classList.add("private-mode");
+            els.composerSend.textContent = "Add privately";
+            const targets = privateTargets(typed);
+            if (occupied()) {
+              els.composerHint.replaceChildren(
+                "Wait until the replies have finished to send this privately");
+              els.composerHint.title =
+                "While participants are replying, a message ending with \u201Cprivately\u201D stays in the box; Return and Add do nothing." +
+                newlineNote;
+              els.composerSend.disabled = true;
+            } else if (!targets.length) {
+              els.composerHint.replaceChildren(
+                "Say whom it\u2019s for: \u201C\u2026, Grok, privately\u201D");
+              els.composerHint.title =
+                "No one has spoken yet, so a message ending with \u201Cprivately\u201D needs a participant\u2019s name before it; until then, Return and Add do nothing." +
+                newlineNote;
+              els.composerSend.disabled = true;
+            } else {
+              const apart = typed.call === "independently" && targets.length > 1;
+              els.composerHint.replaceChildren(
+                `${ASK_KEY} sends privately; `,
+                ...coloredNames(targets),
+                targets.length === 1 ? " replies" : apart ? " reply independently, at once" :
+                " reply in turn",
+                h2("span", {
+                  class: "nowrap"
+                }, ` \xB7 ${ADD_KEY} just adds it privately`)
+              );
+              els.composerHint.title =
+                `Return sends your message privately to ${targets.map((s) => s.name).join(", ")}` +
+                (targets.length === 1 ?
+                  ", who replies privately, as if you had chosen them under To." :
+                  ": only they see it and one another\u2019s replies to it, and each replies once" +
+                  (apart ? ", all at the same time." : ", in that order.")) +
+                ` ${ADD_KEY} (or Add privately) just adds it, privately, without asking anyone.` +
+                newlineNote;
+            }
+            return;
+          }
           const free = !seat && !occupied();
           const a = free ? readAddress(els.composerText.value, settings.seats) : void 0;
           const listed = a && a.seats.length > 1 ? a.seats : [];
@@ -13314,10 +13687,58 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               ) + newline;
           }
         }
+
+        function privateTargets(a, fallback) {
+          if (a.everyone) return roundOrder();
+          if (a.seats.length) return a.seats;
+          const next = fallback ?? previousSpeaker();
+          return next ? [next] : [];
+        }
+
+        function privateAddressee(seats, a) {
+          if (seats.length === 1) return {
+            seatId: seats[0].id,
+            name: seats[0].name
+          };
+          if (a.everyone && a.call) return {
+            everyone: a.call
+          };
+          return {
+            seats: seats.map((s) => ({
+              id: s.id,
+              name: s.name
+            })),
+            how: a.call ?? "in turn"
+          };
+        }
+        async function sendPrivately(a, fallback) {
+          if (!a.text && !pending.length) return;
+          const seats = privateTargets(a, fallback);
+          if (!seats.length || !ensureKey()) return;
+          const unready = seats.find((s) => !s.model.trim());
+          if (unready) {
+            alert(`Choose a model for ${unready.name} first.`);
+            return;
+          }
+          const group = seats.map((s) => s.id);
+          addHumanEntry(a.text, privateWithFor(group), takePending(), privateAddressee(seats,
+            a));
+          els.composerText.value = "";
+          updateComposerState();
+          if (seats.length === 1) await speak(seats[0].id, group, {
+            useComposer: false
+          });
+          else await runRound(a.call ?? "in turn", seats, group);
+        }
         async function sendAndAsk() {
           const typed = els.composerText.value;
           if (!typed.trim() && !pending.length) return;
-          if (els.composerTo.value || occupied()) return submitComposer();
+          if (els.composerTo.value) return submitComposer();
+          if (readAddress(typed, settings.seats).privately) {
+            if (!occupied()) await sendPrivately(readAddress(typed, settings.seats));
+            return;
+          }
+          if (occupied()) return submitComposer();
           const a = readAddress(typed, settings.seats);
           const everyone = a.everyone && a.call && roundOrder().length ? a.call : void 0;
           if (a.everyone && !everyone) {
@@ -13385,6 +13806,16 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           if (!text2 && !pending.length) return;
           const to = els.composerTo.value;
           if (!to) {
+            const a = readAddress(text2, settings.seats);
+            if (a.privately) {
+              const seats = privateTargets(a);
+              if (!seats.length || occupied() || !a.text && !pending.length) return;
+              addHumanEntry(a.text, privateWithFor(seats.map((s) => s.id)), takePending(),
+                privateAddressee(seats, a));
+              els.composerText.value = "";
+              updateComposerState();
+              return;
+            }
             addHumanEntry(text2, void 0, takePending());
             els.composerText.value = "";
             updateComposerState();
@@ -13393,7 +13824,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           if (busy.size || !ensureKey()) return;
           addHumanEntry(text2, to, takePending());
           els.composerText.value = "";
-          await speak(to, true);
+          await speak(to, [to]);
         }
         var pending = [];
 
@@ -13515,6 +13946,11 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 class: "seat-name",
                 title: seat.model
               }, seat.name),
+              ...seat.model.trim() ? [makerLogo(makerOf(seat.model, modelInfo(seat.model)
+                ?.name))] : [],
+              h2("span", {
+                class: "head-gap"
+              }),
               stopBtn,
               h2("label", {
                 class: "sleep",
@@ -13530,6 +13966,26 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           return card;
         }
 
+        function makerLogo(maker) {
+          const initial = () => h2("span", {
+            class: "maker-logo initial",
+            "aria-hidden": "true"
+          }, maker.initial);
+          if (!maker.logo) return initial();
+          const img = h2("img", {
+            class: "maker-logo",
+            src: maker.logo,
+            alt: "",
+            width: 20,
+            height: 20,
+            referrerpolicy: "no-referrer"
+          });
+          img.addEventListener("error", () => img.replaceWith(initial()), {
+            once: true
+          });
+          return img;
+        }
+
         function seatCard(seat) {
           if (seat.asleep) return sleepingCard(seat);
           const modelBtn = h2("button", {
@@ -13541,6 +13997,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const info = h2("div", {
             class: "seat-model-info"
           });
+          const logoSlot = h2("span", {
+            class: "maker-slot"
+          });
           const effortSelect = h2("select", {
             "aria-label": "Thinking level",
             onchange: (ev) => {
@@ -13550,6 +14009,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           });
           const refreshModel = () => {
             const m = modelInfo(seat.model);
+            logoSlot.replaceChildren(...seat.model.trim() ? [makerLogo(makerOf(seat.model, m
+              ?.name))] : []);
             modelBtn.replaceChildren(
               h2("span", {
                 class: "model-name"
@@ -13561,11 +14022,17 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             );
             info.classList.remove("warn");
             if (m) {
+              const varies = m.inputPrice < 0 || m.outputPrice < 0;
               info.replaceChildren(
-                h2("span", {
+                // An id that follows a family's newest model ("~…-latest"): the model it stands for now.
+                m.aliasOf ? h2("span", {
+                  class: "id alias",
+                  title: `${m.id} stands for this model now; OpenRouter moves it to each newer one`
+                }, m.aliasOf.id) : h2("span", {
                   class: "id"
                 }, m.id),
-                h2("span", {},
+                h2("span", {}, varies ?
+                  "Price varies: it passes each request to a model it chooses" :
                   `${priceText(m.inputPrice)} in, ${priceText(m.outputPrice)} out per million tokens`
                   )
               );
@@ -13663,25 +14130,42 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 class: "seat-head"
               },
               grip,
-              h2("input", {
-                type: "text",
-                value: seat.name,
-                "aria-label": "Seat name",
-                spellcheck: "false",
-                oninput: (ev) => {
-                  seat.name = ev.target.value;
-                  renderComposerTo();
-                  persistSoon();
+              // The name box is as wide as the name (its hidden copy, in data-text, sets the width),
+              // so the maker's logo comes straight after the name.
+              h2(
+                "span", {
+                  class: "name-fit",
+                  "data-text": seat.name
                 },
-                onchange: (ev) => {
-                  const input = ev.target;
-                  if (!input.value.trim()) {
-                    seat.name = "Unnamed";
-                    input.value = seat.name;
+                h2("input", {
+                  type: "text",
+                  value: seat.name,
+                  size: "1",
+                  // no built-in width; the name sets it
+                  "aria-label": "Seat name",
+                  spellcheck: "false",
+                  oninput: (ev) => {
+                    const input = ev.target;
+                    seat.name = input.value;
+                    input.parentElement.dataset.text = input.value;
                     renderComposerTo();
+                    persistSoon();
+                  },
+                  onchange: (ev) => {
+                    const input = ev.target;
+                    if (!input.value.trim()) {
+                      seat.name = "Unnamed";
+                      input.value = seat.name;
+                      input.parentElement.dataset.text = input.value;
+                      renderComposerTo();
+                    }
+                    persist();
                   }
-                  persist();
-                }
+                })
+              ),
+              logoSlot,
+              h2("span", {
+                class: "head-gap"
               }),
               copyBtn,
               removeBtn
@@ -13977,10 +14461,13 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const seat = pickerSeatId ? seatById(pickerSeatId) : void 0;
           const q2 = els.modelSearch.value.trim();
           const words = q2.toLowerCase().split(/\s+/).filter(Boolean);
-          const found = models.filter((m) => {
-            const hay = `${m.name} ${m.id}`.toLowerCase();
-            return words.every((w) => hay.includes(w));
-          });
+          const found = sortModels(
+            models.filter((m) => {
+              const hay = `${m.name} ${m.id}`.toLowerCase();
+              return words.every((w) => hay.includes(w));
+            }),
+            modelSort
+          );
           pickerRows = [];
           if (q2.includes("/") && !/\s/.test(q2) && !models.some((m) => m.id === q2)) {
             pickerRows.push({
@@ -14279,7 +14766,8 @@ Your name (${next.humanName}), About you, the house rules and the participants (
             models,
             render: renderMarkdown,
             logo,
-            savedAt: /* @__PURE__ */ new Date()
+            savedAt: /* @__PURE__ */ new Date(),
+            details: opened
           };
         }
 
@@ -14400,6 +14888,13 @@ Your name (${next.humanName}), About you, the house rules and the participants (
               const row = pickerRows[pickerActive];
               if (row) chooseModel(row.id);
             }
+          });
+          els.modelSort.value = modelSort;
+          els.modelSort.addEventListener("change", () => {
+            modelSort = MODEL_SORTS.find((x2) => x2 === els.modelSort.value) ?? "name";
+            saveModelSort(modelSort);
+            renderPicker();
+            els.modelSearch.focus();
           });
           els.modelRefresh.addEventListener("click", () => {
             void refreshModels();
