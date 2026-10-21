@@ -131,6 +131,24 @@ Each participant ("seat") has a card on the right:
 
 ## Talking
 
+**Words at the end of your message** tell Dialog who should reply when you press Return.
+Dialog takes them off before anyone sees your message, and marks it with a stage direction
+instead, such as "(to Grok)". Each is explained in full below.
+
+| End your message with | Example | What happens |
+|---|---|---|
+| a name | "…what do you think, Grok?" | Grok replies. |
+| several names | "…, Gemini and Claude?" | Each replies once, in that order, seeing the replies before it. |
+| names and "independently" | "…, Claude and Grok, independently" | They reply at once, without seeing each other's replies. |
+| "team" | "…what do you think, team?" | Every awake participant replies once, in turn. |
+| "team" and "independently" | "…team, independently" | Every awake participant replies at once, without seeing the others' replies. |
+| "privately" | "…, Grok, privately" | The same as without "privately", but private: only the participants named see your message and their replies. With no name, it goes to whoever spoke last. |
+| "only" | "…, Grok only" | The same as "privately", but only right after a name, a list of names or "team". |
+
+"parallel" and "in parallel" mean the same as "independently", and can come before or after
+the names or "team". Without any of these endings, Return asks whoever spoke last. ⌘↩ never
+asks anyone: it just adds your message (privately, if it ends with "privately" or "only").
+
 - **Your input box** is at the bottom. With **To: Everyone**, **Add to conversation**, or
   **⌘↩** (Command-Return; Ctrl+Enter on other systems), puts your message into the
   conversation; nobody answers until you press a participant's **Speak** button.
@@ -224,6 +242,9 @@ Each participant ("seat") has a card on the right:
     "(privately, to Claude and Grok, in turn)", "(privately, to Bill and Grok)" and so on.
     "…, team, privately" goes to every participant who is awake; sleeping ones never see
     it.
+  - **"only"** means the same as "privately", but only right after a name, a list of names
+    or "team": "…what do you really think, Grok only?" goes to Grok alone. Anywhere else it
+    is just a word, so "Answer in one sentence only" is an ordinary message.
   - **⌘↩ or Add privately** puts the message in privately without asking anyone to reply.
   - **Nothing goes in for everyone by mistake.** If no one has spoken yet and you name no
     one, the note says "Say whom it's for" and the button waits; while replies are still

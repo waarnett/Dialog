@@ -11433,7 +11433,8 @@ ${a.data}
         function readAddress(text2, seats) {
           const tail = lastWordEnd(text2);
           const lastWord = wordEndingAt(text2, tail);
-          const privately = lastWord !== void 0 && isPrivately(lastWord.word);
+          const only = lastWord?.word === "only";
+          const privately = lastWord !== void 0 && (only || isPrivately(lastWord.word));
           const stop = privately ? lastWordEnd(text2, lastWord.start) : tail;
           const finish = (cut2, rest) => {
             const before = text2.slice(0, skipSeparators(text2, cut2)).replace(/[\s,;:–—-]+$/u,
@@ -11479,7 +11480,7 @@ ${a.data}
           }
           const call = teamCall(text2.slice(0, stop));
           const last = call ? wordEndingAt(text2, stop) : void 0;
-          if (!call || !last) return privately ? finish(lastWord.start, {
+          if (!call || !last) return privately && !only ? finish(lastWord.start, {
             seats: []
           }) : {
             text: text2,

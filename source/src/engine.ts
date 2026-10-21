@@ -798,7 +798,7 @@ export interface Addressing {
   everyone?: boolean;
   /** For several participants or everyone: in turn, or each without seeing the others' replies. */
   call?: TeamCall;
-  /** "…privately" at the very end: private to whoever the message is for. */
+  /** "…privately" (or "…only", after names or "team") at the very end: private to whoever the message is for. */
   privately?: boolean;
 }
 
@@ -869,9 +869,12 @@ function apartEndingAt(text: string, end: number): number | undefined {
 export function readAddress(text: string, seats: Seat[]): Addressing {
   const tail = lastWordEnd(text);
   // "…privately" as the very last word: whoever the message is for, it is private to them.
-  // The word comes off, and what comes before it is read as usual.
+  // "…only" means the same, but only right after names or "team" ("…, Grok only"), since
+  // "Answer in one sentence only" is ordinary English. The word comes off, and what comes
+  // before it is read as usual.
   const lastWord = wordEndingAt(text, tail);
-  const privately = lastWord !== undefined && isPrivately(lastWord.word);
+  const only = lastWord?.word === "only";
+  const privately = lastWord !== undefined && (only || isPrivately(lastWord.word));
   const stop = privately ? lastWordEnd(text, lastWord.start) : tail;
   const finish = (cut: number, rest: Omit<Addressing, "text">): Addressing => {
     const before = text.slice(0, skipSeparators(text, cut)).replace(/[\s,;:–—-]+$/u, "");
@@ -911,7 +914,8 @@ export function readAddress(text: string, seats: Seat[]): Addressing {
   // "…, team", "…independently, team", "…team, independently", and the same with "(in) parallel".
   const call = teamCall(text.slice(0, stop));
   const last = call ? wordEndingAt(text, stop) : undefined;
-  if (!call || !last) return privately ? finish(lastWord.start, { seats: [] }) : { text, seats: [] };
+  // No names and no "team": "…privately" alone is still private; "…only" alone is just a word.
+  if (!call || !last) return privately && !only ? finish(lastWord.start, { seats: [] }) : { text, seats: [] };
   let first = last.start;
   if (isTeam(last.word)) {
     // "…independently, team": the word(s) before "team" come off too.

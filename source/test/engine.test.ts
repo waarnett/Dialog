@@ -610,6 +610,23 @@ test("“…privately” as the very last word: private to whoever the message i
   assert.deepEqual(read("privately"), ["", "", null, false, true]);
 });
 
+test("“…only” right after names or “team” means “privately”; anywhere else it's just a word", () => {
+  const seat = (id: string, name: string) => ({ id, name, model: "m", role: "", effort: "default", color: "#000" });
+  const seats = [seat("A", "Claude"), seat("B", "Claude 2"), seat("G", "Grok")];
+  const read = (t: string) => {
+    const a = readAddress(t, seats);
+    return [a.text, a.seats.map((x) => x.id).join(" "), a.call ?? null, Boolean(a.everyone), Boolean(a.privately)];
+  };
+  assert.deepEqual(read("What do you think, Grok only?"), ["What do you think?", "G", null, false, true]);
+  assert.deepEqual(read("Between us, Claude and Grok, only."), ["Between us.", "A G", "in turn", false, true]);
+  assert.deepEqual(read("Your views, Claude and Grok, in parallel, only"), ["Your views", "A G", "independently", false, true]);
+  assert.deepEqual(read("Thoughts, team only"), ["Thoughts", "", "in turn", true, true], "“team”");
+  assert.deepEqual(read("Hush, Grok, ONLY"), ["Hush", "G", null, false, true], "case doesn't matter");
+  assert.deepEqual(read("Answer in one sentence only"), ["Answer in one sentence only", "", null, false, false], "no name before it");
+  assert.deepEqual(read("Just between us, only"), ["Just between us, only", "", null, false, false], "naming no one");
+  assert.deepEqual(read("Only you, Grok"), ["Only you", "G", null, false, false], "only as the very last word");
+});
+
 test("a private exchange with several: only its members see the message and the replies, each told who else can", () => {
   const s = setup();
   const [A, B, C] = s.seats as [Seat, Seat, Seat];

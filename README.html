@@ -349,6 +349,65 @@
           right of the card.</li>
       </ul>
       <h2>Talking</h2>
+      <p><strong>Words at the end of your message</strong> tell Dialog who should reply when you
+        press Return.
+        Dialog takes them off before anyone sees your message, and marks it with a stage direction
+        instead, such as &quot;(to Grok)&quot;. Each is explained in full below.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>End your message with</th>
+            <th>Example</th>
+            <th>What happens</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>a name</td>
+            <td>&quot;…what do you think, Grok?&quot;</td>
+            <td>Grok replies.</td>
+          </tr>
+          <tr>
+            <td>several names</td>
+            <td>&quot;…, Gemini and Claude?&quot;</td>
+            <td>Each replies once, in that order, seeing the replies before it.</td>
+          </tr>
+          <tr>
+            <td>names and &quot;independently&quot;</td>
+            <td>&quot;…, Claude and Grok, independently&quot;</td>
+            <td>They reply at once, without seeing each other&#39;s replies.</td>
+          </tr>
+          <tr>
+            <td>&quot;team&quot;</td>
+            <td>&quot;…what do you think, team?&quot;</td>
+            <td>Every awake participant replies once, in turn.</td>
+          </tr>
+          <tr>
+            <td>&quot;team&quot; and &quot;independently&quot;</td>
+            <td>&quot;…team, independently&quot;</td>
+            <td>Every awake participant replies at once, without seeing the others&#39; replies.
+            </td>
+          </tr>
+          <tr>
+            <td>&quot;privately&quot;</td>
+            <td>&quot;…, Grok, privately&quot;</td>
+            <td>The same as without &quot;privately&quot;, but private: only the participants named
+              see your message and their replies. With no name, it goes to whoever spoke last.</td>
+          </tr>
+          <tr>
+            <td>&quot;only&quot;</td>
+            <td>&quot;…, Grok only&quot;</td>
+            <td>The same as &quot;privately&quot;, but only right after a name, a list of names or
+              &quot;team&quot;.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>&quot;parallel&quot; and &quot;in parallel&quot; mean the same as
+        &quot;independently&quot;, and can come before or after
+        the names or &quot;team&quot;. Without any of these endings, Return asks whoever spoke last.
+        ⌘↩ never
+        asks anyone: it just adds your message (privately, if it ends with &quot;privately&quot; or
+        &quot;only&quot;).</p>
       <ul>
         <li>
           <p><strong>Your input box</strong> is at the bottom. With <strong>To: Everyone</strong>,
@@ -520,6 +579,12 @@
               &quot;…, team, privately&quot; goes to every participant who is awake; sleeping ones
               never see
               it.</li>
+            <li><strong>&quot;only&quot;</strong> means the same as &quot;privately&quot;, but only
+              right after a name, a list of names
+              or &quot;team&quot;: &quot;…what do you really think, Grok only?&quot; goes to Grok
+              alone. Anywhere else it
+              is just a word, so &quot;Answer in one sentence only&quot; is an ordinary message.
+            </li>
             <li><strong>⌘↩ or Add privately</strong> puts the message in privately without asking
               anyone to reply.</li>
             <li><strong>Nothing goes in for everyone by mistake.</strong> If no one has spoken yet
