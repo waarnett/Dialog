@@ -8,7 +8,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "build": "tsc -p tsconfig.json && node build.mjs",
-    "test": "node test/run-tests.mjs"
+    "test": "node test/run-tests.mjs",
+    "release": "npm run build && cp dist/index.html dist/README.html .."
   },
   "devDependencies": {
     "@types/js-beautify": "^1.14.3",

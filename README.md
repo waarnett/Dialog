@@ -31,7 +31,10 @@ cd source
 npm install          # first time only: downloads the libraries
 npm run build        # type-checks, then writes dist/index.html and dist/README.html
 npm test             # runs the tests (build first)
-cp dist/index.html dist/README.html ..   # publish: replace the pages at the top level
+npm run release      # publish: builds, then replaces the pages at the top level
 ```
+
+`npm run release` is a shortcut defined in the `scripts` section of `source/package.json`; it
+runs `npm run build` and then `cp dist/index.html dist/README.html ..`.
 
 Then commit and push; GitHub Pages updates the site within a minute or two.
