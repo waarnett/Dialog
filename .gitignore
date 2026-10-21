@@ -1,0 +1,9 @@
+# Libraries downloaded by "npm install" (recreate any time from package-lock.json)
+node_modules/
+
+# Build and test output (recreated by "npm run build" and "npm test")
+source/dist/
+source/test/.compiled/
+
+# macOS Finder clutter
+.DS_Store

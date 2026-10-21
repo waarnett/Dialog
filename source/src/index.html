@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dialog</title>
+<!-- Images: an engraving of a bust of Socrates, signed W. Meyer. -->
+<link rel="icon" type="image/png" sizes="64x64" href="__FAVICON_SRC__">
+<style>/*__STYLES__*/</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <img class="medallion" src="__MEDALLION_SRC__" alt="" width="44" height="44">
+    <span class="wordmark">Dialog</span>
+  </div>
+  <div class="stats">
+    <span id="session-cost" title="Total for this conversation, as reported by OpenRouter. Its fee on credit purchases is extra."></span>
+    <span id="credit-info"></span>
+    <span id="key-info"></span>
+  </div>
+  <div class="actions">
+    <button id="btn-save" type="button" title="Save the whole conversation as an HTML file">Save All</button>
+    <button id="btn-new" type="button">New conversation</button>
+    <button id="btn-settings" type="button">Settings</button>
+  </div>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main class="layout">
+  <section id="conversation" class="conversation">
+    <div id="transcript" class="transcript" aria-live="polite"></div>
+    <form id="composer" class="composer">
+      <div id="attach-tray" class="attach-tray" hidden></div>
+      <div id="attach-status" class="attach-status" role="status" hidden></div>
+      <textarea id="composer-text" rows="3" placeholder="Your contribution…" aria-label="Your contribution"></textarea>
+      <div class="composer-row">
+        <label class="to">To:
+          <select id="composer-to"></select>
+        </label>
+        <button id="attach-button" type="button" class="subtle" title="Attach text files, PDFs or images (or drag them onto the conversation)">Attach…</button>
+        <input id="attach-input" type="file" multiple hidden
+               accept=".txt,.md,.markdown,.csv,.tsv,.json,.xml,.yaml,.yml,.html,.css,.js,.ts,.py,.swift,.c,.h,.cpp,.java,.go,.rs,.rb,.sh,.sql,.tex,.log,text/*,application/pdf,image/png,image/jpeg,image/webp,image/gif">
+        <span id="composer-hint" class="hint" aria-live="polite"></span>
+        <button id="composer-send" class="primary" type="submit">Add to conversation</button>
+      </div>
+    </form>
+    <div class="drop-overlay" aria-hidden="true"><p>Drop files to attach them to your next message</p></div>
+  </section>
+
+  <aside class="seats">
+    <h2>Participants</h2>
+    <div id="seat-list"></div>
+    <button id="btn-add-seat" type="button" class="subtle">+ Add a seat</button>
+  </aside>
+</main>
+
+<dialog id="model-dialog" class="model-dialog">
+  <div class="model-picker">
+    <h2 id="model-title">Choose a model</h2>
+    <div class="model-search-row">
+      <input id="model-search" type="search" autocomplete="off" spellcheck="false"
+             placeholder="Search by name or id, e.g. “opus”, “gemini pro”, “deepseek”">
+      <label class="model-sort">Sort
+        <select id="model-sort">
+          <option value="name">by name</option>
+          <option value="in-asc">by input price, lowest first</option>
+          <option value="in-desc">by input price, highest first</option>
+          <option value="out-asc">by output price, lowest first</option>
+          <option value="out-desc">by output price, highest first</option>
+        </select>
+      </label>
+    </div>
+    <div id="model-results" class="model-results" role="listbox"></div>
+    <div class="model-foot">
+      <span id="model-count"></span>
+      <span class="model-foot-actions">
+        <button id="model-refresh" type="button" class="subtle" title="Get OpenRouter’s list of models again now, for a model that has only just appeared">Refresh list</button>
+        <button id="model-cancel" type="button">Cancel</button>
+      </span>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="settings-dialog">
+  <form method="dialog" class="settings">
+    <h2>Settings</h2>
+
+    <label>OpenRouter API key
+      <span class="row">
+        <input id="set-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-…">
+        <button id="set-key-show" type="button" class="subtle">Show</button>
+      </span>
+      <small>Stored only in this browser on this computer. Tip: give the key a credit limit on OpenRouter's Keys page; it caps
+        what Dialog can ever spend. The top bar shows what the key has spent; your remaining credit is on
+        OpenRouter's <a href="https://openrouter.ai/settings/credits" target="_blank" rel="noopener noreferrer">Credits page</a>.</small>
+    </label>
+
+    <label>OpenRouter management key (optional)
+      <span class="row">
+        <input id="set-mkey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-v1-…">
+        <button id="set-mkey-show" type="button" class="subtle">Show</button>
+      </span>
+      <small>Only for showing your remaining credit in the top bar; OpenRouter reveals that to no other kind of key.
+        A management key can create and change your API keys but can't talk to the models. Create one at
+        openrouter.ai/settings/management-keys with an expiration date. Stored only in this browser on this computer.</small>
+    </label>
+
+    <label>Your name
+      <input id="set-name" type="text">
+    </label>
+
+    <label>About you
+      <textarea id="set-about" rows="5" placeholder="A few sentences every participant should know about you: background, interests, how you like to be answered."></textarea>
+      <small>Given to every participant along with the house rules, on every turn.</small>
+    </label>
+
+    <label>House rules (given to every seat)
+      <textarea id="set-rules" rows="14" spellcheck="false"></textarea>
+      <small>Placeholders: {name} the seat's name, {humanName} your name, {participants} the list of
+        everyone present, {date} today's date. After these rules, Dialog adds a short note of its own on
+        how to make files, then About you, then the seat's role.</small>
+    </label>
+
+    <div class="settings-file">
+      <span class="label">Save or restore these settings</span>
+      <span class="row">
+        <button id="set-save-file" type="button">Save settings to a file…</button>
+        <button id="set-restore-file" type="button">Restore from a file…</button>
+        <input id="set-restore-input" type="file" accept=".json,application/json" hidden>
+      </span>
+      <label class="check"><input id="set-include-keys" type="checkbox"> Include my keys in the saved file</label>
+      <small>The file holds your name, About you, the house rules and every participant (name, model, thinking
+        level, role and color): a backup, or a way to move Dialog to another browser or computer. Your keys are
+        left out unless you tick the box; anyone who has a file with your keys could spend your credit. Restoring
+        replaces these settings; the conversation isn't changed.</small>
+      <p id="set-file-status" class="file-status" role="status" hidden></p>
+    </div>
+
+    <div class="dialog-actions">
+      <button id="set-rules-reset" type="button" class="subtle">Restore default rules</button>
+      <button type="submit" class="primary">Done</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- The welcome screen's picture; cloned into the conversation area when it is empty. -->
+<template id="welcome-figure">
+  <figure class="bust">
+    <div class="plate"><img src="__BUST_SRC__" alt="Engraving of a marble bust of Socrates" width="368" height="552"></div>
+    <figcaption>Socrates, after an ancient marble bust. Engraving signed W.&nbsp;Meyer.</figcaption>
+  </figure>
+</template>
+
+<script>/*__SCRIPT__*/</script>
+</body>
+</html>
