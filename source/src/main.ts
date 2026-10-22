@@ -2333,6 +2333,14 @@ function wire(): void {
     persistSoon();
   });
   els.setLocal.placeholder = LOCAL_EXAMPLE;
+  // Clicking into the empty box fills in the usual address, selected so typing replaces it.
+  els.setLocal.addEventListener("focus", () => {
+    if (els.setLocal.value.trim()) return;
+    els.setLocal.value = LOCAL_EXAMPLE;
+    els.setLocal.select();
+    settings.localServer = LOCAL_EXAMPLE;
+    persistSoon();
+  });
   els.setLocal.addEventListener("input", () => {
     settings.localServer = els.setLocal.value.trim();
     persistSoon();

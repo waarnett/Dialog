@@ -1786,3 +1786,33 @@ test("LM Studio: a dialog with only local models needs no OpenRouter key; the pi
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");
 });
+
+test("LM Studio: clicking into the empty Settings box fills in the usual address; one typed in is left alone", async () => {
+  const page = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/local-field.html",
+    beforeParse(win) {
+      win.fetch = async (url) => (url.endsWith("/models") ? new Response(JSON.stringify(MODELS)) : new Response("{}", { status: 500 }));
+      win.TextDecoder = TextDecoder;
+      win.localStorage.clear();
+    },
+  });
+  const pw = page.window;
+  const field = pw.document.querySelector("#set-local");
+  pw.document.querySelector("#btn-settings").click();
+  assert.equal(field.value, "");
+  assert.equal(field.placeholder, "http://localhost:1234");
+  field.focus();
+  assert.equal(field.value, "http://localhost:1234");
+  assert.equal(field.selectionStart, 0);
+  assert.equal(field.selectionEnd, field.value.length, "selected, so typing replaces it");
+  field.blur();
+  field.value = "http://localhost:4321";
+  field.dispatchEvent(new pw.Event("input"));
+  field.focus();
+  assert.equal(field.value, "http://localhost:4321");
+  pw.document.querySelector("#settings-dialog").close?.();
+  await sleep(450);
+  assert.equal(JSON.parse(pw.localStorage.getItem("dialog.settings.v1")).localServer, "http://localhost:4321");
+});

@@ -470,8 +470,8 @@ key at all.
    LM Studio's own caution applies: while CORS is on, any website you visit can use the
    server (only from browsers on this computer). Stop the server when you're done
    (`~/.lmstudio/bin/lms server stop`) or start it again without `--cors`.
-3. In Dialog's Settings, put the server's address under **LM Studio server**: usually
-   http://localhost:1234.
+3. In Dialog's Settings, click the **LM Studio server** box: it fills in the usual
+   address, http://localhost:1234. If your server has another address, type it instead.
 4. Press a seat's model button. LM Studio's chat models come first in the list, marked
    "(LM Studio)", with "loaded" beside any model loaded now; the line under the list says
    how many there are, or why LM Studio couldn't be reached. Choose one, and a new seat is
