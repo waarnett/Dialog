@@ -9,6 +9,11 @@ them.
 
 ## Getting started
 
+**No OpenRouter account?** If you run models on your own computer with LM Studio, you can
+do without one: skip steps 1 and 5, leave the key empty in Settings, and set up LM Studio
+as described in Models on this computer (LM Studio), below. Those models cost nothing, but
+they can't search the web or read web pages.
+
 1. **Get an OpenRouter key.** At openrouter.ai, sign in, add a small amount of credit
    (Credits page), then create a key (Keys page). Give the key a **credit limit**: it caps
    what Dialog can ever spend. A limit is a cap, not money; OpenRouter never spends past
