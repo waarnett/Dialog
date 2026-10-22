@@ -107,6 +107,14 @@
         openrouter.ai/settings/management-keys with an expiration date. Stored only in this browser on this computer.</small>
     </label>
 
+    <label>LM Studio server (optional)
+      <input id="set-local" type="text" autocomplete="off" spellcheck="false">
+      <small>For models running in LM Studio on this computer, alongside OpenRouter's. Start LM Studio's server with CORS on
+        (in Terminal: lms server start --cors) and put its address here, usually http://localhost:1234; its models then
+        appear first in the model picker, and need no OpenRouter key. Works in Chrome; in Safari only when Dialog is opened
+        from a copy on your disk. Leave empty if you don't use LM Studio.</small>
+    </label>
+
     <label>Your name
       <input id="set-name" type="text">
     </label>

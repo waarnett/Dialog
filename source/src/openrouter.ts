@@ -4,7 +4,11 @@
 // writes it, using a simple text format called Server-Sent Events (SSE): lines that
 // start with "data: " followed by a JSON object, ending with "data: [DONE]".
 // The last piece before [DONE] carries the token counts and the cost.
+//
+// Models running in LM Studio on this computer ("lmstudio/…", see lmstudio.ts) are asked
+// here too: LM Studio answers the same kind of request, streamed the same way.
 
+import { isLocalModel, localBase, localErrorText, localRequestBody, localUnreachableText, LOCAL_PREFIX } from "./lmstudio";
 import type { ChatMessage, Citation, Effort, Usage } from "./types";
 
 const BASE = "https://openrouter.ai/api/v1";
@@ -90,8 +94,11 @@ export function errorDetails(error: Json, requestId?: string): string {
   return bits.length ? `(${bits.join("; ")})` : "";
 }
 
-/** Interpret one SSE payload. */
-export function interpretPayload(payload: string): StreamPiece {
+/**
+ * Interpret one SSE payload. From LM Studio (`local`), an error is passed on as LM Studio
+ * worded it, for streamChat to put in plain words.
+ */
+export function interpretPayload(payload: string, local = false): StreamPiece {
   if (payload === "[DONE]") return { done: true };
   let json: unknown;
   try {
@@ -102,7 +109,9 @@ export function interpretPayload(payload: string): StreamPiece {
   if (!isObj(json)) return {};
   const piece: StreamPiece = {};
 
-  if (isObj(json.error)) {
+  if (local && (typeof json.error === "string" || isObj(json.error))) {
+    piece.error = typeof json.error === "string" ? json.error : typeof json.error.message === "string" ? json.error.message : "Unknown error";
+  } else if (isObj(json.error)) {
     const message = typeof json.error.message === "string" ? json.error.message : "Unknown error from OpenRouter";
     const details = errorDetails(json.error, typeof json.id === "string" ? json.id : undefined);
     piece.error = `The model's host failed partway through. OpenRouter says: “${message}” ${details}`.trim();
@@ -158,6 +167,8 @@ export interface ChatRequest {
    * Left unset, OpenRouter would pick a paid one ($2 per 1,000 pages, every turn).
    */
   pdfEngine?: "cloudflare-ai";
+  /** For an LM Studio model ("lmstudio/…"): the server's address, from Settings. */
+  localServer?: string;
   signal?: AbortSignal;
   /** Called with each new piece of reply text as it arrives. */
   onText: (text: string) => void;
@@ -218,23 +229,24 @@ function friendlyHttpError(status: number, detail: string): string {
 
 const NETWORK_HINT = "Couldn't reach OpenRouter. Check the internet connection and try again.";
 
-async function send(url: string, init: RequestInit): Promise<Response> {
+async function send(url: string, init: RequestInit, unreachable = NETWORK_HINT): Promise<Response> {
   try {
     return await fetch(url, init);
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new OpenRouterError(NETWORK_HINT);
+    throw new OpenRouterError(unreachable);
   }
 }
 
 /** Ask one model for a reply, streaming the text through onText. */
-/** OpenRouter's message from a failed request, and its particulars. */
+/** The message from a failed request, and its particulars (LM Studio's error is just a message). */
 async function failure(res: Response): Promise<{ detail: string; extra: string }> {
   let detail = "";
   let extra = "";
   try {
     const j: unknown = await res.json();
-    if (isObj(j) && isObj(j.error)) {
+    if (isObj(j) && typeof j.error === "string") detail = j.error;
+    else if (isObj(j) && isObj(j.error)) {
       if (typeof j.error.message === "string") detail = j.error.message;
       extra = errorDetails(j.error, typeof j.id === "string" ? j.id : undefined);
     }
@@ -245,15 +257,27 @@ async function failure(res: Response): Promise<{ detail: string; extra: string }
 }
 
 export async function streamChat(req: ChatRequest): Promise<ChatResult> {
+  const local = isLocalModel(req.model);
+  const server = req.localServer ?? "";
   const post = (r: ChatRequest) =>
-    send(`${BASE}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${r.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody(r)),
-      signal: r.signal,
-    });
+    local
+      ? send(
+          `${localBase(server)}/chat/completions`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(localRequestBody(r)), signal: r.signal },
+          localUnreachableText(server),
+        )
+      : send(`${BASE}/chat/completions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${r.apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody(r)),
+          signal: r.signal,
+        });
 
   let res = await post(req);
+  if (!res.ok && local) {
+    const f = await failure(res);
+    throw new OpenRouterError(localErrorText(f.detail || `HTTP error ${res.status}`, server), res.status);
+  }
   if (!res.ok) {
     let f = await failure(res);
     // No host for this model can use tools ("No endpoints found that support tool use"):
@@ -264,7 +288,7 @@ export async function streamChat(req: ChatRequest): Promise<ChatResult> {
     }
     if (!res.ok) throw new OpenRouterError([friendlyHttpError(res.status, f.detail), f.extra].filter(Boolean).join(" "), res.status);
   }
-  if (!res.body) throw new OpenRouterError("OpenRouter sent an empty response.");
+  if (!res.body) throw new OpenRouterError(`${local ? "LM Studio" : "OpenRouter"} sent an empty response.`);
 
   const result: ChatResult = { citations: [] };
   const seen = new Set<string>();
@@ -274,14 +298,15 @@ export async function streamChat(req: ChatRequest): Promise<ChatResult> {
   const decoder = new TextDecoder();
 
   const handle = (payload: string): boolean => {
-    const p = interpretPayload(payload);
+    const p = interpretPayload(payload, local);
     if (p.id) requestId = p.id;
+    if (p.error && local) throw new OpenRouterError(localErrorText(p.error, server));
     if (p.error) {
       // Make sure the request id is there to look up on OpenRouter's Activity page.
       throw new OpenRouterError(p.error.includes("request ") || !requestId ? p.error : `${p.error} (request ${requestId})`);
     }
     if (p.text) req.onText(p.text);
-    if (p.model) result.model = p.model;
+    if (p.model) result.model = local ? LOCAL_PREFIX + p.model : p.model; // local: as the seat's model is written
     if (p.usage) result.usage = p.usage;
     if (p.cost !== undefined) result.cost = p.cost;
     for (const c of p.citations ?? []) {
@@ -332,6 +357,8 @@ export interface ModelInfo {
   reasoning?: ReasoningInfo;
   /** Can it use tools (and so web search and page reading)? */
   tools: boolean;
+  /** For a model in LM Studio (see lmstudio.ts): is it loaded now? */
+  local?: { loaded: boolean };
   /**
    * For an id that always follows a family's newest model ("~openai/gpt-astra-latest"): the
    * model it stands for now.

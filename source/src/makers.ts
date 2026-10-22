@@ -6,6 +6,8 @@
 // site. (Looked up on OpenRouter's model pages, 2026 Oct 19.) A maker not listed here, or a
 // logo that doesn't load, gets the maker's initial in a circle instead.
 
+import { isLocalModel, localId } from "./lmstudio";
+
 const OPENROUTER_ICON = (file: string) => `https://openrouter.ai/images/icons/${file}`;
 const SITE_ICON = (site: string) =>
   `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${site}&size=64`;
@@ -44,9 +46,14 @@ export interface Maker {
   initial: string;
 }
 
-/** Who made a model, from its id ("~google/gemini-pro-latest") and OpenRouter's name for it ("Google: Gemini Pro Latest"). */
+/**
+ * Who made a model, from its id ("~google/gemini-pro-latest") and OpenRouter's name for it
+ * ("Google: Gemini Pro Latest"). For a model in LM Studio, the maker in the id after
+ * "lmstudio/" ("lmstudio/google/gemma-4-31b-qat": Google).
+ */
 export function makerOf(modelId: string, modelName?: string): Maker {
-  const slug = (/^~?([^/]+)\//.exec(modelId.trim())?.[1] ?? "").toLowerCase();
+  const id = isLocalModel(modelId) ? localId(modelId) : modelId.trim();
+  const slug = (/^~?([^/]+)\//.exec(id)?.[1] ?? "").toLowerCase();
   const fromName = modelName && modelName.includes(":") ? modelName.slice(0, modelName.indexOf(":")).trim() : "";
   const name = fromName || slug;
   const initial = (/[\p{L}\p{N}]/u.exec(name)?.[0] ?? "?").toUpperCase();

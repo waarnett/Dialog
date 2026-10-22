@@ -87,6 +87,20 @@ test("settings file: written without keys unless asked; read back, keeping curre
   assert.equal(r2.settings.managementKey, "mk-mine");
 });
 
+test("settings file: the LM Studio address goes in; a file without one keeps the current address", () => {
+  const s = defaultSettings();
+  s.localServer = "http://localhost:1234";
+  const at = new Date("2026-10-21T17:22:00Z");
+  const text = settingsFileText(s, false, at);
+  assert.equal(JSON.parse(text).localServer, "http://localhost:1234");
+  const other = defaultSettings();
+  other.localServer = "http://localhost:4321";
+  assert.equal(settingsFromFile(text, other).settings.localServer, "http://localhost:1234");
+  const older = JSON.parse(text);
+  delete older.localServer;
+  assert.equal(settingsFromFile(JSON.stringify(older), other).settings.localServer, "http://localhost:4321");
+});
+
 test("settings file: other files are refused in plain words; hand-edited ones are tolerated", () => {
   const cur = defaultSettings();
   for (const text of ["not json at all", "{}", '{"format":"something-else"}', "[1,2]"]) {

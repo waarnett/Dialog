@@ -264,6 +264,15 @@ test("attachments: text-only models are told about images; missing files are not
   assert.equal(hasFileParts(m), false);
 });
 
+test("attachments: models that can't take PDFs are told one was shared", () => {
+  const s = setup();
+  const [A] = s.seats as [Seat];
+  const m = buildMessages(A, s, [{ ...human("Have a look."), attachments: [pdf] }], new Date(), { images: true, pdfs: false });
+  assert.equal(typeof m[1]?.content, "string");
+  assert.ok((m[1]?.content as string).endsWith("(Bill attached a PDF, paper.pdf, but your model can't read PDFs.)"));
+  assert.equal(hasFileParts(m), false);
+});
+
 test("attachments in private messages stay private", () => {
   const s = setup();
   const [A, B] = s.seats as [Seat, Seat];
@@ -342,6 +351,7 @@ test("new seats are named and colored after their model", () => {
   assert.equal(friendlySeatName("qwen/qwen3.8-max-0902"), "Qwen");
   assert.equal(friendlySeatName("z-ai/glm-5.3", "Z.ai: GLM 5.3"), "GLM 5.3");
   assert.equal(friendlySeatName("brand-new/model-x"), "model-x");
+  assert.equal(friendlySeatName("lmstudio/google/gemma-4-31b-qat", "Gemma 4 31B QAT (LM Studio)"), "Gemma 4 31B QAT", "LM Studio's: after the model, not Gemini");
   const s = setup();
   assert.equal(uniqueSeatName("Claude", s.seats), "Claude 2");
   assert.equal(uniqueSeatName("Claude", s.seats, "A"), "Claude", "its own name doesn't count");

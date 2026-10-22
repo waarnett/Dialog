@@ -1611,6 +1611,17 @@
             browser on this computer.</small>
         </label>
 
+        <label>LM Studio server (optional)
+          <input id="set-local" type="text" autocomplete="off" spellcheck="false">
+          <small>For models running in LM Studio on this computer, alongside OpenRouter's. Start LM
+            Studio's server with CORS on
+            (in Terminal: lms server start --cors) and put its address here, usually
+            http://localhost:1234; its models then
+            appear first in the model picker, and need no OpenRouter key. Works in Chrome; in Safari
+            only when Dialog is opened
+            from a copy on your disk. Leave empty if you don't use LM Studio.</small>
+        </label>
+
         <label>Your name
           <input id="set-name" type="text">
         </label>
@@ -10646,6 +10657,91 @@ Please report this to https://github.com/markedjs/marked.`, e) {
         var xn = k.parseInline;
         var Rn = T.parse;
         var Tn = R.lex;
+        // src/lmstudio.ts
+        var LOCAL_PREFIX = "lmstudio/";
+        var LOCAL_EXAMPLE = "http://localhost:1234";
+        var isLocalModel = (model) => model.trim().startsWith(LOCAL_PREFIX);
+        var localId = (model) => model.trim().slice(LOCAL_PREFIX.length);
+
+        function localBase(address) {
+          let a = address.trim().replace(/\/+$/, "");
+          if (!/^https?:\/\//i.test(a)) a = `http://${a}`;
+          return a.replace(/\/v1$/, "") + "/v1";
+        }
+        var serverRoot = (address) => localBase(address).replace(/\/v1$/, "");
+
+        function localRequestBody(req) {
+          return {
+            model: localId(req.model),
+            messages: req.messages,
+            stream: true,
+            stream_options: {
+              include_usage: true
+            }
+          };
+        }
+
+        function localModelName(id) {
+          const base = id.slice(id.lastIndexOf("/") + 1);
+          return base.split(/[-_\s]+/).filter(Boolean).map((w) => /^[a-z]?\d+(\.\d+)?[a-z]?$/i
+            .test(w) || /^[a-z]{1,3}$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() +
+            w.slice(1)).join(" ");
+        }
+
+        function localErrorText(message, address) {
+          const m = /request \((\d+) tokens\) exceeds the available context size \((\d+) tokens\)/
+            .exec(message);
+          if (m) {
+            const [, need, have] = m;
+            return `This conversation is too long for the model as LM Studio has it loaded: it needs ${Number(need).toLocaleString("en-US")} tokens, and the model's window is ${Number(have).toLocaleString("en-US")}. In LM Studio, load the model again with a larger context length, or start a new conversation.`;
+          }
+          if (/context (size|length)|n_ctx/i.test(message)) {
+            return `This conversation may be too long for the model as LM Studio has it loaded. In LM Studio, load the model again with a larger context length. (LM Studio: ${message})`;
+          }
+          return `LM Studio, at ${address.trim()}, reported a problem: ${message}`;
+        }
+
+        function localUnreachableText(address) {
+          return `Couldn't reach LM Studio at ${address.trim()}. Check that its server is running and was started with CORS on (in Terminal: lms server start --cors). In Chrome, allow this page to reach devices on your local network if it asks. Safari doesn't let the online Dialog reach a server on this computer: use Chrome, or open Dialog from a copy on your disk.`;
+        }
+        async function fetchLocalModels(address) {
+          let res;
+          try {
+            res = await fetch(`${serverRoot(address)}/api/v0/models`, {
+              cache: "no-store"
+            });
+          } catch {
+            throw new Error(localUnreachableText(address));
+          }
+          if (!res.ok) throw new Error(
+          `LM Studio answered with an error (HTTP ${res.status}).`);
+          const j2 = await res.json();
+          const data = typeof j2 === "object" && j2 !== null && Array.isArray(j2.data) ? j2
+            .data : [];
+          const out = [];
+          for (const m of data) {
+            if (typeof m !== "object" || m === null) continue;
+            const v = m;
+            if (typeof v.id !== "string" || v.type !== "llm" && v.type !== "vlm") continue;
+            const context = typeof v.loaded_context_length === "number" ? v
+              .loaded_context_length : typeof v.max_context_length === "number" ? v
+              .max_context_length : 0;
+            out.push({
+              id: LOCAL_PREFIX + v.id,
+              name: `${localModelName(v.id)} (LM Studio)`,
+              inputPrice: 0,
+              outputPrice: 0,
+              contextLength: context,
+              inputModalities: v.type === "vlm" ? ["text", "image"] : ["text"],
+              tools: false,
+              // OpenRouter's web search and page reading aren't available here
+              local: {
+                loaded: v.state === "loaded"
+              }
+            });
+          }
+          return out.sort((a, b) => a.name.localeCompare(b.name));
+        }
         // src/engine.ts
         var PREVIOUS_HOUSE_RULES = `You are {name}, one of several participants in a moderated group conversation.
 
@@ -10716,6 +10812,7 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
         ];
 
         function friendlySeatName(modelId, modelName) {
+          if (isLocalModel(modelId)) return localModelName(localId(modelId)) || modelId;
           for (const [re2, name] of FAMILIES)
             if (re2.test(modelId.trim())) return name;
           const fromName = modelName?.replace(/^[^:]+:\s*/, "").trim();
@@ -10743,6 +10840,7 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return {
             apiKey: "",
             managementKey: "",
+            localServer: "",
             humanName: "John Doe",
             aboutHuman: "",
             houseRules: DEFAULT_HOUSE_RULES,
@@ -11215,6 +11313,11 @@ ${a.data}
                   text: `(${humanName} attached an image, ${a.name}, but your model can't view images.)`
                 });
               }
+            } else if (abilities.pdfs === false) {
+              parts.push({
+                type: "text",
+                text: `(${humanName} attached a PDF, ${a.name}, but your model can't read PDFs.)`
+              });
             } else {
               parts.push({
                 type: "text",
@@ -11998,7 +12101,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         };
 
         function makerOf(modelId, modelName) {
-          const slug = (/^~?([^/]+)\//.exec(modelId.trim())?.[1] ?? "").toLowerCase();
+          const id = isLocalModel(modelId) ? localId(modelId) : modelId.trim();
+          const slug = (/^~?([^/]+)\//.exec(id)?.[1] ?? "").toLowerCase();
           const fromName = modelName && modelName.includes(":") ? modelName.slice(0, modelName
             .indexOf(":")).trim() : "";
           const name = fromName || slug;
@@ -12102,7 +12206,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           return bits.length ? `(${bits.join("; ")})` : "";
         }
 
-        function interpretPayload(payload) {
+        function interpretPayload(payload, local = false) {
           if (payload === "[DONE]") return {
             done: true
           };
@@ -12114,7 +12218,10 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           }
           if (!isObj(json)) return {};
           const piece = {};
-          if (isObj(json.error)) {
+          if (local && (typeof json.error === "string" || isObj(json.error))) {
+            piece.error = typeof json.error === "string" ? json.error : typeof json.error
+              .message === "string" ? json.error.message : "Unknown error";
+          } else if (isObj(json.error)) {
             const message = typeof json.error.message === "string" ? json.error.message :
               "Unknown error from OpenRouter";
             const details = errorDetails(json.error, typeof json.id === "string" ? json.id :
@@ -12210,12 +12317,12 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         }
         var NETWORK_HINT =
           "Couldn't reach OpenRouter. Check the internet connection and try again.";
-        async function send(url, init) {
+        async function send(url, init, unreachable = NETWORK_HINT) {
           try {
             return await fetch(url, init);
           } catch (err) {
             if (err instanceof DOMException && err.name === "AbortError") throw err;
-            throw new OpenRouterError(NETWORK_HINT);
+            throw new OpenRouterError(unreachable);
           }
         }
         async function failure(res) {
@@ -12223,7 +12330,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           let extra = "";
           try {
             const j2 = await res.json();
-            if (isObj(j2) && isObj(j2.error)) {
+            if (isObj(j2) && typeof j2.error === "string") detail = j2.error;
+            else if (isObj(j2) && isObj(j2.error)) {
               if (typeof j2.error.message === "string") detail = j2.error.message;
               extra = errorDetails(j2.error, typeof j2.id === "string" ? j2.id : void 0);
             }
@@ -12234,7 +12342,19 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           };
         }
         async function streamChat(req) {
-          const post = (r) => send(`${BASE}/chat/completions`, {
+          const local = isLocalModel(req.model);
+          const server = req.localServer ?? "";
+          const post = (r) => local ? send(
+            `${localBase(server)}/chat/completions`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify(localRequestBody(r)),
+              signal: r.signal
+            },
+            localUnreachableText(server)
+          ) : send(`${BASE}/chat/completions`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${r.apiKey}`,
@@ -12244,6 +12364,11 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             signal: r.signal
           });
           let res = await post(req);
+          if (!res.ok && local) {
+            const f = await failure(res);
+            throw new OpenRouterError(localErrorText(f.detail || `HTTP error ${res.status}`,
+              server), res.status);
+          }
           if (!res.ok) {
             let f = await failure(res);
             if (req.tools && res.status === 404 && /tool/i.test(f.detail)) {
@@ -12257,7 +12382,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               .extra
             ].filter(Boolean).join(" "), res.status);
           }
-          if (!res.body) throw new OpenRouterError("OpenRouter sent an empty response.");
+          if (!res.body) throw new OpenRouterError(
+            `${local ? "LM Studio" : "OpenRouter"} sent an empty response.`);
           const result = {
             citations: []
           };
@@ -12267,14 +12393,15 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           const handle = (payload) => {
-            const p = interpretPayload(payload);
+            const p = interpretPayload(payload, local);
             if (p.id) requestId = p.id;
+            if (p.error && local) throw new OpenRouterError(localErrorText(p.error, server));
             if (p.error) {
               throw new OpenRouterError(p.error.includes("request ") || !requestId ? p.error :
                 `${p.error} (request ${requestId})`);
             }
             if (p.text) req.onText(p.text);
-            if (p.model) result.model = p.model;
+            if (p.model) result.model = local ? LOCAL_PREFIX + p.model : p.model;
             if (p.usage) result.usage = p.usage;
             if (p.cost !== void 0) result.cost = p.cost;
             for (const c of p.citations ?? []) {
@@ -12462,6 +12589,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           return {
             apiKey: str(v.apiKey, ""),
             managementKey: str(v.managementKey, ""),
+            localServer: str(v.localServer, ""),
             humanName: str(v.humanName, d.humanName) || d.humanName,
             aboutHuman: str(v.aboutHuman, ""),
             houseRules: upgradeHouseRules(str(v.houseRules, d.houseRules) || d.houseRules),
@@ -12482,6 +12610,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             humanName: s.humanName,
             aboutHuman: s.aboutHuman,
             houseRules: s.houseRules,
+            localServer: s.localServer,
             seats: s.seats.map(({
               id,
               name,
@@ -12532,10 +12661,13 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           });
           const key = (k2) => typeof v[k2] === "string" && v[k2].trim() ? v[k2].trim() : current[
             k2];
+          const localServer = typeof v.localServer === "string" ? v.localServer.trim() : current
+            .localServer;
           const settings2 = {
             ...parsed,
             apiKey: key("apiKey"),
-            managementKey: key("managementKey")
+            managementKey: key("managementKey"),
+            localServer
           };
           const hasKeys = [v.apiKey, v.managementKey].some((k2) => typeof k2 === "string" && k2
             .trim() !== "");
@@ -12670,6 +12802,10 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         var modelsAt = savedModels?.at ?? 0;
         var modelsLoading = null;
         var modelsError = "";
+        var localModels = [];
+        var localFetched = false;
+        var localLoading = null;
+        var localError = "";
         var modelSort = loadModelSort();
         var keyInfo = null;
         var keyInfoFailed = false;
@@ -12735,6 +12871,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           setKeyShow: byId("set-key-show"),
           setMkey: byId("set-mkey"),
           setMkeyShow: byId("set-mkey-show"),
+          setLocal: byId("set-local"),
           creditInfo: byId("credit-info"),
           setName: byId("set-name"),
           setAbout: byId("set-about"),
@@ -12780,6 +12917,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         var seatById = (id) => settings.seats.find((s) => s.id === id);
         var seatCost = (id) => totalCost(session.entries.filter((e) => e.speaker === id));
         var hasKey = () => settings.apiKey.trim() !== "";
+        var hasLocal = () => settings.localServer.trim() !== "";
 
         function priceText(n) {
           return n < 0 ? "varies" : "$" + String(Number(n.toFixed(2)));
@@ -12839,7 +12977,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               "Your browser isn't letting Dialog save, so this conversation and your settings will be lost when the page closes."
               );
           }
-          if (!hasKey()) msgs.push("Add your OpenRouter API key in Settings to begin.");
+          if (!hasKey() && !hasLocal()) msgs.push(
+            "Add your OpenRouter API key in Settings to begin.");
           els.banner.hidden = msgs.length === 0;
           els.banner.textContent = msgs.join(" ");
         }
@@ -12867,9 +13006,10 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               h2("h2", {}, "Start a dialogue"),
               h2(
                 "ol", {},
-                hasKey() ? null : h2("li", {},
-                  "Open Settings and paste your OpenRouter API key. While you're there, put in your name and a few words about yourself."
-                  ),
+                hasKey() || hasLocal() ? null : h2(
+                  "li", {},
+                  "Open Settings and paste your OpenRouter API key (or, for models running in LM Studio on this computer, its server\u2019s address). While you're there, put in your name and a few words about yourself."
+                ),
                 settings.seats.length ? null : h2(
                   "li", {},
                   "Add participants: press + Add a seat, under Participants on the right, and choose a model. Each new seat is named after its model (you can rename it). Add as many as you like, including several of the same model."
@@ -13079,7 +13219,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             class: "speed"
           }, speedLabel(speed)));
           if (e.status === "stopped") foot.push(h2("span", {}, "stopped early"));
-          const details = foot.length && !streaming ? turnDetails(e, models) : [];
+          const details = foot.length && !streaming ? turnDetails(e, allModels()) : [];
           if (details.length) {
             const open = opened.has(e.id);
             article.append(
@@ -13340,8 +13480,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           }
         }
 
-        function ensureKey() {
-          if (hasKey()) return true;
+        function ensureKey(seats = settings.seats) {
+          if (hasKey() || seats.every((s) => isLocalModel(s.model))) return true;
           openSettings();
           els.setKey.focus();
           return false;
@@ -13359,7 +13499,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         } = {}) {
           if (busy.has(seatId) || busy.size > 0 && !alongside) return void 0;
           const seat = seatById(seatId);
-          if (!seat || !ensureKey()) return void 0;
+          if (!seat || !ensureKey([seat])) return void 0;
           if (!seat.model.trim()) {
             alert(`Choose a model for ${seat.name} first.`);
             return void 0;
@@ -13377,9 +13517,11 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             }
           }
           const info = modelInfo(seat.model);
+          const local = isLocalModel(seat.model);
           const messages = buildMessages(seat, settings, session.entries, /* @__PURE__ */
             new Date(), {
-              images: info ? info.inputModalities.includes("image") : true
+              images: info ? info.inputModalities.includes("image") : !local,
+              pdfs: !local
             });
           const pdfEngine = hasFileParts(messages) && !info?.inputModalities.includes("file") ?
             "cloudflare-ai" : void 0;
@@ -13417,6 +13559,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               effort: seat.effort,
               tools: info?.tools !== false,
               pdfEngine,
+              localServer: settings.localServer,
               signal: controller.signal,
               onText: (piece) => {
                 if (tFirst === void 0) tFirst = performance.now();
@@ -13448,8 +13591,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             } else {
               entry.status = "error";
               entry.error = err instanceof Error ? err.message : String(err);
-              const gone = err instanceof OpenRouterError && (err.status === 404 || err
-                .status === 400) && models.length > 0 && !modelInfo(seat.model);
+              const gone = !local && err instanceof OpenRouterError && (err.status === 404 ||
+                err.status === 400) && models.length > 0 && !modelInfo(seat.model);
               if (gone) entry.error =
                 `${seat.model} is no longer in OpenRouter's list of models; choose another with ${seat.name}'s model button. ${entry.error}`;
             }
@@ -13489,7 +13632,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         async function runRound(call, order, privateTo) {
           const named = Boolean(order);
           order ??= roundOrder();
-          if (occupied() || !ensureKey()) return;
+          if (occupied() || !ensureKey(order)) return;
           if (!order.length) return;
           const parallel = call === "independently";
           const r = {
@@ -13715,7 +13858,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         async function sendPrivately(a, fallback) {
           if (!a.text && !pending.length) return;
           const seats = privateTargets(a, fallback);
-          if (!seats.length || !ensureKey()) return;
+          if (!seats.length || !ensureKey(seats)) return;
           const unready = seats.find((s) => !s.model.trim());
           if (unready) {
             alert(`Choose a model for ${unready.name} first.`);
@@ -13755,7 +13898,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             else submitComposer();
             return;
           }
-          if (!ensureKey()) return;
+          if (!ensureKey(everyone ? roundOrder() : a.seats)) return;
           const unready = a.seats.find((s) => !s.model.trim());
           if (unready) {
             alert(`Choose a model for ${unready.name} first.`);
@@ -13822,7 +13965,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             updateComposerState();
             return;
           }
-          if (busy.size || !ensureKey()) return;
+          if (busy.size || !ensureKey(settings.seats.filter((s) => s.id === to))) return;
           addHumanEntry(text2, to, takePending());
           els.composerText.value = "";
           await speak(to, [to]);
@@ -14022,7 +14165,22 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               }, "\u25BE")
             );
             info.classList.remove("warn");
-            if (m) {
+            if (m?.local) {
+              info.replaceChildren(
+                h2("span", {
+                  class: "id"
+                }, m.id),
+                h2("span", {}, m.local.loaded ? "In LM Studio on this computer, loaded" :
+                  "In LM Studio on this computer; it loads the model when asked"),
+                h2("span", {
+                  class: "no-tools"
+                }, "No web search or page reading")
+              );
+            } else if (isLocalModel(seat.model)) {
+              info.textContent = localFetched && !localError ?
+                `${seat.model} is not among LM Studio\u2019s models` : seat.model;
+              info.classList.toggle("warn", localFetched && !localError);
+            } else if (m) {
               const varies = m.inputPrice < 0 || m.outputPrice < 0;
               info.replaceChildren(
                 // An id that follows a family's newest model ("~…-latest"): the model it stands for now.
@@ -14387,7 +14545,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           if (!session.entries.length) renderTranscript();
           openModelPicker(seat.id);
         }
-        var modelInfo = (id) => models.find((m) => m.id === id.trim());
+        var allModels = () => [...localModels, ...models];
+        var modelInfo = (id) => allModels().find((m) => m.id === id.trim());
 
         function refreshModelDisplays() {
           for (const c of seatControls.values()) c.refreshModel?.();
@@ -14415,14 +14574,48 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           }
         }
 
+        function refreshLocalModels() {
+          if (!localLoading) {
+            const address = settings.localServer;
+            localLoading = (async () => {
+              try {
+                localModels = address.trim() ? await fetchLocalModels(address) : [];
+                localError = "";
+              } catch (err) {
+                localModels = [];
+                localError = err instanceof Error ? err.message : String(err);
+              }
+              localFetched = address.trim() !== "";
+            })().finally(() => {
+              localLoading = null;
+              refreshModelDisplays();
+              if (pickerSeatId) renderPicker(true);
+            });
+            if (pickerSeatId) renderPicker(true);
+          }
+          return localLoading;
+        }
+
+        function localServerChanged() {
+          localModels = [];
+          localFetched = false;
+          localError = "";
+          if (hasLocal() && settings.seats.some((s) => isLocalModel(s.model)))
+            void refreshLocalModels();
+          else refreshModelDisplays();
+        }
+
         function loadModels() {
           refreshModelDisplays();
           if (modelsAreStale(modelsAt)) void refreshModels();
+          if (hasLocal() && settings.seats.some((s) => isLocalModel(s.model)))
+            void refreshLocalModels();
         }
         var pickerSeatId = null;
         var pickerRows = [];
         var pickerActive = 0;
         var pickerFound = 0;
+        var pickerLocalFound = 0;
 
         function openModelPicker(seatId) {
           const seat = seatById(seatId);
@@ -14437,6 +14630,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const current = pickerRows.findIndex((r) => r.id === seat.model);
           if (current >= 0) setPickerActive(current, "center");
           if (modelsAreStale(modelsAt)) void refreshModels();
+          if (hasLocal()) void refreshLocalModels();
         }
 
         function closeModelPicker() {
@@ -14462,15 +14656,14 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const seat = pickerSeatId ? seatById(pickerSeatId) : void 0;
           const q2 = els.modelSearch.value.trim();
           const words = q2.toLowerCase().split(/\s+/).filter(Boolean);
-          const found = sortModels(
-            models.filter((m) => {
-              const hay = `${m.name} ${m.id}`.toLowerCase();
-              return words.every((w) => hay.includes(w));
-            }),
-            modelSort
-          );
+          const matches = (m) => {
+            const hay = `${m.name} ${m.id}`.toLowerCase();
+            return words.every((w) => hay.includes(w));
+          };
+          const localFound = sortModels(localModels.filter(matches), "name");
+          const found = [...localFound, ...sortModels(models.filter(matches), modelSort)];
           pickerRows = [];
-          if (q2.includes("/") && !/\s/.test(q2) && !models.some((m) => m.id === q2)) {
+          if (q2.includes("/") && !/\s/.test(q2) && !allModels().some((m) => m.id === q2)) {
             pickerRows.push({
               id: q2,
               el: h2("div", {
@@ -14496,8 +14689,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                   class: "m-id"
                 }, m.id),
                 h2("span", {
-                  class: "m-price"
-                }, `${priceText(m.inputPrice)} / ${priceText(m.outputPrice)}`)
+                    class: "m-price"
+                  }, m.local ? m.local.loaded ? "loaded" : "this computer" :
+                  `${priceText(m.inputPrice)} / ${priceText(m.outputPrice)}`)
               )
             });
           }
@@ -14507,7 +14701,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               if (pickerActive !== i) setPickerActive(i, null);
             });
           });
-          const empty = models.length ?
+          const empty = allModels().length ?
             "No models match. For a model that has only just appeared, press Refresh list. To use an id that isn\u2019t listed, type it in full (it contains a \u201C/\u201D)." :
             modelsLoading ? "Getting OpenRouter\u2019s list of models\u2026" :
             "OpenRouter\u2019s model list hasn\u2019t loaded. Type a model id in full, e.g. anthropic/claude-opus-5.5.";
@@ -14516,7 +14710,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               class: "model-empty"
             }, empty)
           ]);
-          pickerFound = found.length;
+          pickerFound = found.length - localFound.length;
+          pickerLocalFound = localFound.length;
           updatePickerFoot();
           const kept = keepId === void 0 ? -1 : pickerRows.findIndex((r) => r.id === keepId);
           if (kept >= 0) {
@@ -14542,8 +14737,14 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           } else if (!loading && modelsError) {
             text2 = `OpenRouter\u2019s list of models couldn\u2019t be fetched. ${modelsError}`;
           }
+          if (localLoading) text2 += " Asking LM Studio for its models\u2026";
+          else if (localError) text2 += ` ${localError}`;
+          else if (localFetched) text2 +=
+            ` ${pickerLocalFound} of ${localModels.length} from LM Studio, listed first.`;
+          text2 = text2.trim();
           els.modelCount.textContent = text2;
-          els.modelCount.classList.toggle("problem", Boolean(modelsError) && !loading);
+          els.modelCount.classList.toggle("problem", Boolean(modelsError) && !loading || Boolean(
+            localError) && !localLoading);
         }
 
         function chooseModel(id) {
@@ -14605,6 +14806,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         }
 
         function openSettings() {
+          localServerBefore = settings.localServer;
           fillSettingsForm();
           els.setIncludeKeys.checked = false;
           showFileStatus("");
@@ -14619,6 +14821,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           els.setMkey.value = settings.managementKey;
           els.setMkey.type = "password";
           els.setMkeyShow.textContent = "Show";
+          els.setLocal.value = settings.localServer;
           els.setName.value = settings.humanName;
           els.setAbout.value = settings.aboutHuman;
           els.setRules.value = settings.houseRules;
@@ -14677,8 +14880,10 @@ Your name (${next.humanName}), About you, the house rules and the participants (
                 "Your keys stay as they are. ") + "The conversation itself isn't changed."
             );
             if (!ok) return;
+            const localBefore = settings.localServer;
             settings = next;
             persist();
+            if (settings.localServer !== localBefore) localServerChanged();
             fillSettingsForm();
             updateBanner();
             renderSeats();
@@ -14715,8 +14920,10 @@ Your name (${next.humanName}), About you, the house rules and the participants (
             startedOutside = false;
           });
         }
+        var localServerBefore = "";
 
         function onSettingsClosed() {
+          if (settings.localServer !== localServerBefore) localServerChanged();
           persist();
           updateBanner();
           renderTranscript();
@@ -14764,7 +14971,7 @@ Your name (${next.humanName}), About you, the house rules and the participants (
         function exportOptions() {
           const logo = document.querySelector(".topbar .medallion")?.src;
           return {
-            models,
+            models: allModels(),
             render: renderMarkdown,
             logo,
             savedAt: /* @__PURE__ */ new Date(),
@@ -14826,6 +15033,11 @@ Your name (${next.humanName}), About you, the house rules and the participants (
           });
           els.setMkey.addEventListener("input", () => {
             settings.managementKey = els.setMkey.value.trim();
+            persistSoon();
+          });
+          els.setLocal.placeholder = LOCAL_EXAMPLE;
+          els.setLocal.addEventListener("input", () => {
+            settings.localServer = els.setLocal.value.trim();
             persistSoon();
           });
           els.setMkeyShow.addEventListener("click", () => {
@@ -14899,6 +15111,7 @@ Your name (${next.humanName}), About you, the house rules and the participants (
           });
           els.modelRefresh.addEventListener("click", () => {
             void refreshModels();
+            if (hasLocal()) void refreshLocalModels();
             els.modelSearch.focus();
           });
           els.modelCancel.addEventListener("click", closeModelPicker);

@@ -1694,3 +1694,95 @@ test("a message ending with “privately” is private to whom it's for, by Retu
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");
 });
+
+test("LM Studio: a dialog with only local models needs no OpenRouter key; the picker lists LM Studio's models first", async () => {
+  const LOCAL = {
+    data: [
+      { id: "google/gemma-4-31b-qat", type: "vlm", state: "loaded", max_context_length: 262144, loaded_context_length: 8192 },
+      { id: "qwen/qwen3.8-27b", type: "vlm", state: "not-loaded", max_context_length: 262144 },
+      { id: "text-embedding-nomic-embed-text-v1.5", type: "embeddings", state: "not-loaded", max_context_length: 2048 },
+    ],
+  };
+  const chats = []; // { url, headers, body } of every chat request
+  const errors = [];
+  const vc = new VirtualConsole();
+  vc.on("jsdomError", (e) => {
+    if (!/Not implemented/.test(String(e.message))) errors.push(e);
+  });
+  const page = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/local.html",
+    virtualConsole: vc,
+    beforeParse(win) {
+      win.fetch = async (url, init = {}) => {
+        if (url === "http://localhost:1234/api/v0/models") return new Response(JSON.stringify(LOCAL));
+        if (url.startsWith("https://openrouter.ai/") && url.endsWith("/models")) return new Response(JSON.stringify(MODELS));
+        if (url === "http://localhost:1234/v1/chat/completions") {
+          chats.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+          const lines = [
+            { model: "google/gemma-4-31b-qat", choices: [{ delta: { reasoning_content: "Hmm." } }] },
+            { model: "google/gemma-4-31b-qat", choices: [{ delta: { content: "Hello, Bill." } }] },
+            { choices: [], usage: { prompt_tokens: 22, completion_tokens: 30, completion_tokens_details: { reasoning_tokens: 25 } } },
+          ];
+          return new Response(lines.map((l) => `data: ${JSON.stringify(l)}\n\n`).join("") + "data: [DONE]\n\n", { status: 200 });
+        }
+        throw new Error("unexpected URL " + url);
+      };
+      win.TextDecoder = TextDecoder;
+      win.alert = (m) => errors.push(new Error("unexpected alert: " + m));
+      win.localStorage.clear();
+      win.localStorage.setItem(
+        "dialog.settings.v1",
+        JSON.stringify({
+          humanName: "Bill",
+          localServer: "http://localhost:1234",
+          seats: [{ id: "G", name: "Gemma 4 31B QAT", model: "lmstudio/google/gemma-4-31b-qat", role: "", effort: "default", color: "#8e44ad" }],
+        }),
+      );
+    },
+  });
+  const pw = page.window;
+  const pd = pw.document;
+  const $ = (sel) => pd.querySelector(sel);
+  const $$ = (sel) => [...pd.querySelectorAll(sel)];
+  const seats = () => $$("#seat-list .seat");
+  const info = (i) => seats()[i].querySelector(".seat-model-info").textContent;
+
+  // No key, but an LM Studio address: nothing asks for a key.
+  assert.equal($("#banner").hidden, true);
+  assert.ok(!$("#transcript .empty").textContent.includes("OpenRouter API key"));
+  await until(() => /In LM Studio on this computer, loaded/.test(info(0)), "LM Studio's list");
+  assert.match(info(0), /^lmstudio\/google\/gemma-4-31b-qat/);
+  assert.match(info(0), /No web search or page reading/);
+  assert.equal(seats()[0].querySelector(".model-button .model-name").textContent, "Gemma 4 31B QAT (LM Studio)");
+  assert.equal(seats()[0].querySelector('select[aria-label="Thinking level"]').disabled, true);
+
+  // Gemma replies, from LM Studio, without the OpenRouter key or OpenRouter's extras.
+  $("#composer-text").value = "Hello, Gemma.";
+  seats()[0].querySelector("button.speak").click();
+  await until(() => $("#transcript .entry.bot") && !$("#transcript .entry.streaming"), "Gemma's reply");
+  assert.equal(chats.length, 1);
+  assert.equal(chats[0].headers.Authorization, undefined);
+  assert.equal(chats[0].body.model, "google/gemma-4-31b-qat");
+  assert.equal(chats[0].body.tools, undefined);
+  const reply = $("#transcript .entry.bot");
+  assert.equal(reply.querySelector(".body").textContent.trim(), "Hello, Bill.");
+  assert.equal(reply.querySelector(".err"), null);
+  assert.equal(reply.querySelector(".cost"), null, "no cost for a local model");
+  assert.equal($("#session-cost").textContent, "This conversation: $0.00");
+
+  // The picker: LM Studio's chat models first (not its embedding model), then OpenRouter's.
+  $("#btn-add-seat").click();
+  await until(() => /from LM Studio, listed first/.test($("#model-count").textContent), "both lists in the picker");
+  const rows = $$("#model-results .model-row");
+  assert.deepEqual(rows.slice(0, 2).map((r) => r.querySelector(".m-name").textContent), ["Gemma 4 31B QAT (LM Studio)", "Qwen3.8 27B (LM Studio)"]);
+  assert.deepEqual(rows.slice(0, 2).map((r) => r.querySelector(".m-price").textContent), ["loaded", "this computer"]);
+  assert.equal(rows.length, 4, "two of LM Studio's, two of OpenRouter's");
+  assert.match($("#model-count").textContent, /2 of 2 from LM Studio, listed first\./);
+  rows[1].click();
+  assert.equal(seats()[1].querySelector(".seat-head input").value, "Qwen3.8 27B", "named after the model itself");
+
+  await sleep(20);
+  assert.deepEqual(errors.map(String), [], "no script errors");
+});

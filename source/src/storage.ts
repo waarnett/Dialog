@@ -70,6 +70,7 @@ function parseSettings(v: unknown): Settings {
   return {
     apiKey: str(v.apiKey, ""),
     managementKey: str(v.managementKey, ""),
+    localServer: str(v.localServer, ""),
     humanName: str(v.humanName, d.humanName) || d.humanName,
     aboutHuman: str(v.aboutHuman, ""),
     houseRules: upgradeHouseRules(str(v.houseRules, d.houseRules) || d.houseRules),
@@ -88,8 +89,9 @@ export function saveSettings(s: Settings): boolean {
 const FILE_FORMAT = "dialog-settings";
 
 /**
- * The settings as the text of a file: your name, About you, the house rules and every
- * participant. The keys only if asked for: anyone holding them could spend your credit.
+ * The settings as the text of a file: your name, About you, the house rules, every
+ * participant and the LM Studio address. The keys only if asked for: anyone holding them
+ * could spend your credit.
  */
 export function settingsFileText(s: Settings, includeKeys: boolean, savedAt = new Date()): string {
   const out: Record<string, unknown> = {
@@ -99,6 +101,7 @@ export function settingsFileText(s: Settings, includeKeys: boolean, savedAt = ne
     humanName: s.humanName,
     aboutHuman: s.aboutHuman,
     houseRules: s.houseRules,
+    localServer: s.localServer,
     seats: s.seats.map(({ id, name, model, effort, role, color, asleep }) => ({ id, name, model, effort, role, color, ...(asleep ? { asleep } : {}) })),
   };
   if (includeKeys) {
@@ -116,8 +119,9 @@ export interface RestoredSettings {
 }
 
 /**
- * Read a settings file. Each key comes from the file if the file has one, otherwise the
- * current key is kept. Throws an Error in plain words if it isn't a Dialog settings file.
+ * Read a settings file. Each key, and the LM Studio address, comes from the file if the file
+ * has one (older files have no address), otherwise the current one is kept. Throws an Error
+ * in plain words if it isn't a Dialog settings file.
  */
 export function settingsFromFile(text: string, current: Settings): RestoredSettings {
   let v: unknown;
@@ -133,7 +137,8 @@ export function settingsFromFile(text: string, current: Settings): RestoredSetti
   const seats = Array.isArray(v.seats) ? v.seats.map((x) => (isObj(x) && typeof x.id !== "string" ? { ...x, id: newId() } : x)) : [];
   const parsed = parseSettings({ ...v, seats });
   const key = (k: "apiKey" | "managementKey") => (typeof v[k] === "string" && v[k].trim() ? v[k].trim() : current[k]);
-  const settings: Settings = { ...parsed, apiKey: key("apiKey"), managementKey: key("managementKey") };
+  const localServer = typeof v.localServer === "string" ? v.localServer.trim() : current.localServer;
+  const settings: Settings = { ...parsed, apiKey: key("apiKey"), managementKey: key("managementKey"), localServer };
   const hasKeys = [v.apiKey, v.managementKey].some((k) => typeof k === "string" && k.trim() !== "");
   const savedAt = typeof v.savedAt === "string" && !Number.isNaN(Date.parse(v.savedAt)) ? new Date(v.savedAt) : undefined;
   return { settings, savedAt, hasKeys };

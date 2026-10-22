@@ -6,7 +6,7 @@ export interface Seat {
   id: string;
   /** The name other participants see, e.g. "Claude" or "Claude-Skeptic". */
   name: string;
-  /** OpenRouter model identifier, e.g. "anthropic/claude-opus-5.5". */
+  /** OpenRouter model identifier, e.g. "anthropic/claude-opus-5.5", or "lmstudio/…" for one in LM Studio. */
   model: string;
   /** Standing instructions for this seat (sent as its system prompt). */
   role: string;
@@ -151,6 +151,8 @@ export interface Settings {
   apiKey: string;
   /** Optional OpenRouter management key, used only to read the account's remaining credit. */
   managementKey: string;
+  /** The address of LM Studio's server on this computer, e.g. "http://localhost:1234"; "" for none. */
+  localServer: string;
   humanName: string;
   /** What the human wrote about himself; given to every seat with the house rules. */
   aboutHuman: string;

@@ -16,5 +16,8 @@ test("a model's maker and logo come from its id; OpenRouter's name supplies the 
   assert.equal(makerOf("z-ai/glm-5.3", "Z.ai: GLM 5.3").name, "Z.ai");
   assert.equal(makerOf("brand-new/model-x").initial, "B", "no name: the id's first part");
   assert.equal(makerOf("typed-without-slash").initial, "?");
+  const local = makerOf("lmstudio/google/gemma-4-31b-qat", "Gemma 4 31B QAT (LM Studio)");
+  assert.equal(local.slug, "google", "LM Studio's: the maker named after lmstudio/");
+  assert.equal(local.logo, MAKER_LOGOS.google);
   for (const url of Object.values(MAKER_LOGOS)) assert.match(url, /^https:\/\/(openrouter\.ai\/images\/icons\/|t0\.gstatic\.com\/faviconV2\?)/);
 });

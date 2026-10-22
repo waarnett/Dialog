@@ -161,8 +161,10 @@
     <main>
       <h1>Dialog</h1>
       <p>A moderated group conversation between you and several AI models (Claude, ChatGPT, Gemini,
-        Grok, DeepSeek, or any other model OpenRouter offers), running as a single web page in your
-        browser; Safari and Chrome are both known to work. You decide who speaks next; every
+        Grok, DeepSeek, or any other model OpenRouter offers, and models running in LM Studio on
+        your
+        own computer), running as a single web page in your browser; Safari and Chrome are both
+        known to work. You decide who speaks next; every
         participant sees the same conversation, except for private exchanges you have with one of
         them.</p>
       <h2>Getting started</h2>
@@ -260,7 +262,8 @@
         </li>
         <li><strong>The model button</strong> shows the model&#39;s name and opens the model picker,
           a list of every
-          OpenRouter model with its price (dollars per million tokens, input / output):<ul>
+          OpenRouter model with its price (dollars per million tokens, input / output), after
+          LM Studio&#39;s models if you use LM Studio (see Models on this computer):<ul>
             <li>Type a few words (&quot;opus&quot;, &quot;gemini pro&quot;) to narrow the list; the
               current model is
               marked &quot;(current)&quot;.</li>
@@ -725,7 +728,9 @@
         <li>
           <p>PDFs go to models that read PDFs themselves; for the others, OpenRouter converts them
             to
-            text with its free converter (Dialog asks for that one explicitly, because the paid
+            text with its free converter. Models in LM Studio get no PDFs: they are told a PDF was
+            shared, so attach the text instead (copy it into a text file) if they should read it
+            (Dialog asks for that one explicitly, because the paid
             default costs $2 per 1,000 pages and a PDF is re-sent every turn).</p>
         </li>
         <li>
@@ -942,6 +947,80 @@
         <li>Between visits, Dialog remembers the conversation, the participants and your settings.
         </li>
       </ul>
+      <h2>Models on this computer (LM Studio)</h2>
+      <p>Alongside OpenRouter&#39;s models, a participant can use a model running in
+        <a href="https://lmstudio.ai">LM Studio</a> on your own computer. It costs nothing per
+        reply, and its
+        messages never leave the computer. LM Studio participants and OpenRouter participants can
+        share one conversation; a conversation with only LM Studio participants needs no OpenRouter
+        key at all.
+      </p>
+      <p><strong>Setting up:</strong></p>
+      <ol>
+        <li>In LM Studio, download a model and load it.</li>
+        <li>Start LM Studio&#39;s server with <strong>CORS</strong> on. CORS is what lets a web
+          page, such as Dialog,
+          talk to the server. The surest way is in Terminal:
+          <code>~/.lmstudio/bin/lms server start --cors</code>
+          LM Studio&#39;s own caution applies: while CORS is on, any website you visit can use the
+          server (only from browsers on this computer). Stop the server when you&#39;re done
+          (<code>~/.lmstudio/bin/lms server stop</code>) or start it again without
+          <code>--cors</code>.
+        </li>
+        <li>In Dialog&#39;s Settings, put the server&#39;s address under <strong>LM Studio
+            server</strong>: usually
+          <a href="http://localhost:1234">http://localhost:1234</a>.
+        </li>
+        <li>Press a seat&#39;s model button. LM Studio&#39;s chat models come first in the list,
+          marked
+          &quot;(LM Studio)&quot;, with &quot;loaded&quot; beside any model loaded now; the line
+          under the list says
+          how many there are, or why LM Studio couldn&#39;t be reached. Choose one, and a new seat
+          is
+          named after the model (&quot;Gemma 4 31B QAT&quot;). A model not loaded yet is loaded by
+          LM Studio
+          when it is first asked, which can take a while.</li>
+      </ol>
+      <p><strong>Which browser:</strong></p>
+      <ul>
+        <li><strong>Chrome</strong> works with the online Dialog. The first time, Chrome asks
+          whether the page may
+          reach devices on your local network; allow it.</li>
+        <li><strong>Safari</strong> doesn&#39;t let the online Dialog (an https page) reach a server
+          on this computer.
+          It works when Dialog is opened from a copy of <code>index.html</code> on your disk (keep
+          <code>README.html</code> beside it): double-click the copy. Safari keeps that copy&#39;s
+          settings and
+          conversation apart from the online page&#39;s, so you set it up again there (Save settings
+          to a file and Restore from a file carry your setup across).
+        </li>
+      </ul>
+      <p><strong>What&#39;s different about an LM Studio participant:</strong></p>
+      <ul>
+        <li><strong>No cost</strong> is shown: the reply&#39;s speed and token counts are, as for
+          any reply.</li>
+        <li><strong>No web search or page reading:</strong> those are done by OpenRouter.</li>
+        <li><strong>No thinking setting:</strong> the card&#39;s Thinking menu is fixed at the
+          model&#39;s own default.
+          A model that thinks before answering shows &quot;thinking…&quot; until its first words
+          appear;
+          the thinking itself isn&#39;t shown.</li>
+        <li><strong>Images</strong> go to models LM Studio lists as able to view them; others are
+          told an image
+          was shared. <strong>PDFs</strong> aren&#39;t sent (see Attaching files).</li>
+        <li><strong>The conversation must fit the model&#39;s window.</strong> LM Studio loads a
+          model with a fixed
+          context length (often 8,192 tokens, though many models support far more). A conversation
+          longer than that fails with a message saying how many tokens it needs; in LM Studio, load
+          the model again with a larger context length, or start a new conversation.</li>
+        <li>If the card says the model <strong>is not among LM Studio&#39;s models</strong>, it was
+          removed from
+          LM Studio, or the id was typed wrongly. LM Studio answers such a request with whichever
+          model it has loaded, so choose the model again.</li>
+        <li>If Dialog <strong>couldn&#39;t reach LM Studio</strong>, check that the server is
+          running and was started
+          with CORS on, and that the address in Settings is right.</li>
+      </ul>
       <h2>Settings</h2>
       <ul>
         <li>
@@ -952,6 +1031,13 @@
           <p><strong>OpenRouter management key (optional)</strong>, to show your remaining credit;
             see Getting
             started.</p>
+        </li>
+        <li>
+          <p><strong>LM Studio server (optional)</strong>: the address of LM Studio&#39;s server on
+            this computer,
+            usually <a href="http://localhost:1234">http://localhost:1234</a>, for using its models;
+            see Models on this computer
+            (LM Studio). Leave it empty if you don&#39;t use LM Studio.</p>
         </li>
         <li>
           <p><strong>Your name</strong>: what participants call you, and the name on your turns.</p>
@@ -1081,8 +1167,9 @@
         <strong>Restore from a file</strong>
         in the other. Messages go only to OpenRouter, which passes each one to the
         model you chose. The management key, if you add one, goes only to OpenRouter&#39;s credit
-        check. Drawing the seat cards&#39; logos asks OpenRouter&#39;s site, and for a few makers
-        Google&#39;s
+        check. A participant using a model in LM Studio is different: its messages go only to
+        LM Studio, on this computer, and never to OpenRouter. Drawing the seat cards&#39; logos asks
+        OpenRouter&#39;s site, and for a few makers Google&#39;s
         icon service, for the logo; that request carries nothing of yours but your computer&#39;s
         internet address and which logo it wants.</p>
       <h2>Look and credits</h2>

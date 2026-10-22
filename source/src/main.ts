@@ -1,6 +1,7 @@
 // The page: draws the conversation and the participants, and wires up the buttons.
 // The rules of the conversation live in engine.ts; talking to OpenRouter lives in
-// openrouter.ts. This file only connects them to what you see and click.
+// openrouter.ts, and what differs for LM Studio in lmstudio.ts. This file only connects
+// them to what you see and click.
 
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -52,6 +53,7 @@ import {
   thinkingLabel,
   totalCost,
 } from "./engine";
+import { fetchLocalModels, isLocalModel, LOCAL_EXAMPLE } from "./lmstudio";
 import { fetchCredits, fetchKeyInfo, fetchModels, OpenRouterError, streamChat, type CreditInfo, type KeyInfo, type ModelInfo } from "./openrouter";
 import * as store from "./storage";
 import type { Addressee, Attachment, Entry, MadeFile, MadeKind, Seat } from "./types";
@@ -70,6 +72,14 @@ let modelsAt = savedModels?.at ?? 0;
 let modelsLoading: Promise<void> | null = null;
 /** Why the last fetch of the model list failed ("" if it didn't). */
 let modelsError = "";
+/** LM Studio's models, if its address is set in Settings: fetched afresh each time the picker opens, never kept. */
+let localModels: ModelInfo[] = [];
+/** Has LM Studio's list been fetched from the address now in Settings? */
+let localFetched = false;
+/** A fetch of LM Studio's list under way, if any. */
+let localLoading: Promise<void> | null = null;
+/** Why the last fetch of LM Studio's list failed ("" if it didn't). */
+let localError = "";
 /** How the model picker sorts the list (remembered in this browser). */
 let modelSort: ModelSort = store.loadModelSort();
 let keyInfo: KeyInfo | null = null;
@@ -158,6 +168,7 @@ const els = {
   setKeyShow: byId<HTMLButtonElement>("set-key-show"),
   setMkey: byId<HTMLInputElement>("set-mkey"),
   setMkeyShow: byId<HTMLButtonElement>("set-mkey-show"),
+  setLocal: byId<HTMLInputElement>("set-local"),
   creditInfo: byId("credit-info"),
   setName: byId<HTMLInputElement>("set-name"),
   setAbout: byId<HTMLTextAreaElement>("set-about"),
@@ -212,6 +223,8 @@ function persistSoon(): void {
 const seatById = (id: string): Seat | undefined => settings.seats.find((s) => s.id === id);
 const seatCost = (id: string): number => totalCost(session.entries.filter((e) => e.speaker === id));
 const hasKey = (): boolean => settings.apiKey.trim() !== "";
+/** Is there an LM Studio address in Settings? */
+const hasLocal = (): boolean => settings.localServer.trim() !== "";
 
 /** "$4", "$0.75"; "varies" for a router's price (OpenRouter lists it as -1). */
 function priceText(n: number): string {
@@ -280,7 +293,7 @@ function updateBanner(): void {
   if (!canStore || warnedStorage) {
     msgs.push("Your browser isn't letting Dialog save, so this conversation and your settings will be lost when the page closes.");
   }
-  if (!hasKey()) msgs.push("Add your OpenRouter API key in Settings to begin.");
+  if (!hasKey() && !hasLocal()) msgs.push("Add your OpenRouter API key in Settings to begin.");
   els.banner.hidden = msgs.length === 0;
   els.banner.textContent = msgs.join(" ");
 }
@@ -311,7 +324,14 @@ function emptyState(): HTMLElement {
       h(
         "ol",
         {},
-        hasKey() ? null : h("li", {}, "Open Settings and paste your OpenRouter API key. While you're there, put in your name and a few words about yourself."),
+        hasKey() || hasLocal()
+          ? null
+          : h(
+              "li",
+              {},
+              "Open Settings and paste your OpenRouter API key (or, for models running in LM Studio on this computer, its server’s address). " +
+                "While you're there, put in your name and a few words about yourself.",
+            ),
         settings.seats.length
           ? null
           : h(
@@ -508,7 +528,7 @@ function renderEntry(e: Entry): HTMLElement {
   const speed = turnSpeed(e);
   if (speed) foot.push(h("span", { class: "speed" }, speedLabel(speed)));
   if (e.status === "stopped") foot.push(h("span", {}, "stopped early"));
-  const details = foot.length && !streaming ? turnDetails(e, models) : [];
+  const details = foot.length && !streaming ? turnDetails(e, allModels()) : [];
   if (details.length) {
     const open = opened.has(e.id);
     article.append(
@@ -754,8 +774,9 @@ function addHumanEntry(text: string, privateWith?: string | string[], attachment
 // ---------------------------------------------------------------------------
 // Speaking
 
-function ensureKey(): boolean {
-  if (hasKey()) return true;
+/** Can these seats speak? Only LM Studio's models need no OpenRouter key; if one is missing, Settings opens. */
+function ensureKey(seats: Seat[] = settings.seats): boolean {
+  if (hasKey() || seats.every((s) => isLocalModel(s.model))) return true;
   openSettings();
   els.setKey.focus();
   return false;
@@ -783,7 +804,7 @@ async function speak(
 ): Promise<Entry | undefined> {
   if (busy.has(seatId) || (busy.size > 0 && !alongside)) return undefined;
   const seat = seatById(seatId);
-  if (!seat || !ensureKey()) return undefined;
+  if (!seat || !ensureKey([seat])) return undefined;
   if (!seat.model.trim()) {
     alert(`Choose a model for ${seat.name} first.`);
     return undefined;
@@ -803,13 +824,16 @@ async function speak(
     }
   }
 
-  // What this seat's model can take in directly (unknown models: assume images, convert PDFs).
+  // What this seat's model can take in directly (unknown models: assume images, convert PDFs;
+  // LM Studio's take no PDFs, and images only if its list says so).
   const info = modelInfo(seat.model);
+  const local = isLocalModel(seat.model);
   // The seat's view is built now, before this function first waits. In an independent round
   // every seat's view is built in the same moment, while the others' replies are still empty
   // and arriving, and replies still arriving are never part of anyone's view.
   const messages = buildMessages(seat, settings, session.entries, new Date(), {
-    images: info ? info.inputModalities.includes("image") : true,
+    images: info ? info.inputModalities.includes("image") : !local,
+    pdfs: !local,
   });
   const pdfEngine = hasFileParts(messages) && !info?.inputModalities.includes("file") ? "cloudflare-ai" : undefined;
   const entry: Entry = {
@@ -845,6 +869,7 @@ async function speak(
       effort: seat.effort,
       tools: info?.tools !== false,
       pdfEngine,
+      localServer: settings.localServer,
       signal: controller.signal,
       onText: (piece) => {
         if (tFirst === undefined) tFirst = performance.now();
@@ -877,7 +902,7 @@ async function speak(
       entry.status = "error";
       entry.error = err instanceof Error ? err.message : String(err);
       // The likeliest reason, when Dialog can see it: the model has left OpenRouter's list.
-      const gone = err instanceof OpenRouterError && (err.status === 404 || err.status === 400) && models.length > 0 && !modelInfo(seat.model);
+      const gone = !local && err instanceof OpenRouterError && (err.status === 404 || err.status === 400) && models.length > 0 && !modelInfo(seat.model);
       if (gone) entry.error = `${seat.model} is no longer in OpenRouter's list of models; choose another with ${seat.name}'s model button. ${entry.error}`;
     }
   } finally {
@@ -938,7 +963,7 @@ function roundOrder(): Seat[] {
 async function runRound(call: TeamCall, order?: Seat[], privateTo?: string[]): Promise<void> {
   const named = Boolean(order); // participants you named are asked even if asleep
   order ??= roundOrder();
-  if (occupied() || !ensureKey()) return;
+  if (occupied() || !ensureKey(order)) return;
   if (!order.length) return;
   const parallel = call === "independently";
   const r = { cancelled: false, parallel };
@@ -1155,7 +1180,7 @@ function privateAddressee(seats: Seat[], a: Addressing): Addressee {
 async function sendPrivately(a: Addressing, fallback?: Seat): Promise<void> {
   if (!a.text && !pending.length) return;
   const seats = privateTargets(a, fallback);
-  if (!seats.length || !ensureKey()) return;
+  if (!seats.length || !ensureKey(seats)) return;
   const unready = seats.find((s) => !s.model.trim());
   if (unready) {
     alert(`Choose a model for ${unready.name} first.`);
@@ -1204,7 +1229,7 @@ async function sendAndAsk(): Promise<void> {
     else submitComposer();
     return;
   }
-  if (!ensureKey()) return;
+  if (!ensureKey(everyone ? roundOrder() : a.seats)) return;
   const unready = a.seats.find((s) => !s.model.trim());
   if (unready) {
     alert(`Choose a model for ${unready.name} first.`);
@@ -1266,7 +1291,7 @@ async function onComposerSubmit(ev: Event): Promise<void> {
     updateComposerState();
     return;
   }
-  if (busy.size || !ensureKey()) return;
+  if (busy.size || !ensureKey(settings.seats.filter((s) => s.id === to))) return;
   addHumanEntry(text, to, takePending());
   els.composerText.value = "";
   await speak(to, [to]);
@@ -1449,7 +1474,17 @@ function seatCard(seat: Seat): HTMLElement {
       h("span", { class: "chev", "aria-hidden": "true" }, "▾"),
     );
     info.classList.remove("warn");
-    if (m) {
+    if (m?.local) {
+      info.replaceChildren(
+        h("span", { class: "id" }, m.id),
+        h("span", {}, m.local.loaded ? "In LM Studio on this computer, loaded" : "In LM Studio on this computer; it loads the model when asked"),
+        h("span", { class: "no-tools" }, "No web search or page reading"),
+      );
+    } else if (isLocalModel(seat.model)) {
+      // An LM Studio model not in its list: LM Studio would answer with whichever model it has loaded.
+      info.textContent = localFetched && !localError ? `${seat.model} is not among LM Studio’s models` : seat.model;
+      info.classList.toggle("warn", localFetched && !localError);
+    } else if (m) {
       const varies = m.inputPrice < 0 || m.outputPrice < 0;
       info.replaceChildren(
         // An id that follows a family's newest model ("~…-latest"): the model it stands for now.
@@ -1785,7 +1820,9 @@ function addSeat(): void {
 // ---------------------------------------------------------------------------
 // Model list and the model picker
 
-const modelInfo = (id: string): ModelInfo | undefined => models.find((m) => m.id === id.trim());
+/** Every model Dialog knows of: LM Studio's first, then OpenRouter's. */
+const allModels = (): ModelInfo[] => [...localModels, ...models];
+const modelInfo = (id: string): ModelInfo | undefined => allModels().find((m) => m.id === id.trim());
 
 function refreshModelDisplays(): void {
   for (const c of seatControls.values()) c.refreshModel?.();
@@ -1819,17 +1856,58 @@ async function fetchAndKeepModels(): Promise<void> {
   }
 }
 
-/** When the page opens: show the saved list at once, and get a new one if it's too old (or there is none). */
+/**
+ * Get LM Studio's list of models again (if its address is set). Asked again while a fetch is
+ * under way, it waits for that one. If it fails, the list is emptied and the trouble shown.
+ */
+function refreshLocalModels(): Promise<void> {
+  if (!localLoading) {
+    const address = settings.localServer;
+    localLoading = (async () => {
+      try {
+        localModels = address.trim() ? await fetchLocalModels(address) : [];
+        localError = "";
+      } catch (err) {
+        localModels = [];
+        localError = err instanceof Error ? err.message : String(err);
+      }
+      localFetched = address.trim() !== "";
+    })().finally(() => {
+      localLoading = null;
+      refreshModelDisplays();
+      if (pickerSeatId) renderPicker(true);
+    });
+    if (pickerSeatId) renderPicker(true);
+  }
+  return localLoading;
+}
+
+/** After the LM Studio address changes: forget the old list, and get one from the new address if any seat uses LM Studio. */
+function localServerChanged(): void {
+  localModels = [];
+  localFetched = false;
+  localError = "";
+  if (hasLocal() && settings.seats.some((s) => isLocalModel(s.model))) void refreshLocalModels();
+  else refreshModelDisplays();
+}
+
+/**
+ * When the page opens: show the saved list at once, and get a new one if it's too old (or
+ * there is none). LM Studio's list too, if a seat uses one of its models.
+ */
 function loadModels(): void {
   refreshModelDisplays();
   if (store.modelsAreStale(modelsAt)) void refreshModels();
+  if (hasLocal() && settings.seats.some((s) => isLocalModel(s.model))) void refreshLocalModels();
 }
 
 let pickerSeatId: string | null = null;
 let pickerRows: { id: string; el: HTMLElement }[] = [];
 let pickerActive = 0;
-/** How many models match the picker's search words. */
+/** How many of OpenRouter's models match the picker's search words. */
 let pickerFound = 0;
+/** How many of LM Studio's. */
+let pickerLocalFound = 0;
 
 function openModelPicker(seatId: string): void {
   const seat = seatById(seatId);
@@ -1845,6 +1923,8 @@ function openModelPicker(seatId: string): void {
   if (current >= 0) setPickerActive(current, "center");
   // A list kept open for more than 12 hours is out of date: get a new one while you look.
   if (store.modelsAreStale(modelsAt)) void refreshModels();
+  // LM Studio's list changes as you download and load models: get it every time.
+  if (hasLocal()) void refreshLocalModels();
 }
 
 function closeModelPicker(): void {
@@ -1872,17 +1952,17 @@ function renderPicker(keep = false): void {
   const seat = pickerSeatId ? seatById(pickerSeatId) : undefined;
   const q = els.modelSearch.value.trim();
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const found = sortModels(
-    models.filter((m) => {
-      const hay = `${m.name} ${m.id}`.toLowerCase();
-      return words.every((w) => hay.includes(w));
-    }),
-    modelSort,
-  );
+  const matches = (m: ModelInfo) => {
+    const hay = `${m.name} ${m.id}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  };
+  // LM Studio's models first, by name; then OpenRouter's, in the order chosen.
+  const localFound = sortModels(localModels.filter(matches), "name");
+  const found = [...localFound, ...sortModels(models.filter(matches), modelSort)];
 
   pickerRows = [];
   // Any id typed in full can be used, e.g. a model newer than the cached list.
-  if (q.includes("/") && !/\s/.test(q) && !models.some((m) => m.id === q)) {
+  if (q.includes("/") && !/\s/.test(q) && !allModels().some((m) => m.id === q)) {
     pickerRows.push({
       id: q,
       el: h("div", { class: "model-row custom", role: "option" }, h("span", { class: "m-name" }, `Use “${q}” as typed`)),
@@ -1896,7 +1976,7 @@ function renderPicker(keep = false): void {
         { class: "model-row" + (seat && m.id === seat.model ? " current" : ""), role: "option" },
         h("span", { class: "m-name" }, m.name),
         h("span", { class: "m-id" }, m.id),
-        h("span", { class: "m-price" }, `${priceText(m.inputPrice)} / ${priceText(m.outputPrice)}`),
+        h("span", { class: "m-price" }, m.local ? (m.local.loaded ? "loaded" : "this computer") : `${priceText(m.inputPrice)} / ${priceText(m.outputPrice)}`),
       ),
     });
   }
@@ -1907,13 +1987,14 @@ function renderPicker(keep = false): void {
     });
   });
 
-  const empty = models.length
+  const empty = allModels().length
     ? "No models match. For a model that has only just appeared, press Refresh list. To use an id that isn’t listed, type it in full (it contains a “/”)."
     : modelsLoading
       ? "Getting OpenRouter’s list of models…"
       : "OpenRouter’s model list hasn’t loaded. Type a model id in full, e.g. anthropic/claude-opus-5.5.";
   els.modelResults.replaceChildren(...(pickerRows.length ? pickerRows.map((r) => r.el) : [h("div", { class: "model-empty" }, empty)]));
-  pickerFound = found.length;
+  pickerFound = found.length - localFound.length;
+  pickerLocalFound = localFound.length;
   updatePickerFoot();
   const kept = keepId === undefined ? -1 : pickerRows.findIndex((r) => r.id === keepId);
   if (kept >= 0) {
@@ -1938,8 +2019,13 @@ function updatePickerFoot(): void {
   } else if (!loading && modelsError) {
     text = `OpenRouter’s list of models couldn’t be fetched. ${modelsError}`;
   }
+  // LM Studio's part: how many of its models, or why they couldn't be listed.
+  if (localLoading) text += " Asking LM Studio for its models…";
+  else if (localError) text += ` ${localError}`;
+  else if (localFetched) text += ` ${pickerLocalFound} of ${localModels.length} from LM Studio, listed first.`;
+  text = text.trim();
   els.modelCount.textContent = text;
-  els.modelCount.classList.toggle("problem", Boolean(modelsError) && !loading);
+  els.modelCount.classList.toggle("problem", (Boolean(modelsError) && !loading) || (Boolean(localError) && !localLoading));
 }
 
 function chooseModel(id: string): void {
@@ -2008,6 +2094,7 @@ async function refreshKeyInfo(): Promise<void> {
 // Settings dialog
 
 function openSettings(): void {
+  localServerBefore = settings.localServer;
   fillSettingsForm();
   els.setIncludeKeys.checked = false; // keys go into a file only when asked for each time
   showFileStatus("");
@@ -2023,6 +2110,7 @@ function fillSettingsForm(): void {
   els.setMkey.value = settings.managementKey;
   els.setMkey.type = "password";
   els.setMkeyShow.textContent = "Show";
+  els.setLocal.value = settings.localServer;
   els.setName.value = settings.humanName;
   els.setAbout.value = settings.aboutHuman;
   els.setRules.value = settings.houseRules;
@@ -2080,8 +2168,10 @@ function restoreSettingsFile(file: File): void {
         "The conversation itself isn't changed.",
     );
     if (!ok) return;
+    const localBefore = settings.localServer;
     settings = next;
     persist();
+    if (settings.localServer !== localBefore) localServerChanged();
     fillSettingsForm();
     updateBanner();
     renderSeats();
@@ -2122,7 +2212,11 @@ function closeOnClickOutside(dialog: HTMLDialogElement, close: () => void): void
   });
 }
 
+/** The LM Studio address when Settings opened, to tell whether it changed. */
+let localServerBefore = "";
+
 function onSettingsClosed(): void {
+  if (settings.localServer !== localServerBefore) localServerChanged();
   persist();
   updateBanner();
   renderTranscript();
@@ -2178,7 +2272,7 @@ async function download(content: string, fileName: string, type = "text/html;cha
 function exportOptions(): ExportOptions {
   const logo = document.querySelector<HTMLImageElement>(".topbar .medallion")?.src;
   // Replies whose particulars are open on screen are saved with them too.
-  return { models, render: renderMarkdown, logo, savedAt: new Date(), details: opened };
+  return { models: allModels(), render: renderMarkdown, logo, savedAt: new Date(), details: opened };
 }
 
 /** Save the whole conversation, or just the ticked turns, as one HTML file. */
@@ -2236,6 +2330,11 @@ function wire(): void {
   });
   els.setMkey.addEventListener("input", () => {
     settings.managementKey = els.setMkey.value.trim();
+    persistSoon();
+  });
+  els.setLocal.placeholder = LOCAL_EXAMPLE;
+  els.setLocal.addEventListener("input", () => {
+    settings.localServer = els.setLocal.value.trim();
     persistSoon();
   });
   els.setMkeyShow.addEventListener("click", () => {
@@ -2306,6 +2405,7 @@ function wire(): void {
   });
   els.modelRefresh.addEventListener("click", () => {
     void refreshModels();
+    if (hasLocal()) void refreshLocalModels();
     els.modelSearch.focus(); // so typing, the arrow keys and Return carry on working
   });
   els.modelCancel.addEventListener("click", closeModelPicker);

@@ -1,8 +1,9 @@
 # Dialog
 
 A moderated group conversation between you and several AI models (Claude, ChatGPT, Gemini,
-Grok, DeepSeek, or any other model OpenRouter offers), running as a single web page in your
-browser; Safari and Chrome are both known to work. You decide who speaks next; every
+Grok, DeepSeek, or any other model OpenRouter offers, and models running in LM Studio on your
+own computer), running as a single web page in your browser; Safari and Chrome are both
+known to work. You decide who speaks next; every
 participant sees the same conversation, except for private exchanges you have with one of
 them.
 
@@ -74,7 +75,8 @@ Each participant ("seat") has a card on the right:
   and a darker shade of the color, without the role.
 - **×** removes the seat. Its earlier contributions stay in the conversation.
 - **The model button** shows the model's name and opens the model picker, a list of every
-  OpenRouter model with its price (dollars per million tokens, input / output):
+  OpenRouter model with its price (dollars per million tokens, input / output), after
+  LM Studio's models if you use LM Studio (see Models on this computer):
   - Type a few words ("opus", "gemini pro") to narrow the list; the current model is
     marked "(current)".
   - **Sort**, beside the search box, puts the list in order by name, or by input or output
@@ -332,7 +334,8 @@ files by name and size.
 - Images (PNG, JPEG, WebP, GIF) are sent as images; large ones are scaled down first. A
   participant whose model can't view images is told an image was shared.
 - PDFs go to models that read PDFs themselves; for the others, OpenRouter converts them to
-  text with its free converter (Dialog asks for that one explicitly, because the paid
+  text with its free converter. Models in LM Studio get no PDFs: they are told a PDF was
+  shared, so attach the text instead (copy it into a text file) if they should read it (Dialog asks for that one explicitly, because the paid
   default costs $2 per 1,000 pages and a PDF is re-sent every turn).
 - Word, Pages, Excel and similar files can't be read; Dialog says so and suggests exporting
   them as PDF. Other refusals (a file too large, a type Dialog can't read) appear above the
@@ -450,11 +453,68 @@ rules, under Settings).
 - **New conversation** clears the conversation (save first). Participants and settings stay.
 - Between visits, Dialog remembers the conversation, the participants and your settings.
 
+## Models on this computer (LM Studio)
+
+Alongside OpenRouter's models, a participant can use a model running in
+[LM Studio](https://lmstudio.ai) on your own computer. It costs nothing per reply, and its
+messages never leave the computer. LM Studio participants and OpenRouter participants can
+share one conversation; a conversation with only LM Studio participants needs no OpenRouter
+key at all.
+
+**Setting up:**
+
+1. In LM Studio, download a model and load it.
+2. Start LM Studio's server with **CORS** on. CORS is what lets a web page, such as Dialog,
+   talk to the server. The surest way is in Terminal:
+   `~/.lmstudio/bin/lms server start --cors`
+   LM Studio's own caution applies: while CORS is on, any website you visit can use the
+   server (only from browsers on this computer). Stop the server when you're done
+   (`~/.lmstudio/bin/lms server stop`) or start it again without `--cors`.
+3. In Dialog's Settings, put the server's address under **LM Studio server**: usually
+   http://localhost:1234.
+4. Press a seat's model button. LM Studio's chat models come first in the list, marked
+   "(LM Studio)", with "loaded" beside any model loaded now; the line under the list says
+   how many there are, or why LM Studio couldn't be reached. Choose one, and a new seat is
+   named after the model ("Gemma 4 31B QAT"). A model not loaded yet is loaded by LM Studio
+   when it is first asked, which can take a while.
+
+**Which browser:**
+
+- **Chrome** works with the online Dialog. The first time, Chrome asks whether the page may
+  reach devices on your local network; allow it.
+- **Safari** doesn't let the online Dialog (an https page) reach a server on this computer.
+  It works when Dialog is opened from a copy of `index.html` on your disk (keep
+  `README.html` beside it): double-click the copy. Safari keeps that copy's settings and
+  conversation apart from the online page's, so you set it up again there (Save settings
+  to a file and Restore from a file carry your setup across).
+
+**What's different about an LM Studio participant:**
+
+- **No cost** is shown: the reply's speed and token counts are, as for any reply.
+- **No web search or page reading:** those are done by OpenRouter.
+- **No thinking setting:** the card's Thinking menu is fixed at the model's own default.
+  A model that thinks before answering shows "thinking…" until its first words appear;
+  the thinking itself isn't shown.
+- **Images** go to models LM Studio lists as able to view them; others are told an image
+  was shared. **PDFs** aren't sent (see Attaching files).
+- **The conversation must fit the model's window.** LM Studio loads a model with a fixed
+  context length (often 8,192 tokens, though many models support far more). A conversation
+  longer than that fails with a message saying how many tokens it needs; in LM Studio, load
+  the model again with a larger context length, or start a new conversation.
+- If the card says the model **is not among LM Studio's models**, it was removed from
+  LM Studio, or the id was typed wrongly. LM Studio answers such a request with whichever
+  model it has loaded, so choose the model again.
+- If Dialog **couldn't reach LM Studio**, check that the server is running and was started
+  with CORS on, and that the address in Settings is right.
+
 ## Settings
 
 - **OpenRouter API key**, with **Show** to check what you pasted.
 - **OpenRouter management key (optional)**, to show your remaining credit; see Getting
   started.
+- **LM Studio server (optional)**: the address of LM Studio's server on this computer,
+  usually http://localhost:1234, for using its models; see Models on this computer
+  (LM Studio). Leave it empty if you don't use LM Studio.
 - **Your name**: what participants call you, and the name on your turns.
 - **About you**: a few sentences every participant receives, on every turn, after the house
   rules (and Dialog's note on making files) and before its role.
@@ -542,7 +602,8 @@ using it in Safari and Chrome starts empty, with no key, participants or convers
 carry your setup across, use **Save settings to a file** in one and **Restore from a file**
 in the other. Messages go only to OpenRouter, which passes each one to the
 model you chose. The management key, if you add one, goes only to OpenRouter's credit
-check. Drawing the seat cards' logos asks OpenRouter's site, and for a few makers Google's
+check. A participant using a model in LM Studio is different: its messages go only to
+LM Studio, on this computer, and never to OpenRouter. Drawing the seat cards' logos asks OpenRouter's site, and for a few makers Google's
 icon service, for the logo; that request carries nothing of yours but your computer's
 internet address and which logo it wants.
 

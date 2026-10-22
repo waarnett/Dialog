@@ -7,6 +7,7 @@
 //   - everything said by anyone else becomes "user" messages, labeled "Name says:";
 //   - private exchanges with other seats are left out entirely.
 
+import { isLocalModel, localId, localModelName } from "./lmstudio";
 import type { ModelInfo } from "./openrouter";
 import type { Addressee, Attachment, ChatMessage, ContentPart, Entry, MadeFile, MadeKind, Seat, Session, Settings } from "./types";
 
@@ -92,8 +93,12 @@ const FAMILIES: [RegExp, string][] = [
   [/^~?meta(-llama)?\//, "Llama"],
 ];
 
-/** A short participant name for a model: "Claude" for anthropic/…, else the model's own name. */
+/**
+ * A short participant name for a model: "Claude" for anthropic/…, else the model's own name.
+ * A model in LM Studio is named after itself ("Gemma 4 31B QAT"), not its maker's family.
+ */
 export function friendlySeatName(modelId: string, modelName?: string): string {
+  if (isLocalModel(modelId)) return localModelName(localId(modelId)) || modelId;
   for (const [re, name] of FAMILIES) if (re.test(modelId.trim())) return name;
   const fromName = modelName?.replace(/^[^:]+:\s*/, "").trim(); // "Z.ai: GLM 5.3" -> "GLM 5.3"
   if (fromName) return fromName;
@@ -122,6 +127,7 @@ export function defaultSettings(): Settings {
   return {
     apiKey: "",
     managementKey: "",
+    localServer: "",
     humanName: "John Doe",
     aboutHuman: "",
     houseRules: DEFAULT_HOUSE_RULES,
@@ -568,6 +574,8 @@ export function systemPromptFor(seat: Seat, settings: Settings, now = new Date()
 export interface ModelAbilities {
   /** Can it look at images? If not, it is told an image was shared. */
   images: boolean;
+  /** Can it be sent PDFs (unset: yes)? If not, it is told a PDF was shared. */
+  pdfs?: boolean;
 }
 
 /** The parts that carry one entry to a seat that didn't write it. */
@@ -616,6 +624,8 @@ function entryParts(
       } else {
         parts.push({ type: "text", text: `(${humanName} attached an image, ${a.name}, but your model can't view images.)` });
       }
+    } else if (abilities.pdfs === false) {
+      parts.push({ type: "text", text: `(${humanName} attached a PDF, ${a.name}, but your model can't read PDFs.)` });
     } else {
       parts.push({ type: "text", text: `(Attached PDF: ${a.name})` });
       parts.push({ type: "file", file: { filename: a.name, file_data: a.data } });
