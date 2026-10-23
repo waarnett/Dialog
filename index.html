@@ -318,6 +318,12 @@
         text-underline-offset: 2px;
       }
 
+      .how .how-version {
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin: 1rem 0 0;
+      }
+
       /* ---- a turn in the conversation ---- */
       .entry {
         display: grid;
@@ -1244,6 +1250,11 @@
         color: var(--muted);
       }
 
+      .settings h2 .version {
+        font-size: 0.8rem;
+        margin-left: 0.4rem;
+      }
+
       .settings .row {
         display: flex;
         gap: 0.5rem;
@@ -1581,7 +1592,7 @@
 
     <dialog id="settings-dialog">
       <form method="dialog" class="settings">
-        <h2>Settings</h2>
+        <h2>Settings <small id="set-version" class="version"></small></h2>
 
         <label>OpenRouter API key
           <span class="row">
@@ -12838,6 +12849,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
+        var VERSION = "2.0";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -12867,6 +12879,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           btnSettings: byId("btn-settings"),
           btnAddSeat: byId("btn-add-seat"),
           dialog: byId("settings-dialog"),
+          setVersion: byId("set-version"),
           setKey: byId("set-key"),
           setKeyShow: byId("set-key-show"),
           setMkey: byId("set-mkey"),
@@ -13058,7 +13071,10 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                   class: "how-note"
                 },
                 "A note: the participants are the same models as in their makers\u2019 own chat apps (ChatGPT, Claude, Gemini and the rest), but they don\u2019t get those apps\u2019 hidden instructions. Each gets Dialog\u2019s house rules, what you\u2019ve written about yourself and its role instead, so its answers may differ from what the app would say."
-              )
+              ),
+              h2("p", {
+                class: "how-version"
+              }, `Version ${VERSION}`)
             )
           );
         }
@@ -15035,6 +15051,7 @@ Your name (${next.humanName}), About you, the house rules and the participants (
             settings.managementKey = els.setMkey.value.trim();
             persistSoon();
           });
+          els.setVersion.textContent = `Version ${VERSION}`;
           els.setLocal.placeholder = LOCAL_EXAMPLE;
           els.setLocal.addEventListener("focus", () => {
             if (els.setLocal.value.trim()) return;

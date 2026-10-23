@@ -135,6 +135,9 @@ function h<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
+/** Dialog's version, shown on the welcome screen and in Settings. The second number goes up with each release. */
+const VERSION = "2.0";
+
 const els = {
   transcript: byId("transcript"),
   sessionCost: byId("session-cost"),
@@ -164,7 +167,8 @@ const els = {
   btnSettings: byId<HTMLButtonElement>("btn-settings"),
   btnAddSeat: byId<HTMLButtonElement>("btn-add-seat"),
   dialog: byId<HTMLDialogElement>("settings-dialog"),
-  setKey: byId<HTMLInputElement>("set-key"),
+  setVersion: byId("set-version"),
+  setKey:byId<HTMLInputElement>("set-key"),
   setKeyShow: byId<HTMLButtonElement>("set-key-show"),
   setMkey: byId<HTMLInputElement>("set-mkey"),
   setMkeyShow: byId<HTMLButtonElement>("set-mkey-show"),
@@ -391,6 +395,7 @@ function emptyState(): HTMLElement {
           "but they don’t get those apps’ hidden instructions. Each gets Dialog’s house rules, what you’ve written about yourself " +
           "and its role instead, so its answers may differ from what the app would say.",
       ),
+      h("p", { class: "how-version" }, `Version ${VERSION}`),
     ),
   );
 }
@@ -2332,6 +2337,7 @@ function wire(): void {
     settings.managementKey = els.setMkey.value.trim();
     persistSoon();
   });
+  els.setVersion.textContent = `Version ${VERSION}`;
   els.setLocal.placeholder = LOCAL_EXAMPLE;
   // Clicking into the empty box fills in the usual address, selected so typing replaces it.
   els.setLocal.addEventListener("focus", () => {

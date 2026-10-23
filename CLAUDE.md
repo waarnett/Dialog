@@ -34,6 +34,12 @@ always match the source. The build and the tests must finish with no errors and 
 Then commit (only when Bill asks). Pushing to `main` updates the live site within a minute or
 two, so confirm with Bill before pushing.
 
+Every push gets a new version number: `VERSION` in `source/src/main.ts` (shown on the welcome
+screen and in Settings). Before pushing, compare it with the one on `origin/main`
+(`git show origin/main:source/src/main.ts`); if they're the same, raise the second number
+(2.0 → 2.1 → 2.2 …), then test, release and commit that before the push. Bill says when to
+change the first number.
+
 ## Gotchas
 
 - npm asks for each package's install script to be approved; the approvals are in

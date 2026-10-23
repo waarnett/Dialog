@@ -43,7 +43,8 @@ including a reminder that the house rules can be edited in Settings, beside an e
 Socrates. Steps you've already done (the key, adding seats) drop off. Under the steps, a
 link opens this README in a new tab, and a note points out that the participants don't get
 the hidden instructions their makers' own chat apps use (see How the participants are kept
-separate, below), so they may answer differently than those apps would.
+separate, below), so they may answer differently than those apps would. The last line shows
+Dialog's version number, which also appears at the top of Settings.
 
 ## The top bar
 
