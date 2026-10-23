@@ -10,27 +10,26 @@ them.
 ## Getting started
 
 **No OpenRouter account?** If you run models on your own computer with LM Studio, you can
-do without one: skip steps 1 and 5, leave the key empty in Settings, and set up LM Studio
+do without one: skip steps 1 and 6, leave the key empty in Settings, and set up LM Studio
 as described in Models on this computer (LM Studio), below. Those models cost nothing, but
 they can't search the web or read web pages.
 
-1. **Get an OpenRouter key.** At openrouter.ai, sign in, add a small amount of credit
+1. **Get an OpenRouter API key.** At openrouter.ai, sign in, add a small amount of credit
    (Credits page), then create a key (Keys page). Give the key a **credit limit**: it caps
    what Dialog can ever spend. A limit is a cap, not money; OpenRouter never spends past
    the credit you've bought. A limit can also be set to reset daily, weekly or monthly.
 2. **Open `index.html`** in your browser (double-click it, or drag it onto a browser
-   window). Keep `README.html`, this guide, in the same folder: the page links to it.
-   (Before 2026 Oct 11 the page was called `dialog.html`. In Chrome, the new name opens with
-   your settings and conversation as they were; to be safe in any browser, first use
-   **Save settings to a file…** in the old page, ticking **Include my keys**, and restore
-   that file in the new one if anything is missing.)
-3. Click **Settings**: paste the key, put in **your name** (it starts as "John Doe") and,
-   if you like, a few sentences **about you**. Click **Done**.
-4. **Add participants.** Under Participants, on the right, press **+ Add a seat** and choose
+   window).
+3. Click **Settings** at the top of the page: paste the OpenRouter API key, put in **your
+   name** (it starts as "John Doe") and, if you like, a few sentences **about you**. Review
+   the **House rules** and edit them if you like.
+4. Click **Done**.
+5. **Add participants.** Under Participants, on the right, press **+ Add a seat** and choose
    a model. Each new seat is named after its model ("Claude", "Grok"…) and takes that
    family's color; rename it if you like. Add as many as you want, including several of
-   the same model.
-5. **Optional: a management key, to see your remaining credit.** OpenRouter shows the
+   the same model. Optionally, give each one a **role**: any text you like. The participant
+   receives it, along with the house rules, every time it speaks.
+6. **Optional: a management key, to see your remaining credit.** OpenRouter shows the
    account's remaining credit only to a *management key*, a separate kind of key that can
    create, change and delete your API keys but can't talk to the models. Create one at
    openrouter.ai/settings/management-keys, giving it an expiration date (90 days or a
@@ -54,8 +53,7 @@ separate, below), so they may answer differently than those apps would.
   all your keys. Hover for credit bought and used; click it to open OpenRouter's Credits
   page in a new tab, where you can add more.
 - **This month:** what this API key has spent in the current calendar month. Months begin
-  at midnight UTC, which is 5 pm Pacific in summer and 4 pm in winter. Hover for the key's
-  all-time spending and its limit.
+  at midnight UTC. Hover for the key's all-time spending and its limit.
 - **Save All** (or **Save Selected**), **New conversation**, **Settings**: see below.
 
 A **notice** appears under the top bar when something needs attention: no API key yet
@@ -80,8 +78,8 @@ Each participant ("seat") has a card on the right:
   and a darker shade of the color, without the role.
 - **×** removes the seat. Its earlier contributions stay in the conversation.
 - **The model button** shows the model's name and opens the model picker, a list of every
-  OpenRouter model with its price (dollars per million tokens, input / output), after
-  LM Studio's models if you use LM Studio (see Models on this computer):
+  OpenRouter model with its price (dollars per million tokens, input / output), plus
+  LM Studio's models if you use LM Studio (see Models on this computer, below):
   - Type a few words ("opus", "gemini pro") to narrow the list; the current model is
     marked "(current)".
   - **Sort**, beside the search box, puts the list in order by name, or by input or output
@@ -91,9 +89,10 @@ Each participant ("seat") has a card on the right:
   - Click a model, or use ↑ ↓ (Page Up / Page Down to jump) and Return.
   - Escape, Cancel, or a click outside the list closes it without changing anything.
   - Any model id can be typed in full (it contains a "/"); a "Use … as typed" row appears.
-  - The list comes from OpenRouter. Dialog keeps a copy and gets a new one when its copy is
-    more than 12 hours old: when the page opens, and when you open the picker (even if the
-    page has been open all along). The line under the list says how old the copy is ("from
+  - The list comes from OpenRouter and/or LM Studio. LM Studio's part is fetched each time
+    you open the picker. Of OpenRouter's, Dialog keeps a copy and gets a new one when its
+    copy is more than 12 hours old: when the page opens, and when you open the picker (even
+    if the page has been open all along). The line under the list says how old the copy is ("from
     OpenRouter's list as of 15:28 today").
   - **Refresh list**, beside Cancel, gets a new list at once: use it for a model that has
     only just appeared. While the new list is on its way the button reads "Refreshing…" and
@@ -115,12 +114,13 @@ Each participant ("seat") has a card on the right:
   initial in a small square instead.
 - **Web search and page reading** are always on; there is nothing to set (see Searching
   and reading web pages, below). If the model can't use tools, the card says "Can't use
-  tools, so no web search or page reading".
+  tools, so no web search or page reading". LM Studio models can't use the web.
 - **Thinking** offers exactly the levels the chosen model lists on its OpenRouter page,
   highest first, with the model's own default marked. Models with no thinking setting show
   "not adjustable". Hidden thinking is billed as output.
 - **Role** opens a box for that participant's standing instructions, e.g. "argue the
-  skeptic's side". It shows "(set)" or "(none)".
+  skeptic's side". It shows "(set)" or "(none)". Use the role to give the participant a
+  personality, a perspective or a job description.
 - **Sleep**, beside Thinking, benches the participant for a while without removing it.
   Its card folds up to just its name, its maker's logo and the Sleep box, and moves to the
   end of the list.
@@ -138,19 +138,19 @@ Each participant ("seat") has a card on the right:
 
 ## Talking
 
-**Words at the end of your message** tell Dialog who should reply when you press Return.
+**Words at the end of your message** tell Dialog who will reply when you press Return.
 Dialog takes them off before anyone sees your message, and marks it with a stage direction
 instead, such as "(to Grok)". Each is explained in full below.
 
-| End your message with | Example | What happens |
-|---|---|---|
-| a name | "…what do you think, Grok?" | Grok replies. |
-| several names | "…, Gemini and Claude?" | Each replies once, in that order, seeing the replies before it. |
-| names and "independently" | "…, Claude and Grok, independently" | They reply at once, without seeing each other's replies. |
-| "team" | "…what do you think, team?" | Every awake participant replies once, in turn. |
-| "team" and "independently" | "…team, independently" | Every awake participant replies at once, without seeing the others' replies. |
-| "privately" | "…, Grok, privately" | The same as without "privately", but private: only the participants named see your message and their replies. With no name, it goes to whoever spoke last. |
-| "only" | "…, Grok only" | The same as "privately", but only right after a name, a list of names or "team". |
+| End your message with      | Example                             | What happens                                                                                                                                               |
+| -------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a name                     | "…what do you think, Grok?"         | Grok replies.                                                                                                                                              |
+| several names              | "…, Gemini and Claude?"             | Each replies once, in that order, seeing the replies before it.                                                                                            |
+| names and "independently"  | "…, Claude and Grok, independently" | They reply at once, without seeing each other's replies.                                                                                                   |
+| "team"                     | "…what do you think, team?"         | Every awake participant replies once, in turn.                                                                                                             |
+| "team" and "independently" | "…team, independently"              | Every awake participant replies at once, without seeing the others' replies.                                                                               |
+| "privately"                | "…, Grok, privately"                | The same as without "privately", but private: only the participants named see your message and their replies. With no name, it goes to whoever spoke last. |
+| "only"                     | "…, Grok only"                      | The same as "privately", but only right after a name, a list of names or "team".                                                                           |
 
 "parallel" and "in parallel" mean the same as "independently", and can come before or after
 the names or "team". Without any of these endings, Return asks whoever spoke last. ⌘↩ never
@@ -349,14 +349,14 @@ files by name and size.
   with every model, since they arrive as ordinary text. Dialog checks OpenRouter's current
   list each time, so it adapts if this changes.
 
-  | Model | Images | PDFs |
-  |---|---|---|
-  | Claude Opus 5.5 | yes | read by the model itself |
-  | GPT-6 Astra | yes | read by the model itself |
-  | Gemini Pro (latest; now Gemini 3.1 Pro Preview) | yes | read by the model itself |
-  | Grok 4.7 | yes | read by the model itself |
+  | Model                                           | Images                       | PDFs                            |
+  | ----------------------------------------------- | ---------------------------- | ------------------------------- |
+  | Claude Opus 5.5                                 | yes                          | read by the model itself        |
+  | GPT-6 Astra                                     | yes                          | read by the model itself        |
+  | Gemini Pro (latest; now Gemini 3.1 Pro Preview) | yes                          | read by the model itself        |
+  | Grok 4.7                                        | yes                          | read by the model itself        |
   | DeepSeek Pro (latest; now DeepSeek V4 Pro 0813) | no; told an image was shared | converted to text by OpenRouter |
-  | Qwen 3.8 Max, Max Prime, Omni Flash | yes | converted to text by OpenRouter |
+  | Qwen 3.8 Max, Max Prime, Omni Flash             | yes                          | converted to text by OpenRouter |
 
   A model can misread an image even when it receives it. To check that one really saw a
   picture, ask about a detail only the picture shows.
@@ -634,19 +634,19 @@ won't load a tab icon for a page opened from a file, nor one embedded in the pag
 
 TypeScript sources are in `src/`:
 
-| File | What it does |
-|---|---|
-| `types.ts` | The data: seats, entries, settings |
-| `engine.ts` | The rules: each seat's view of the conversation, house rules, files the participants make, seat names and colors |
-| `export.ts` | Saving the whole conversation, or the ticked turns, as an HTML page |
-| `pretty.ts` | The pretty-printer every HTML file goes through |
-| `openrouter.ts` | Talking to OpenRouter: streaming replies, costs, citations, model list, key and credit |
-| `storage.ts` | Saving to and loading from the browser's storage |
-| `attachments.ts` | Reading dropped or picked files into attachments |
-| `makers.ts` | Who made each model, and where its logo comes from |
-| `main.ts` | The page: drawing everything and handling clicks |
-| `index.html`, `styles.css` | Page skeleton and appearance |
-| `icons/` | The Socrates engraving and the welcome picture, medallion and tab icon made from it |
+| File                       | What it does                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                 | The data: seats, entries, settings                                                                               |
+| `engine.ts`                | The rules: each seat's view of the conversation, house rules, files the participants make, seat names and colors |
+| `export.ts`                | Saving the whole conversation, or the ticked turns, as an HTML page                                              |
+| `pretty.ts`                | The pretty-printer every HTML file goes through                                                                  |
+| `openrouter.ts`            | Talking to OpenRouter: streaming replies, costs, citations, model list, key and credit                           |
+| `storage.ts`               | Saving to and loading from the browser's storage                                                                 |
+| `attachments.ts`           | Reading dropped or picked files into attachments                                                                 |
+| `makers.ts`                | Who made each model, and where its logo comes from                                                               |
+| `main.ts`                  | The page: drawing everything and handling clicks                                                                 |
+| `index.html`, `styles.css` | Page skeleton and appearance                                                                                     |
+| `icons/`                   | The Socrates engraving and the welcome picture, medallion and tab icon made from it                              |
 
 This guide is `README.md`; the build turns it into `README.html`, in Dialog's style.
 

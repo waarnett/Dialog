@@ -170,12 +170,12 @@
       <h2>Getting started</h2>
       <p><strong>No OpenRouter account?</strong> If you run models on your own computer with LM
         Studio, you can
-        do without one: skip steps 1 and 5, leave the key empty in Settings, and set up LM Studio
+        do without one: skip steps 1 and 6, leave the key empty in Settings, and set up LM Studio
         as described in Models on this computer (LM Studio), below. Those models cost nothing, but
         they can&#39;t search the web or read web pages.</p>
       <ol>
-        <li><strong>Get an OpenRouter key.</strong> At openrouter.ai, sign in, add a small amount of
-          credit
+        <li><strong>Get an OpenRouter API key.</strong> At openrouter.ai, sign in, add a small
+          amount of credit
           (Credits page), then create a key (Keys page). Give the key a <strong>credit
             limit</strong>: it caps
           what Dialog can ever spend. A limit is a cap, not money; OpenRouter never spends past
@@ -183,24 +183,21 @@
         </li>
         <li><strong>Open <code>index.html</code></strong> in your browser (double-click it, or drag
           it onto a browser
-          window). Keep <code>README.html</code>, this guide, in the same folder: the page links to
-          it.
-          (Before 2026 Oct 11 the page was called <code>dialog.html</code>. In Chrome, the new name
-          opens with
-          your settings and conversation as they were; to be safe in any browser, first use
-          <strong>Save settings to a file…</strong> in the old page, ticking <strong>Include my
-            keys</strong>, and restore
-          that file in the new one if anything is missing.)
-        </li>
-        <li>Click <strong>Settings</strong>: paste the key, put in <strong>your name</strong> (it
-          starts as &quot;John Doe&quot;) and,
-          if you like, a few sentences <strong>about you</strong>. Click <strong>Done</strong>.</li>
+          window).</li>
+        <li>Click <strong>Settings</strong> at the top of the page: paste the OpenRouter API key,
+          put in <strong>your
+            name</strong> (it starts as &quot;John Doe&quot;) and, if you like, a few sentences
+          <strong>about you</strong>. Review
+          the <strong>House rules</strong> and edit them if you like.</li>
+        <li>Click <strong>Done</strong>.</li>
         <li><strong>Add participants.</strong> Under Participants, on the right, press <strong>+ Add
             a seat</strong> and choose
           a model. Each new seat is named after its model (&quot;Claude&quot;, &quot;Grok&quot;…)
           and takes that
           family&#39;s color; rename it if you like. Add as many as you want, including several of
-          the same model.</li>
+          the same model. Optionally, give each one a <strong>role</strong>: any text you like. The
+          participant
+          receives it, along with the house rules, every time it speaks.</li>
         <li><strong>Optional: a management key, to see your remaining credit.</strong> OpenRouter
           shows the
           account&#39;s remaining credit only to a <em>management key</em>, a separate kind of key
@@ -233,9 +230,7 @@
           page in a new tab, where you can add more.</li>
         <li><strong>This month:</strong> what this API key has spent in the current calendar month.
           Months begin
-          at midnight UTC, which is 5 pm Pacific in summer and 4 pm in winter. Hover for the
-          key&#39;s
-          all-time spending and its limit.</li>
+          at midnight UTC. Hover for the key&#39;s all-time spending and its limit.</li>
         <li><strong>Save All</strong> (or <strong>Save Selected</strong>), <strong>New
             conversation</strong>, <strong>Settings</strong>: see below.</li>
       </ul>
@@ -267,8 +262,8 @@
         </li>
         <li><strong>The model button</strong> shows the model&#39;s name and opens the model picker,
           a list of every
-          OpenRouter model with its price (dollars per million tokens, input / output), after
-          LM Studio&#39;s models if you use LM Studio (see Models on this computer):<ul>
+          OpenRouter model with its price (dollars per million tokens, input / output), plus
+          LM Studio&#39;s models if you use LM Studio (see Models on this computer, below):<ul>
             <li>Type a few words (&quot;opus&quot;, &quot;gemini pro&quot;) to narrow the list; the
               current model is
               marked &quot;(current)&quot;.</li>
@@ -283,10 +278,13 @@
             </li>
             <li>Any model id can be typed in full (it contains a &quot;/&quot;); a &quot;Use … as
               typed&quot; row appears.</li>
-            <li>The list comes from OpenRouter. Dialog keeps a copy and gets a new one when its copy
-              is
-              more than 12 hours old: when the page opens, and when you open the picker (even if the
-              page has been open all along). The line under the list says how old the copy is
+            <li>The list comes from OpenRouter and/or LM Studio. LM Studio&#39;s part is fetched
+              each time
+              you open the picker. Of OpenRouter&#39;s, Dialog keeps a copy and gets a new one when
+              its
+              copy is more than 12 hours old: when the page opens, and when you open the picker
+              (even
+              if the page has been open all along). The line under the list says how old the copy is
               (&quot;from
               OpenRouter&#39;s list as of 15:28 today&quot;).</li>
             <li><strong>Refresh list</strong>, beside Cancel, gets a new list at once: use it for a
@@ -326,7 +324,8 @@
           Searching
           and reading web pages, below). If the model can&#39;t use tools, the card says
           &quot;Can&#39;t use
-          tools, so no web search or page reading&quot;.</li>
+          tools, so no web search or page reading&quot;. LM Studio models can&#39;t use the web.
+        </li>
         <li><strong>Thinking</strong> offers exactly the levels the chosen model lists on its
           OpenRouter page,
           highest first, with the model&#39;s own default marked. Models with no thinking setting
@@ -334,7 +333,9 @@
           &quot;not adjustable&quot;. Hidden thinking is billed as output.</li>
         <li><strong>Role</strong> opens a box for that participant&#39;s standing instructions, e.g.
           &quot;argue the
-          skeptic&#39;s side&quot;. It shows &quot;(set)&quot; or &quot;(none)&quot;.</li>
+          skeptic&#39;s side&quot;. It shows &quot;(set)&quot; or &quot;(none)&quot;. Use the role
+          to give the participant a
+          personality, a perspective or a job description.</li>
         <li><strong>Sleep</strong>, beside Thinking, benches the participant for a while without
           removing it.
           Its card folds up to just its name, its maker&#39;s logo and the Sleep box, and moves to
@@ -357,8 +358,8 @@
           right of the card.</li>
       </ul>
       <h2>Talking</h2>
-      <p><strong>Words at the end of your message</strong> tell Dialog who should reply when you
-        press Return.
+      <p><strong>Words at the end of your message</strong> tell Dialog who will reply when you press
+        Return.
         Dialog takes them off before anyone sees your message, and marks it with a stage direction
         instead, such as &quot;(to Grok)&quot;. Each is explained in full below.</p>
       <table>
