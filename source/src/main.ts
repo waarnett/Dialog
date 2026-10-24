@@ -54,7 +54,7 @@ import {
   totalCost,
 } from "./engine";
 import { fetchLocalModels, isLocalModel, LOCAL_EXAMPLE } from "./lmstudio";
-import { fetchCredits, fetchKeyInfo, fetchModels, OpenRouterError, streamChat, type CreditInfo, type KeyInfo, type ModelInfo } from "./openrouter";
+import { fetchCredits, fetchHost, fetchKeyInfo, fetchModels, OpenRouterError, streamChat, type CreditInfo, type KeyInfo, type ModelInfo } from "./openrouter";
 import * as store from "./storage";
 import type { Addressee, Attachment, Entry, MadeFile, MadeKind, Seat } from "./types";
 
@@ -136,7 +136,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
 }
 
 /** Dialog's version, shown on the welcome screen and in Settings. The second number goes up with each release. */
-const VERSION = "2.1";
+const VERSION = "2.2";
 
 const els = {
   transcript: byId("transcript"),
@@ -407,13 +407,46 @@ function emptyState(): HTMLElement {
 /** Replies whose full particulars are showing (by id). Kept only while the page is open. */
 const opened = new Set<string>();
 
-/** Tapping a reply's cost and speed: show its full particulars below the text, or hide them again. */
+/** Replies whose host is being asked of OpenRouter now (by id). */
+const hostLookups = new Set<string>();
+
+/**
+ * Tapping a reply's cost and speed: show its full particulars below the text, or hide them
+ * again. Opening them asks OpenRouter for the host, if the reply didn't bring it.
+ */
 function toggleDetails(e: Entry, article: HTMLElement): void {
   if (opened.has(e.id)) opened.delete(e.id);
   else opened.add(e.id);
+  if (opened.has(e.id)) void lookUpHost(e);
   const fresh = renderEntry(e);
   article.replaceWith(fresh);
   (fresh.querySelector<HTMLElement>("button.glance") ?? fresh.querySelector<HTMLElement>("button.foot"))?.focus();
+}
+
+/**
+ * Ask OpenRouter which host ran a reply, and keep the answer with it. If it can't say, the
+ * host is left out, and asked again the next time the particulars are opened.
+ */
+async function lookUpHost(e: Entry): Promise<void> {
+  if (e.host || !e.requestId || !hasKey() || hostLookups.has(e.id)) return;
+  hostLookups.add(e.id);
+  try {
+    const host = await fetchHost(settings.apiKey.trim(), e.requestId);
+    if (host) {
+      e.host = host;
+      persist();
+    }
+  } catch {
+    /* unreachable: leave it out */
+  }
+  hostLookups.delete(e.id);
+  // Redraw the reply, if it's still there, keeping the focus where it was.
+  const article = [...els.transcript.querySelectorAll<HTMLElement>("article.entry")].find((a) => a.dataset.id === e.id);
+  if (!article) return;
+  const focused = article.contains(document.activeElement);
+  const fresh = renderEntry(e);
+  article.replaceWith(fresh);
+  if (focused) (fresh.querySelector<HTMLElement>("button.glance") ?? fresh.querySelector<HTMLElement>("button.foot"))?.focus();
 }
 
 /** For pointing at a participant's name: the model that answered and the thinking level asked for. */
@@ -451,7 +484,7 @@ function renderEntry(e: Entry): HTMLElement {
   const speed = turnSpeed(e);
   if (speed) glance.push(h("span", { class: "speed" }, speedLabel(speed)));
   const stopped = e.status === "stopped";
-  const details = (glance.length || stopped) && !streaming ? turnDetails(e, allModels()) : [];
+  const details = (glance.length || stopped) && !streaming ? turnDetails(e, allModels(), hostLookups.has(e.id)) : [];
   const open = details.length > 0 && opened.has(e.id);
   const toggle = () => toggleDetails(e, article);
   const more = () => h("span", { class: "more", "aria-hidden": "true" }, open ? "▾" : "▸");
@@ -913,6 +946,10 @@ async function speak(
         raw += piece;
         entry.text = stripSelfPrefix(raw, seat.name);
         scheduleStreamUpdate(entry);
+      },
+      onMeta: (meta) => {
+        entry.requestId = meta.requestId;
+        entry.host = meta.host;
       },
     });
     takeFiles(entry, stripSelfPrefix(raw, seat.name));

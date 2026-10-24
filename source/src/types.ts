@@ -120,6 +120,10 @@ export interface Entry {
   // The fields below apply only to AI replies.
   /** The model OpenRouter actually used (an alias like "~google/gemini-pro-latest" resolves to a specific one). */
   model?: string;
+  /** OpenRouter's id for the request ("gen-…"), for looking up the host later. */
+  requestId?: string;
+  /** The company whose servers ran the model (e.g. "Alibaba"), as OpenRouter names it. */
+  host?: string;
   /** The seat's model setting when this reply was requested. */
   seatModel?: string;
   /** Your message's addressee, from the words at its end (which are not part of `text`). */

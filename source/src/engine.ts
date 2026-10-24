@@ -390,7 +390,7 @@ export function usageText(e: Entry): string | undefined {
  * the model that answered and the thinking level it was given, the cost with its token
  * counts, the speed with its breakdown, and whether it was stopped early.
  */
-export function turnDetails(e: Entry, models?: ModelInfo[]): string[] {
+export function turnDetails(e: Entry, models?: ModelInfo[], lookingUpHost = false): string[] {
   if (e.speaker === "human") return [];
   const lines: string[] = [];
   const model = e.model ?? e.seatModel;
@@ -399,6 +399,8 @@ export function turnDetails(e: Entry, models?: ModelInfo[]): string[] {
     const thinking = e.seatEffort === undefined ? "" : `; thinking: ${thinkingLabel({ effort: e.seatEffort }, models?.find((m) => m.id === (e.seatModel ?? model).trim()))}`;
     lines.push(`Model: ${model}${asked}${thinking}.`);
   }
+  if (e.host) lines.push(`Host: ${e.host}.`);
+  else if (lookingUpHost) lines.push("Host: looking up…");
   if (e.cost !== undefined) {
     const usage = usageText(e);
     lines.push(`Cost: ${formatCost(e.cost)}` + (usage ? `, for ${usage}.` : "."));

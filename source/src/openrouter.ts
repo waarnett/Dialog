@@ -52,6 +52,8 @@ export interface StreamPiece {
   model?: string;
   /** OpenRouter's id for this request ("gen-..."), carried on each piece. */
   id?: string;
+  /** The host running the model, e.g. "Alibaba" (OpenRouter includes it, though its documentation doesn't promise to). */
+  provider?: string;
   error?: string;
   done?: boolean;
 }
@@ -118,6 +120,7 @@ export function interpretPayload(payload: string, local = false): StreamPiece {
   }
   if (typeof json.model === "string") piece.model = json.model;
   if (typeof json.id === "string") piece.id = json.id;
+  if (typeof json.provider === "string" && json.provider) piece.provider = json.provider;
 
   const choice = Array.isArray(json.choices) && isObj(json.choices[0]) ? json.choices[0] : undefined;
   if (choice) {
@@ -172,6 +175,11 @@ export interface ChatRequest {
   signal?: AbortSignal;
   /** Called with each new piece of reply text as it arrives. */
   onText: (text: string) => void;
+  /**
+   * Called (for OpenRouter, not LM Studio) when the request's id or host first arrives, so
+   * they are known even for a reply that is stopped or fails.
+   */
+  onMeta?: (meta: { requestId?: string; host?: string }) => void;
 }
 
 export interface ChatResult {
@@ -297,9 +305,14 @@ export async function streamChat(req: ChatRequest): Promise<ChatResult> {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
 
+  let host: string | undefined;
   const handle = (payload: string): boolean => {
     const p = interpretPayload(payload, local);
+    if (!local && ((p.id && p.id !== requestId) || (p.provider && p.provider !== host))) {
+      req.onMeta?.({ requestId: p.id ?? requestId, host: p.provider ?? host });
+    }
     if (p.id) requestId = p.id;
+    if (p.provider) host = p.provider;
     if (p.error && local) throw new OpenRouterError(localErrorText(p.error, server));
     if (p.error) {
       // Make sure the request id is there to look up on OpenRouter's Activity page.
@@ -445,6 +458,18 @@ export async function fetchKeyInfo(apiKey: string): Promise<KeyInfo> {
     remaining: typeof d.limit_remaining === "number" ? d.limit_remaining : null,
     limitReset: typeof d.limit_reset === "string" ? d.limit_reset : null,
   };
+}
+
+/**
+ * The host that ran a request ("gen-…"), from OpenRouter's record of it; null if OpenRouter
+ * doesn't say (the record may not be ready just after the reply, or belong to another account).
+ */
+export async function fetchHost(apiKey: string, requestId: string): Promise<string | null> {
+  const res = await send(`${BASE}/generation?id=${encodeURIComponent(requestId)}`, { headers: { Authorization: `Bearer ${apiKey}` } });
+  if (!res.ok) return null;
+  const j: unknown = await res.json();
+  const d = isObj(j) && isObj(j.data) ? j.data : {};
+  return typeof d.provider_name === "string" && d.provider_name ? d.provider_name : null;
 }
 
 export interface CreditInfo {

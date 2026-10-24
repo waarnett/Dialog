@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  turnDetails,
   buildMessages,
   copySeat,
   defaultSettings,
@@ -669,4 +670,11 @@ test("a private exchange with several: only its members see the message and the 
   assert.deepEqual(privateGroup({ privateWith: "A" }), ["A"]);
   assert.equal(canSee("C", { privateWith: group }), false);
   assert.equal(canSee("C", {}), true);
+});
+
+test("particulars: the host after the model, once known; a note while it is being looked up", () => {
+  const e: Entry = { id: "r", speaker: "A", speakerName: "Qwen", text: "Hi.", time: "t", status: "done", model: "qwen/qwen3.8-max", cost: 0.001 };
+  assert.ok(!turnDetails(e).some((l) => l.startsWith("Host")), "unknown: left out");
+  assert.equal(turnDetails(e, undefined, true)[1], "Host: looking up…");
+  assert.deepEqual(turnDetails({ ...e, host: "Alibaba" }).slice(0, 2), ["Model: qwen/qwen3.8-max.", "Host: Alibaba."]);
 });

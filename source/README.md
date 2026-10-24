@@ -270,9 +270,17 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
   stopped it.
 - **Tap (or click) a reply's cost and speed** for the full particulars below the text: the
   exact model that answered (for a "\~" id, the model it stood for then) and the thinking
-  level it was given; the cost with its token counts, including how much was re-read at
-  the discount and how much was stored for re-reading; and the speed's breakdown. Tap
-  either again to hide them. Particulars that are open when you save are saved in full too.
+  level it was given; the **host**, the company whose servers ran the model (OpenRouter
+  often has several for one model: for Qwen, say, Alibaba itself or an independent host);
+  the cost with its token counts, including how much was re-read at the discount and how
+  much was stored for re-reading; and the speed's breakdown. Tap either again to hide them.
+  Particulars that are open when you save are saved in full too.
+- **The host** usually arrives with the reply. If it doesn't, Dialog asks OpenRouter the
+  first time you open that reply's particulars ("Host: looking up…"), then keeps the answer.
+  If OpenRouter can't say yet (just after a reply, its record may not
+  be ready), the line is left out and Dialog asks again the next time you open them. It
+  can only look up replies made with the same OpenRouter account as your key, and only
+  replies from Dialog 2.2 on. Models in LM Studio have no host line.
   Nothing needs hovering, so this works on an iPad too. (On a Mac, pointing at a
   participant's name also shows the model and thinking level.)
 - **× on a turn** (it appears when you hover over the turn) removes it, so no participant

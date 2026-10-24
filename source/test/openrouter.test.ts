@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { citationsFrom, errorDetails, fetchModels, interpretPayload, requestBody, SSEParser, streamChat, OpenRouterError } from "../src/openrouter";
+import { citationsFrom, errorDetails, fetchHost, fetchModels, interpretPayload, requestBody, SSEParser, streamChat, OpenRouterError } from "../src/openrouter";
 
 test("SSE parser handles split lines, comments, CRLF and [DONE]", () => {
   const p = new SSEParser();
@@ -277,4 +277,45 @@ test("streamChat reports a network failure with a useful hint", async () => {
       await assert.rejects(streamChat(req(() => {})), /Couldn't reach OpenRouter/);
     },
   );
+});
+
+test("streamChat passes on the request id and host as soon as they arrive, even if the reply then fails", async () => {
+  await withFetch(
+    (async () =>
+      sseResponse([
+        'data: {"id":"gen-7","provider":"Alibaba","choices":[{"delta":{"content":"Part"}}]}\n\n',
+        'data: {"id":"gen-7","provider":"Alibaba","choices":[{"delta":{"content":" two"}}]}\n\n',
+        'data: {"error":{"code":502,"message":"upstream returned 502"},"choices":[{"finish_reason":"error"}]}\n\n',
+      ])) as typeof fetch,
+    async () => {
+      const metas: unknown[] = [];
+      await assert.rejects(streamChat({ ...req(() => {}), onMeta: (m) => metas.push(m) }), /upstream returned 502/);
+      assert.deepEqual(metas, [{ requestId: "gen-7", host: "Alibaba" }], "once, not with every piece");
+    },
+  );
+  // Without a host in the stream: just the id.
+  await withFetch(
+    (async () => sseResponse(['data: {"id":"gen-8","choices":[{"delta":{"content":"Hi"}}]}\n\n', "data: [DONE]\n\n"])) as typeof fetch,
+    async () => {
+      const metas: unknown[] = [];
+      await streamChat({ ...req(() => {}), onMeta: (m) => metas.push(m) });
+      assert.deepEqual(metas, [{ requestId: "gen-8", host: undefined }]);
+    },
+  );
+});
+
+test("fetchHost: the host from OpenRouter's record of a request; null when it has none", async () => {
+  const asked: { url: string; auth: string }[] = [];
+  await withFetch(
+    (async (url: string, init?: RequestInit) => {
+      asked.push({ url, auth: String((init?.headers as Record<string, string>).Authorization) });
+      if (url.endsWith("gen-1")) return new Response(JSON.stringify({ data: { id: "gen-1", provider_name: "DeepInfra" } }));
+      return new Response(JSON.stringify({ error: { message: "Generation not found" } }), { status: 404 });
+    }) as typeof fetch,
+    async () => {
+      assert.equal(await fetchHost("sk-test", "gen-1"), "DeepInfra");
+      assert.equal(await fetchHost("sk-test", "gen-2"), null);
+    },
+  );
+  assert.deepEqual(asked[0], { url: "https://openrouter.ai/api/v1/generation?id=gen-1", auth: "Bearer sk-test" });
 });

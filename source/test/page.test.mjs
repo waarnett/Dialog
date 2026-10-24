@@ -36,8 +36,9 @@ const MODELS = {
 function makeHarness({ savedModels, models = MODELS } = {}) {
   const chatCalls = [];
   const modelCalls = []; // the options of every request for the model list
-  const state = { models, modelsStatus: 0 };
-  const replies = []; // queue of { pieces, cost, status, slow }
+  const state = { models, modelsStatus: 0, hosts: {} }; // hosts: OpenRouter's records, request id → host
+  const replies = []; // queue of { pieces, cost, status, slow, genId, provider }
+  const hostCalls = []; // request ids looked up
   const blobs = [];
   const downloads = []; // file names the page asked the browser to save
   const authByUrl = {}; // which key was sent where
@@ -55,7 +56,8 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
           await sleep(reply.slow || reply.pause ? 40 : 2); // slow: never finishes; pause: just takes its time
           if (signal?.aborted) return;
           if (i < reply.pieces.length) {
-            controller.enqueue(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: reply.pieces[i++] } }] })}\n\n`));
+            const meta = { ...(reply.genId ? { id: reply.genId } : {}), ...(reply.provider ? { provider: reply.provider } : {}) };
+            controller.enqueue(enc.encode(`data: ${JSON.stringify({ ...meta, choices: [{ delta: { content: reply.pieces[i++] } }] })}\n\n`));
             return;
           }
           if (reply.slow) return; // never finishes on its own; waits for Stop
@@ -76,6 +78,13 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
       modelCalls.push(init);
       if (state.modelsStatus) return new Response("busy", { status: state.modelsStatus });
       return new Response(JSON.stringify(state.models));
+    }
+    if (url.includes("/generation?id=")) {
+      const id = decodeURIComponent(url.split("id=")[1]);
+      hostCalls.push({ id, auth: init.headers?.Authorization });
+      const host = state.hosts[id];
+      await sleep(10);
+      return host ? new Response(JSON.stringify({ data: { id, provider_name: host } })) : new Response("{}", { status: 404 });
     }
     if (url.endsWith("/key")) {
       authByUrl.key = init.headers?.Authorization;
@@ -138,7 +147,7 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
       if (savedModels) window.localStorage.setItem("dialog.models.v5", JSON.stringify(savedModels));
     },
   });
-  return { dom, w: dom.window, d: dom.window.document, chatCalls, modelCalls, state, replies, blobs, downloads, authByUrl, errors };
+  return { dom, w: dom.window, d: dom.window.document, chatCalls, modelCalls, state, replies, blobs, downloads, authByUrl, errors, hostCalls };
 }
 
 async function until(cond, what, ms = 3000) {
@@ -921,6 +930,61 @@ test("a saved conversation can be resumed with Resume… (top bar, only before i
   await until(() => alerts.length === 2, "refusal of another file");
   assert.match(alerts[1], /isn't a conversation saved by Dialog/);
   assert.equal(entries().length, 0, "nothing changed");
+
+  await sleep(20);
+  assert.deepEqual(errors.map(String), [], "no script errors");
+});
+
+test("a reply's host: shown in its particulars, from the reply itself or looked up when they're first opened", async () => {
+  const { w, d, replies, state, hostCalls, blobs, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const entries = () => $$("#transcript .entry");
+  const notBusy = () => !$("#transcript .entry.streaming");
+  const speak = (i) => $$("#seat-list .seat")[i].querySelector("button.speak").click();
+  const lines = (i) => [...entries()[i].querySelectorAll(".detail")].map((x) => x.textContent);
+  const toggle = (i) => entries()[i].querySelector("button.glance").click();
+  await until(() => $$(".seat").length === 2, "seats");
+  $("#composer-text").value = "Hello";
+  $("#composer-send").click();
+
+  // The reply names its host: shown at once, nothing looked up.
+  replies.push({ pieces: ["Hi."], cost: 0.001, genId: "gen-1", provider: "Alibaba" });
+  speak(0);
+  await until(() => entries().length === 2 && notBusy(), "first reply");
+  toggle(1);
+  assert.equal(lines(1)[1], "Host: Alibaba.");
+  assert.equal(hostCalls.length, 0);
+
+  // It doesn't: nothing asked until the particulars are opened; then looked up once and kept.
+  replies.push({ pieces: ["Hey."], cost: 0.001, genId: "gen-2" });
+  speak(1);
+  await until(() => entries().length === 3 && notBusy(), "second reply");
+  await sleep(20);
+  assert.equal(hostCalls.length, 0, "not looked up unasked");
+  toggle(2);
+  assert.equal(lines(2)[1], "Host: looking up…");
+  await sleep(40);
+  assert.ok(!lines(2).some((l) => l.startsWith("Host")), "OpenRouter had no record yet: left out");
+  assert.deepEqual(hostCalls, [{ id: "gen-2", auth: "Bearer sk-test" }]);
+  toggle(2); // closed
+  state.hosts["gen-2"] = "DeepInfra";
+  toggle(2); // opened again: asked again
+  await until(() => lines(2)[1] === "Host: DeepInfra.", "the host looked up");
+  assert.equal(hostCalls.length, 2);
+  assert.equal(JSON.parse(w.localStorage.getItem("dialog.session.v1")).entries[2].host, "DeepInfra", "kept with the reply");
+  toggle(2);
+  toggle(2);
+  await sleep(20);
+  assert.equal(hostCalls.length, 2, "never asked again once known");
+
+  // Not in the margin, only in the particulars; and in a saved file only where they're open.
+  assert.ok(!entries()[2].querySelector("header").textContent.includes("DeepInfra"));
+  toggle(1); // closed
+  $("#btn-save").click();
+  await until(() => blobs.length === 1, "saved");
+  const saved = (await blobs[0].text()).replace(/<script type="application\/json"[^]*?<\/script>/, "");
+  assert.ok(saved.includes("Host: DeepInfra.") && !saved.includes("Host: Alibaba."));
 
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");

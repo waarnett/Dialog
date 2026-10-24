@@ -11122,7 +11122,7 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return `${read2}; ${wrote}`;
         }
 
-        function turnDetails(e, models2) {
+        function turnDetails(e, models2, lookingUpHost = false) {
           if (e.speaker === "human") return [];
           const lines = [];
           const model = e.model ?? e.seatModel;
@@ -11133,6 +11133,8 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
               `; thinking: ${thinkingLabel({ effort: e.seatEffort }, models2?.find((m) => m.id === (e.seatModel ?? model).trim()))}`;
             lines.push(`Model: ${model}${asked}${thinking}.`);
           }
+          if (e.host) lines.push(`Host: ${e.host}.`);
+          else if (lookingUpHost) lines.push("Host: looking up\u2026");
           if (e.cost !== void 0) {
             const usage = usageText(e);
             lines.push(`Cost: ${formatCost(e.cost)}` + (usage ? `, for ${usage}.` : "."));
@@ -12284,6 +12286,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           }
           if (typeof json.model === "string") piece.model = json.model;
           if (typeof json.id === "string") piece.id = json.id;
+          if (typeof json.provider === "string" && json.provider) piece.provider = json.provider;
           const choice = Array.isArray(json.choices) && isObj(json.choices[0]) ? json.choices[0] :
             void 0;
           if (choice) {
@@ -12444,9 +12447,17 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const parser = new SSEParser();
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
+          let host;
           const handle = (payload) => {
             const p = interpretPayload(payload, local);
+            if (!local && (p.id && p.id !== requestId || p.provider && p.provider !== host)) {
+              req.onMeta?.({
+                requestId: p.id ?? requestId,
+                host: p.provider ?? host
+              });
+            }
             if (p.id) requestId = p.id;
+            if (p.provider) host = p.provider;
             if (p.error && local) throw new OpenRouterError(localErrorText(p.error, server));
             if (p.error) {
               throw new OpenRouterError(p.error.includes("request ") || !requestId ? p.error :
@@ -12548,6 +12559,18 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             remaining: typeof d.limit_remaining === "number" ? d.limit_remaining : null,
             limitReset: typeof d.limit_reset === "string" ? d.limit_reset : null
           };
+        }
+        async function fetchHost(apiKey, requestId) {
+          const res = await send(`${BASE}/generation?id=${encodeURIComponent(requestId)}`, {
+            headers: {
+              Authorization: `Bearer ${apiKey}`
+            }
+          });
+          if (!res.ok) return null;
+          const j2 = await res.json();
+          const d = isObj(j2) && isObj(j2.data) ? j2.data : {};
+          return typeof d.provider_name === "string" && d.provider_name ? d.provider_name :
+          null;
         }
         async function fetchCredits(managementKey) {
           const res = await send(`${BASE}/credits`, {
@@ -12967,7 +12990,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.1";
+        var VERSION = "2.2";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -13200,13 +13223,35 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           );
         }
         var opened = /* @__PURE__ */ new Set();
+        var hostLookups = /* @__PURE__ */ new Set();
 
         function toggleDetails(e, article) {
           if (opened.has(e.id)) opened.delete(e.id);
           else opened.add(e.id);
+          if (opened.has(e.id)) void lookUpHost(e);
           const fresh = renderEntry(e);
           article.replaceWith(fresh);
           (fresh.querySelector("button.glance") ?? fresh.querySelector("button.foot"))?.focus();
+        }
+        async function lookUpHost(e) {
+          if (e.host || !e.requestId || !hasKey() || hostLookups.has(e.id)) return;
+          hostLookups.add(e.id);
+          try {
+            const host = await fetchHost(settings.apiKey.trim(), e.requestId);
+            if (host) {
+              e.host = host;
+              persist();
+            }
+          } catch {}
+          hostLookups.delete(e.id);
+          const article = [...els.transcript.querySelectorAll("article.entry")].find((a) => a
+            .dataset.id === e.id);
+          if (!article) return;
+          const focused = article.contains(document.activeElement);
+          const fresh = renderEntry(e);
+          article.replaceWith(fresh);
+          if (focused)(fresh.querySelector("button.glance") ?? fresh.querySelector(
+            "button.foot"))?.focus();
         }
 
         function replyModelTitle(e) {
@@ -13245,8 +13290,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             class: "speed"
           }, speedLabel(speed)));
           const stopped = e.status === "stopped";
-          const details = (glance.length || stopped) && !streaming ? turnDetails(e, allModels()) :
-            [];
+          const details = (glance.length || stopped) && !streaming ? turnDetails(e, allModels(),
+            hostLookups.has(e.id)) : [];
           const open = details.length > 0 && opened.has(e.id);
           const toggle = () => toggleDetails(e, article);
           const more = () => h2("span", {
@@ -13739,6 +13784,10 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 raw += piece;
                 entry.text = stripSelfPrefix(raw, seat.name);
                 scheduleStreamUpdate(entry);
+              },
+              onMeta: (meta) => {
+                entry.requestId = meta.requestId;
+                entry.host = meta.host;
               }
             });
             takeFiles(entry, stripSelfPrefix(raw, seat.name));
