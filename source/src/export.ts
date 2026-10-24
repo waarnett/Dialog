@@ -145,17 +145,22 @@ function sourcesHtml(e: Entry): string {
   return `<div class="sources">Sources:<ul>${lis}</ul></div>`;
 }
 
+/** A reply's cost and speed: two lines in the margin, under its name, as on screen. */
+function glanceHtml(e: Entry): string {
+  const lines: string[] = [];
+  if (e.cost !== undefined) lines.push(`<span>${formatCost(e.cost)}</span>`);
+  const speed = turnSpeed(e);
+  if (speed) lines.push(`<span title="${esc(speedDetails(e, speed))}">${speedLabel(speed)}</span>`);
+  return lines.length ? `<span class="glance">${lines.join("")}</span>` : "";
+}
+
+/** After the text: the full particulars if they were open on screen, or else whether the reply was cut short. */
 function footHtml(e: Entry, opts: ExportOptions): string {
   if (opts.details?.has(e.id)) {
     const lines = turnDetails(e, opts.models);
     if (lines.length) return `<div class="foot details">${lines.map((l) => `<p>${esc(l)}</p>`).join("")}</div>`;
   }
-  const bits: string[] = [];
-  if (e.cost !== undefined) bits.push(`<span>${formatCost(e.cost)}</span>`);
-  const speed = turnSpeed(e);
-  if (speed) bits.push(`<span title="${esc(speedDetails(e, speed))}">${speedLabel(speed)}</span>`);
-  if (e.status === "stopped") bits.push(`<span>stopped early</span>`);
-  return bits.length ? `<div class="foot">${bits.join("")}</div>` : "";
+  return e.status === "stopped" ? `<div class="foot"><span>stopped early</span></div>` : "";
 }
 
 /** One turn, set like the page: name in the margin, speech beside it. */
@@ -175,6 +180,7 @@ function turnHtml(e: Entry, settings: Settings, opts: ExportOptions, showTime: b
     `<span class="name">${esc(e.speakerName)}</span>`,
     dir ? `<span class="direction">${esc(dir)}</span>` : "",
     model ? `<span class="model">${esc(model)}</span>` : "",
+    glanceHtml(e),
     `</div>`,
     `<div class="speech">${body}${filesHtml(e.attachments ?? [])}${madeHtml(e)}${sourcesHtml(e)}${footHtml(e, opts)}</div>`,
     `</article>`,
@@ -287,7 +293,7 @@ const EXPORT_CSS = `
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-text); line-height: 1.62; -webkit-font-smoothing: antialiased; }
 main { max-width: 58rem; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
-h1, h2, .name, .participants li, .time, .direction, .model, .foot, .files-label, .note, footer { font-family: var(--font-ui); }
+h1, h2, .name, .participants li, .time, .direction, .model, .glance, .foot, .files-label, .note, footer { font-family: var(--font-ui); }
 .doc-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.25rem; }
 .doc-head h1 { font-weight: 400; font-size: 2.2rem; margin: 0; line-height: 1.1; }
 .doc-head p { margin: 0.2rem 0 0; color: var(--muted); font-family: var(--font-ui); font-size: 0.95rem; }
@@ -309,6 +315,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 .who .name { font-weight: 600; color: var(--name-color); line-height: 1.3; overflow-wrap: anywhere; }
 .who .direction { font-family: var(--font-text); font-style: italic; font-size: 0.85rem; color: var(--muted); line-height: 1.3; }
 .who .model { font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
+.who .glance { display: flex; flex-direction: column; align-items: flex-end; margin-top: 0.3rem; font-size: 0.72rem; line-height: 1.35; color: var(--muted); font-variant-numeric: tabular-nums; }
 .speech { min-width: 0; }
 .body { font-size: 1.0625rem; padding-left: 1.1rem; border-left: 2px solid color-mix(in srgb, var(--seat-color) 45%, transparent); overflow-wrap: anywhere; }
 .human .body { border-left-color: color-mix(in srgb, var(--ink) 22%, transparent); }
@@ -338,6 +345,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
 @media (max-width: 640px) {
   .turn { grid-template-columns: 1fr; }
   .who { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; text-align: left; }
+  .who .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }
 }
 @media print {
   body { background: #fff; }

@@ -403,13 +403,13 @@ function emptyState(): HTMLElement {
 /** Replies whose full particulars are showing (by id). Kept only while the page is open. */
 const opened = new Set<string>();
 
-/** Tapping a reply's cost and speed: show its full particulars instead, or the summary again. */
+/** Tapping a reply's cost and speed: show its full particulars below the text, or hide them again. */
 function toggleDetails(e: Entry, article: HTMLElement): void {
   if (opened.has(e.id)) opened.delete(e.id);
   else opened.add(e.id);
   const fresh = renderEntry(e);
   article.replaceWith(fresh);
-  fresh.querySelector<HTMLElement>("button.foot")?.focus();
+  (fresh.querySelector<HTMLElement>("button.glance") ?? fresh.querySelector<HTMLElement>("button.foot"))?.focus();
 }
 
 /** For pointing at a participant's name: the model that answered and the thinking level asked for. */
@@ -440,6 +440,36 @@ function renderEntry(e: Entry): HTMLElement {
   else body.innerHTML = renderMarkdown(e.text, isHuman);
   if (!streaming && !e.text.trim() && (e.attachments?.length || e.made?.length)) body.hidden = true; // just files
 
+  // What the reply cost and how fast it came: two lines in the margin, under the name.
+  // Tapping (or clicking) them shows the full particulars below the text; tapping again hides them.
+  const glance: HTMLElement[] = [];
+  if (e.cost !== undefined) glance.push(h("span", { class: "cost" }, formatCost(e.cost)));
+  const speed = turnSpeed(e);
+  if (speed) glance.push(h("span", { class: "speed" }, speedLabel(speed)));
+  const stopped = e.status === "stopped";
+  const details = (glance.length || stopped) && !streaming ? turnDetails(e, allModels()) : [];
+  const open = details.length > 0 && opened.has(e.id);
+  const toggle = () => toggleDetails(e, article);
+  const more = () => h("span", { class: "more", "aria-hidden": "true" }, open ? "▾" : "▸");
+  let glanceBox: HTMLElement | null = null;
+  if (glance.length && details.length) {
+    const last = glance.pop()!;
+    glanceBox = h(
+      "button",
+      {
+        type: "button",
+        class: "glance",
+        "aria-expanded": open ? "true" : "false",
+        "aria-label": open ? undefined : "Show this reply's model, token counts and speed",
+        onclick: toggle,
+      },
+      ...glance,
+      h("span", {}, last, " ", more()),
+    );
+  } else if (glance.length) {
+    glanceBox = h("div", { class: "glance" }, ...glance);
+  }
+
   const article = h(
     "article",
     { class: classes.join(" "), "data-id": e.id, style: seat ? `--seat-color: ${seat.color}` : undefined },
@@ -467,6 +497,7 @@ function renderEntry(e: Entry): HTMLElement {
       ),
       h("span", { class: "who", title: isHuman ? undefined : replyModelTitle(e) }, e.speakerName),
       direction ? h("span", { class: "direction" }, direction) : null,
+      glanceBox,
     ),
     h(
       "button",
@@ -526,32 +557,28 @@ function renderEntry(e: Entry): HTMLElement {
     );
   }
 
-  // After the text: what the reply cost, how fast it came, and whether it was cut short.
-  // Tapping (or clicking) them shows the full particulars in their place; tapping again, the summary.
-  const foot: Child[] = [];
-  if (e.cost !== undefined) foot.push(h("span", { class: "cost" }, formatCost(e.cost)));
-  const speed = turnSpeed(e);
-  if (speed) foot.push(h("span", { class: "speed" }, speedLabel(speed)));
-  if (e.status === "stopped") foot.push(h("span", {}, "stopped early"));
-  const details = foot.length && !streaming ? turnDetails(e, allModels()) : [];
-  if (details.length) {
-    const open = opened.has(e.id);
+  // After the text: the full particulars when they're open, or else whether the reply was cut short.
+  if (open) {
     article.append(
       h(
         "button",
-        {
-          type: "button",
-          class: open ? "foot open" : "foot",
-          "aria-expanded": open ? "true" : "false",
-          "aria-label": open ? undefined : "Show this reply's model, token counts and speed",
-          onclick: () => toggleDetails(e, article),
-        },
-        ...(open ? details.map((line) => h("span", { class: "detail" }, line)) : foot),
-        h("span", { class: "more", "aria-hidden": "true" }, open ? "▾" : "▸"),
+        { type: "button", class: "foot open", "aria-expanded": "true", onclick: toggle },
+        ...details.map((line) => h("span", { class: "detail" }, line)),
+        more(),
       ),
     );
-  } else if (foot.length) {
-    article.append(h("div", { class: "foot" }, ...foot));
+  } else if (stopped && details.length && !glanceBox) {
+    // Stopped before any cost or speed came: the only way to the particulars.
+    article.append(
+      h(
+        "button",
+        { type: "button", class: "foot", "aria-expanded": "false", "aria-label": "Show this reply's particulars", onclick: toggle },
+        h("span", {}, "stopped early"),
+        more(),
+      ),
+    );
+  } else if (stopped) {
+    article.append(h("div", { class: "foot" }, h("span", {}, "stopped early")));
   }
   return article;
 }

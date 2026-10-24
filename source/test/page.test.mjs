@@ -216,28 +216,32 @@ test("a full conversation in the page", async () => {
   assert.equal(head.querySelector(".stamp .time").textContent.length, 5);
   assert.equal(head.children[1].textContent, "Claude");
   assert.ok(!head.textContent.includes("anthropic/"), "model name not repeated in the header");
-  assert.equal(entries()[1].lastElementChild.className, "foot", "cost comes after the text");
-  assert.equal(entries()[1].querySelector(".foot .cost").textContent, "$0.0100");
-  assert.match(entries()[1].querySelector(".foot .speed").textContent, /^\d[\d,]* tokens\/s$/, "speed shown after the reply");
-  // Tapping the summary shows the full particulars in its place (no hovering needed); tapping again, the summary.
+  // Cost and speed are two lines in the margin, under the name; nothing comes after the text.
+  const glance = () => entries()[1].querySelector("header .glance");
+  assert.equal(head.lastElementChild, glance(), "cost and speed come last in the margin");
+  assert.equal(glance().querySelector(".cost").textContent, "$0.0100");
+  assert.match(glance().querySelector(".speed").textContent, /^\d[\d,]* tokens\/s$/, "speed shown in the margin");
+  assert.equal(entries()[1].querySelector(".foot"), null, "nothing below the text");
+  // Tapping them shows the full particulars below the text (no hovering needed); tapping again hides them.
   const foot = () => entries()[1].querySelector(".foot");
-  assert.equal(foot().tagName, "BUTTON");
-  assert.equal(foot().getAttribute("aria-expanded"), "false");
-  assert.equal(foot().querySelector(".cost").title, "", "nothing hidden in a hover");
-  foot().click();
+  assert.equal(glance().tagName, "BUTTON");
+  assert.equal(glance().getAttribute("aria-expanded"), "false");
+  assert.equal(glance().querySelector(".cost").title, "", "nothing hidden in a hover");
+  glance().click();
   assert.equal(foot().className, "foot open");
-  assert.equal(foot().getAttribute("aria-expanded"), "true");
-  assert.equal(d.activeElement, foot(), "the keyboard stays on it");
+  assert.equal(entries()[1].lastElementChild, foot(), "the particulars come after the text");
+  assert.equal(glance().getAttribute("aria-expanded"), "true");
+  assert.equal(d.activeElement, glance(), "the keyboard stays on it");
   const lines = [...foot().querySelectorAll(".detail")].map((x) => x.textContent);
   assert.equal(lines.length, 3);
   assert.equal(lines[0], "Model: resolved/model (for anthropic/claude-opus-5.5); thinking: high (default).");
   assert.equal(lines[1], "Cost: $0.0100, for 50 tokens read; 10 written (4 of them thinking).");
   assert.match(lines[2], /^Speed: 10 tokens written \(4 of them thinking\) in \d+\.\d s from pressing Speak to the last word: [\d,]+ tokens per second overall\. The first words appeared after \d+\.\d s/);
-  assert.equal(foot().querySelector(".cost"), null, "the summary gives way to the particulars");
+  assert.equal(glance().querySelector(".cost").textContent, "$0.0100", "the margin keeps its two lines");
   foot().click();
-  assert.equal(foot().className, "foot");
-  assert.equal(foot().querySelector(".cost").textContent, "$0.0100");
-  assert.equal(entries()[0].querySelector(".foot .speed"), null, "no speed on Bill's turns");
+  assert.equal(foot(), null, "tapping the particulars hides them");
+  assert.equal(glance().getAttribute("aria-expanded"), "false");
+  assert.equal(entries()[0].querySelector(".glance"), null, "no cost or speed on Bill's turns");
   assert.match($("#session-cost").textContent, /\$0\.0100/);
 
   // 3. Private exchange with Grok.
@@ -1682,7 +1686,7 @@ test("a message ending with “privately” is private to whom it's for, by Retu
 
   // Saved: the private pair marked, and the particulars of the reply that's open on screen.
   const publicReply = entries()[5];
-  publicReply.querySelector("button.foot").click();
+  publicReply.querySelector("button.glance").click();
   $("#btn-save").click();
   const saved = squash(await blobs.at(-1).text());
   assert.ok(saved.includes('<span class="direction">(privately, to Claude and Grok, in turn)</span>'));

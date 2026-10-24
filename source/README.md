@@ -264,14 +264,16 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
   Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
   tab. If a model begins its reply with its own label ("Claude says:"), Dialog removes it.
 - **Each turn** shows, in the margin, a tick box for saving (see Saving, below), the time
-  it began and the speaker's name. After the text come any **sources**, then the **cost**,
-  the **speed** (below), and "stopped early" if you stopped it.
-- **Tap (or click) a reply's cost and speed** for the full particulars in their place: the
+  it began and the speaker's name, and under a reply's name its **cost** and **speed**
+  (below) on two lines. After the text come any **sources**, and "stopped early" if you
+  stopped it.
+- **Tap (or click) a reply's cost and speed** for the full particulars below the text: the
   exact model that answered (for a "\~" id, the model it stood for then) and the thinking
   level it was given; the cost with its token counts, including how much was re-read at
-  the discount and how much was stored for re-reading; and the speed's breakdown. Tap again
-  for the short version. Particulars that are open when you save are saved in full too. Nothing needs hovering, so this works on an iPad too. (On a Mac,
-  pointing at a participant's name also shows the model and thinking level.)
+  the discount and how much was stored for re-reading; and the speed's breakdown. Tap
+  either again to hide them. Particulars that are open when you save are saved in full too.
+  Nothing needs hovering, so this works on an iPad too. (On a Mac, pointing at a
+  participant's name also shows the model and thinking level.)
 - **× on a turn** (it appears when you hover over the turn) removes it, so no participant
   sees it from then on.
 - **Stopped replies** keep what arrived, and the others will see it.
@@ -319,7 +321,7 @@ deciding for itself when to. OpenRouter does both on its behalf.
 
 ### Speed
 
-After each reply, next to its cost, is its speed in tokens per second: the tokens the model
+In each reply's margin, under its cost, is its speed in tokens per second: the tokens the model
 wrote (its hidden thinking included, since that is billed and takes time) divided by the
 seconds from pressing Speak to the last word. That time includes thinking, any web searches
 and network delay, so it measures how fast the participant answers you, not raw model
@@ -425,8 +427,9 @@ rules, under Settings).
   with private exchanges included and marked (and the other stage directions too: "(to
   Grok)", "(to everyone, in turn)", "(answering independently)"); attached images shown,
   attached text files tucked into a section you click to open, PDFs listed by name; the
-  participants' files (see above); sources; costs, with the conversation's total at the end
-  (in full, as on screen, for any reply whose particulars you have open).
+  participants' files (see above); sources; each reply's cost and speed in the margin, as on
+  screen, with the conversation's total at the end (and the full particulars below the
+  text, for any reply whose particulars you have open).
   A reply given with a different model or thinking level from the one its seat has now (you
   changed it since, or removed the seat) is marked with the one it used. Failed replies are
   left out. The file is named like "Dialog 2026 Oct 07 2205.html".

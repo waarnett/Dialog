@@ -63,7 +63,7 @@ test("whole conversation: participants, private marks, files, sources, costs; fa
   assert.ok(html.includes('<span class="direction">(privately, to Grok)</span>'));
   assert.ok(html.includes('<span class="direction">(privately, to Bill)</span>'));
   assert.ok(!html.includes("broken"), "failed replies are left out");
-  assert.ok(html.includes("<span>stopped early</span>"));
+  assert.ok(html.includes('<div class="foot"><span>stopped early</span></div>'), "stopped early stays after the text");
   assert.ok(!html.includes('class="time"'), "no per-turn times in the whole-conversation file");
   assert.ok(html.includes('<span class="model">anthropic/claude-sonnet-5.5</span>'), "model noted where it differs");
   assert.equal(html.split('class="model"').length - 1, 1);
@@ -77,7 +77,7 @@ test("whole conversation: participants, private marks, files, sources, costs; fa
   assert.ok(html.includes('<a href="https://example.com">Example</a>'));
   assert.ok(!html.includes("javascript:"));
   // Costs
-  assert.ok(html.includes("<span>$0.0200</span>"));
+  assert.ok(html.includes('<span class="glance"><span>$0.0200</span></span></div>'), "cost in the margin, under the name");
   assert.ok(html.includes("Total reported cost: $0.0350"));
 });
 
@@ -206,7 +206,9 @@ test("a reply whose particulars are open on screen is saved with them; a private
         "<p>Speed: 1,480 tokens written (1,310 of them thinking) in 21.3 s from pressing Speak to the last word: 69 tokens per second overall.",
     ),
   );
-  assert.ok(html.includes('<div class="foot"><span>$0.0010</span></div>'), "the others keep the short version");
+  assert.ok(html.includes('<span class="glance"><span>$0.0213</span>'), "the open one keeps its margin lines too");
+  assert.ok(html.includes('<span class="glance"><span>$0.0010</span></span></div>'), "the others: just the margin lines");
+  assert.equal((html.match(/class="foot/g) ?? []).length, 1, "only the open one has anything after its text");
   assert.ok(html.includes('<span class="direction">(privately, to Claude and Grok, independently)</span>'));
   assert.ok(html.includes('<span class="direction">(privately, to Bill and Claude)</span>'));
   assert.ok(html.includes('<article class="turn bot private"'));

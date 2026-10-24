@@ -532,12 +532,37 @@
         color: var(--muted);
       }
 
-      .entry .foot .cost,
-      .entry .foot .speed {
+      /* A reply's cost and speed, two lines in the margin: tap for the full particulars below the text. */
+      .entry .glance {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        margin-top: 0.3rem;
+        font-size: 0.72rem;
+        line-height: 1.35;
+        color: var(--muted);
         font-variant-numeric: tabular-nums;
+        text-align: right;
       }
 
-      /* A reply's summary is a button: tap it for the full particulars in its place, tap again for the summary. */
+      .entry button.glance {
+        border: none;
+        background: transparent;
+        padding: 0.1rem 0.25rem;
+        margin-right: -0.25rem;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      .entry button.glance:hover {
+        color: var(--ink);
+      }
+
+      .entry .glance .more {
+        font-size: 0.65rem;
+      }
+
+      /* Stopped before any cost or speed came: "stopped early" is the button for the particulars. */
       .entry button.foot {
         justify-self: end;
         align-items: baseline;
@@ -1483,6 +1508,12 @@
           grid-column: 2;
           grid-row: 1;
           opacity: 1;
+        }
+
+        .entry .glance {
+          flex-direction: row;
+          gap: 0.6rem;
+          margin-top: 0;
         }
 
         .empty {
@@ -11894,19 +11925,23 @@ ${a.data}
           return `<div class="sources">Sources:<ul>${lis}</ul></div>`;
         }
 
+        function glanceHtml(e) {
+          const lines = [];
+          if (e.cost !== void 0) lines.push(`<span>${formatCost(e.cost)}</span>`);
+          const speed = turnSpeed(e);
+          if (speed) lines.push(
+            `<span title="${esc(speedDetails(e, speed))}">${speedLabel(speed)}</span>`);
+          return lines.length ? `<span class="glance">${lines.join("")}</span>` : "";
+        }
+
         function footHtml(e, opts) {
           if (opts.details?.has(e.id)) {
             const lines = turnDetails(e, opts.models);
             if (lines.length)
             return `<div class="foot details">${lines.map((l3) => `<p>${esc(l3)}</p>`).join("")}</div>`;
           }
-          const bits = [];
-          if (e.cost !== void 0) bits.push(`<span>${formatCost(e.cost)}</span>`);
-          const speed = turnSpeed(e);
-          if (speed) bits.push(
-            `<span title="${esc(speedDetails(e, speed))}">${speedLabel(speed)}</span>`);
-          if (e.status === "stopped") bits.push(`<span>stopped early</span>`);
-          return bits.length ? `<div class="foot">${bits.join("")}</div>` : "";
+          return e.status === "stopped" ? `<div class="foot"><span>stopped early</span></div>` :
+            "";
         }
 
         function turnHtml(e, settings2, opts, showTime) {
@@ -11926,6 +11961,7 @@ ${a.data}
             `<span class="name">${esc(e.speakerName)}</span>`,
             dir ? `<span class="direction">${esc(dir)}</span>` : "",
             model ? `<span class="model">${esc(model)}</span>` : "",
+            glanceHtml(e),
             `</div>`,
             `<div class="speech">${body}${filesHtml(e.attachments ?? [])}${madeHtml(e)}${sourcesHtml(e)}${footHtml(e, opts)}</div>`,
             `</article>`
@@ -12027,7 +12063,7 @@ ${a.data}
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-text); line-height: 1.62; -webkit-font-smoothing: antialiased; }
 main { max-width: 58rem; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
-h1, h2, .name, .participants li, .time, .direction, .model, .foot, .files-label, .note, footer { font-family: var(--font-ui); }
+h1, h2, .name, .participants li, .time, .direction, .model, .glance, .foot, .files-label, .note, footer { font-family: var(--font-ui); }
 .doc-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.25rem; }
 .doc-head h1 { font-weight: 400; font-size: 2.2rem; margin: 0; line-height: 1.1; }
 .doc-head p { margin: 0.2rem 0 0; color: var(--muted); font-family: var(--font-ui); font-size: 0.95rem; }
@@ -12049,6 +12085,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 .who .name { font-weight: 600; color: var(--name-color); line-height: 1.3; overflow-wrap: anywhere; }
 .who .direction { font-family: var(--font-text); font-style: italic; font-size: 0.85rem; color: var(--muted); line-height: 1.3; }
 .who .model { font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
+.who .glance { display: flex; flex-direction: column; align-items: flex-end; margin-top: 0.3rem; font-size: 0.72rem; line-height: 1.35; color: var(--muted); font-variant-numeric: tabular-nums; }
 .speech { min-width: 0; }
 .body { font-size: 1.0625rem; padding-left: 1.1rem; border-left: 2px solid color-mix(in srgb, var(--seat-color) 45%, transparent); overflow-wrap: anywhere; }
 .human .body { border-left-color: color-mix(in srgb, var(--ink) 22%, transparent); }
@@ -12078,6 +12115,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
 @media (max-width: 640px) {
   .turn { grid-template-columns: 1fr; }
   .who { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; text-align: left; }
+  .who .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }
 }
 @media print {
   body { background: #fff; }
@@ -13085,7 +13123,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           else opened.add(e.id);
           const fresh = renderEntry(e);
           article.replaceWith(fresh);
-          fresh.querySelector("button.foot")?.focus();
+          (fresh.querySelector("button.glance") ?? fresh.querySelector("button.foot"))?.focus();
         }
 
         function replyModelTitle(e) {
@@ -13115,6 +13153,42 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           else body.innerHTML = renderMarkdown(e.text, isHuman);
           if (!streaming && !e.text.trim() && (e.attachments?.length || e.made?.length)) body
             .hidden = true;
+          const glance = [];
+          if (e.cost !== void 0) glance.push(h2("span", {
+            class: "cost"
+          }, formatCost(e.cost)));
+          const speed = turnSpeed(e);
+          if (speed) glance.push(h2("span", {
+            class: "speed"
+          }, speedLabel(speed)));
+          const stopped = e.status === "stopped";
+          const details = (glance.length || stopped) && !streaming ? turnDetails(e, allModels()) :
+            [];
+          const open = details.length > 0 && opened.has(e.id);
+          const toggle = () => toggleDetails(e, article);
+          const more = () => h2("span", {
+            class: "more",
+            "aria-hidden": "true"
+          }, open ? "\u25BE" : "\u25B8");
+          let glanceBox = null;
+          if (glance.length && details.length) {
+            const last = glance.pop();
+            glanceBox = h2(
+              "button", {
+                type: "button",
+                class: "glance",
+                "aria-expanded": open ? "true" : "false",
+                "aria-label": open ? void 0 : "Show this reply's model, token counts and speed",
+                onclick: toggle
+              },
+              ...glance,
+              h2("span", {}, last, " ", more())
+            );
+          } else if (glance.length) {
+            glanceBox = h2("div", {
+              class: "glance"
+            }, ...glance);
+          }
           const article = h2(
             "article", {
               class: classes.join(" "),
@@ -13150,7 +13224,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               }, e.speakerName),
               direction2 ? h2("span", {
                 class: "direction"
-              }, direction2) : null
+              }, direction2) : null,
+              glanceBox
             ),
             h2(
               "button", {
@@ -13226,41 +13301,39 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               )
             );
           }
-          const foot = [];
-          if (e.cost !== void 0) foot.push(h2("span", {
-            class: "cost"
-          }, formatCost(e.cost)));
-          const speed = turnSpeed(e);
-          if (speed) foot.push(h2("span", {
-            class: "speed"
-          }, speedLabel(speed)));
-          if (e.status === "stopped") foot.push(h2("span", {}, "stopped early"));
-          const details = foot.length && !streaming ? turnDetails(e, allModels()) : [];
-          if (details.length) {
-            const open = opened.has(e.id);
+          if (open) {
             article.append(
               h2(
                 "button", {
                   type: "button",
-                  class: open ? "foot open" : "foot",
-                  "aria-expanded": open ? "true" : "false",
-                  "aria-label": open ? void 0 :
-                    "Show this reply's model, token counts and speed",
-                  onclick: () => toggleDetails(e, article)
+                  class: "foot open",
+                  "aria-expanded": "true",
+                  onclick: toggle
                 },
-                ...open ? details.map((line) => h2("span", {
+                ...details.map((line) => h2("span", {
                   class: "detail"
-                }, line)) : foot,
-                h2("span", {
-                  class: "more",
-                  "aria-hidden": "true"
-                }, open ? "\u25BE" : "\u25B8")
+                }, line)),
+                more()
               )
             );
-          } else if (foot.length) {
+          } else if (stopped && details.length && !glanceBox) {
+            article.append(
+              h2(
+                "button", {
+                  type: "button",
+                  class: "foot",
+                  "aria-expanded": "false",
+                  "aria-label": "Show this reply's particulars",
+                  onclick: toggle
+                },
+                h2("span", {}, "stopped early"),
+                more()
+              )
+            );
+          } else if (stopped) {
             article.append(h2("div", {
               class: "foot"
-            }, ...foot));
+            }, h2("span", {}, "stopped early")));
           }
           return article;
         }

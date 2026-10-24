@@ -276,8 +276,29 @@ textarea { resize: vertical; }
   font-size: 0.78rem;
   color: var(--muted);
 }
-.entry .foot .cost, .entry .foot .speed { font-variant-numeric: tabular-nums; }
-/* A reply's summary is a button: tap it for the full particulars in its place, tap again for the summary. */
+/* A reply's cost and speed, two lines in the margin: tap for the full particulars below the text. */
+.entry .glance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.entry button.glance {
+  border: none;
+  background: transparent;
+  padding: 0.1rem 0.25rem;
+  margin-right: -0.25rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.entry button.glance:hover { color: var(--ink); }
+.entry .glance .more { font-size: 0.65rem; }
+/* Stopped before any cost or speed came: "stopped early" is the button for the particulars. */
 .entry button.foot {
   justify-self: end;
   align-items: baseline;
@@ -668,6 +689,7 @@ dialog::backdrop { background: rgba(20, 20, 18, 0.4); }
   .entry > header { grid-column: 1; grid-row: auto; flex-direction: row; align-items: baseline; gap: 0.5rem; text-align: left; flex-wrap: wrap; }
   .entry .body, .entry .sources, .entry .files, .entry .err, .entry .foot { grid-column: 1; }
   .entry .del { grid-column: 2; grid-row: 1; opacity: 1; }
+  .entry .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }
   .empty { grid-template-columns: 1fr; justify-items: center; }
   .bust { width: 12rem; }
   .topbar { padding: 0.5rem 0.75rem; }
