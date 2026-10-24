@@ -1010,6 +1010,51 @@ test("a reply's host: shown in its particulars, from the reply itself or looked 
   assert.deepEqual(errors.map(String), [], "no script errors");
 });
 
+test("LaTeX math is drawn as math once a reply is complete, survives the safety filter, and goes into saved files", async () => {
+  const { w, d, replies, blobs, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const entries = () => $$("#transcript .entry");
+  const notBusy = () => !$("#transcript .entry.streaming");
+  await until(() => $$(".seat").length === 2, "seats");
+  assert.ok([...d.head.querySelectorAll("style")].some((s) => s.textContent.includes("math.tml-display")), "Temml's stylesheet");
+
+  // A saved conversation without math doesn't carry the math stylesheet.
+  $("#composer-text").value = "It costs $5 and $10, and `$x$` is code.";
+  $("#composer-send").click();
+  assert.equal(entries()[0].querySelectorAll("math").length, 0, "money stays money");
+  $("#btn-save").click();
+  await until(() => blobs.length === 1, "saved without math");
+  assert.ok(!(await blobs[0].text()).includes("math.tml-display"));
+
+  // While arriving, the math shows as written; once complete, as math.
+  replies.push({ pieces: ["Since $\\sqrt{2}$ is irrational", ", $$\\sqrt{2} = 1 + \\cfrac{1}{2 + \\cfrac{1}{2 + \\cdots}}$$", " <script>bad()</script>"], cost: 0.001, pause: true });
+  $$("#seat-list .seat")[0].querySelector("button.speak").click();
+  await until(() => entries().length === 2 && entries()[1].querySelector(".math-source"), "math arriving");
+  assert.equal(entries()[1].querySelectorAll("math").length, 0, "not drawn while arriving");
+  assert.equal(entries()[1].querySelector(".math-source").textContent, "$\\sqrt{2}$");
+  await until(() => notBusy(), "the reply");
+  const body = entries()[1].querySelector(".body");
+  const maths = [...body.querySelectorAll("math")];
+  assert.equal(maths.length, 2);
+  assert.equal(maths[0].namespaceURI, "http://www.w3.org/1998/Math/MathML", "real MathML, kept by the safety filter");
+  assert.ok(maths[0].querySelector("msqrt"));
+  assert.equal(maths[1].getAttribute("display"), "block");
+  assert.equal(maths[1].querySelectorAll("mfrac").length, 2);
+  assert.ok(!body.querySelector("script") && !body.innerHTML.includes("bad()"), "scripts still removed");
+
+  // Saved: the math as math, with its stylesheet.
+  $("#btn-save").click();
+  await until(() => blobs.length === 2, "saved with math");
+  const saved = (await blobs[1].text()).replace(/<script type="application\/json"[^]*?<\/script>/, "");
+  assert.ok(saved.includes("<msqrt>") && saved.includes('display="block"'));
+  assert.ok(saved.includes("math.tml-display"), "the stylesheet travels with the math");
+  assert.ok(!/<script/i.test(saved));
+
+  await sleep(20);
+  assert.deepEqual(errors.map(String), [], "no script errors");
+});
+
 test("Escape closes the model picker; the Save dialog is used where the browser has one; the welcome note", async () => {
   const { w, d, blobs, downloads, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);

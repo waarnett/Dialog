@@ -4,7 +4,8 @@
 //
 // Steps:
 //   1. esbuild translates the TypeScript in src/ to JavaScript and bundles it,
-//      together with the libraries it uses (marked, DOMPurify, js-beautify), into one script.
+//      together with the libraries it uses (marked, Temml, DOMPurify, js-beautify), into one
+//      script. Temml's stylesheet goes in as text, and its font as a data: URL.
 //   2. The script, the stylesheet and the images are pasted into src/index.html.
 //   3. README.md is turned into a web page in the same style.
 //   4. Both pages go through the HTML pretty-printer (src/pretty.ts), and a check confirms the
@@ -24,6 +25,7 @@ const result = await build({
   minify: false, // keep it readable
   write: false,
   legalComments: "inline",
+  loader: { ".css": "text", ".woff2": "dataurl" },
 });
 
 const js = result.outputFiles[0].text;

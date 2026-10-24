@@ -264,6 +264,15 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
 - **Replies appear as they are written.** "thinking…" shows until the first words arrive.
   Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
   tab. If a model begins its reply with its own label ("Claude says:"), Dialog removes it.
+- **Mathematics** written in LaTeX, as models often write it, is shown as mathematics once
+  the reply is complete (while it arrives, you see the LaTeX). A formula between `$$` and
+  `$$`, or `\[` and `\]`, stands on its own line; one between `$` and `$`, or `\(` and
+  `\)`, sits within the sentence. Your own messages work the same way. Prices are left
+  alone: a `$` counts as math only when the next character isn't a space, and the closing
+  one comes right after the formula and isn't followed by a digit, so "$5 and $10" stays
+  money. Math inside code is left as written. LaTeX that can't be read is shown as written,
+  in red; point at it for the reason. Saved conversations show the math too. The
+  participants themselves receive the LaTeX, as written.
 - **Each turn** shows, in the margin, a tick box for saving (see Saving, below), the time
   it began and the speaker's name, and under a reply's name its **cost** and **speed**
   (below) on two lines. After the text come any **sources**, and "stopped early" if you

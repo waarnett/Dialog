@@ -18,6 +18,7 @@ await build({
   outdir: out,
   outExtension: { ".js": ".mjs" },
   external: ["jsdom"],
+  loader: { ".css": "text", ".woff2": "dataurl" }, // as in build.mjs
   logLevel: "warning",
 });
 for (const f of (await readdir("test")).filter((f) => f.endsWith(".test.mjs"))) {

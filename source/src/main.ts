@@ -4,10 +4,11 @@
 // them to what you see and click.
 
 import DOMPurify from "dompurify";
-import { marked } from "marked";
+import { Marked } from "marked";
 import { readAttachment } from "./attachments";
 import { conversationFileName, conversationHtml, escapeHtml, type ExportOptions } from "./export";
 import { makerOf, type Maker } from "./makers";
+import { MATH_CSS, mathExtension, mathHtml, mathSource } from "./math";
 import { prettyHtml } from "./pretty";
 import {
   addressedSeat,
@@ -139,7 +140,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.2.1";
+const VERSION = "2.2.2";
 
 const els = {
   transcript: byId("transcript"),
@@ -191,7 +192,7 @@ const els = {
 };
 
 // ---------------------------------------------------------------------------
-// Markdown rendering (replies are Markdown; this turns them into safe HTML)
+// Markdown rendering (replies are Markdown, often with LaTeX math; this turns them into safe HTML)
 
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   if (node.tagName === "A") {
@@ -200,8 +201,13 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-function renderMarkdown(text: string, keepLineBreaks: boolean): string {
-  const html = marked.parse(text, { async: false, gfm: true, breaks: keepLineBreaks }) as string;
+document.head.append(h("style", {}, MATH_CSS));
+const markdown = new Marked(mathExtension(mathHtml));
+/** For a reply still arriving: its math is shown as written until the reply is complete. */
+const arrivingMarkdown = new Marked(mathExtension(mathSource));
+
+function renderMarkdown(text: string, keepLineBreaks: boolean, arriving = false): string {
+  const html = (arriving ? arrivingMarkdown : markdown).parse(text, { async: false, gfm: true, breaks: keepLineBreaks }) as string;
   return DOMPurify.sanitize(html);
 }
 
@@ -635,7 +641,7 @@ function renderEntry(e: Entry): HTMLElement {
  */
 function fillArrivingBody(body: HTMLElement, raw: string): void {
   const split = splitFiles(raw, true);
-  body.innerHTML = split.text ? renderMarkdown(split.text, false) : "";
+  body.innerHTML = split.text ? renderMarkdown(split.text, false, true) : "";
   if (!split.text && !split.files.length && !split.writing) body.append(h("span", { class: "waiting" }, "thinking…"));
   const done = split.files.map((f) => f.name);
   if (done.length || split.writing) {

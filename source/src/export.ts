@@ -18,6 +18,7 @@ import {
   totalCost,
   turnSpeed,
 } from "./engine";
+import { MATH_CSS } from "./math";
 import type { ModelInfo } from "./openrouter";
 import type { Attachment, Entry, Session, Settings } from "./types";
 
@@ -195,7 +196,7 @@ function page(title: string, inner: string): string {
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${esc(title)}</title>`,
-    `<style>${EXPORT_CSS}</style>`,
+    `<style>${EXPORT_CSS}${inner.includes("<math") ? "\n" + MATH_CSS : ""}</style>`,
     "</head>",
     `<body><main>${inner}</main></body>`,
     "</html>",
@@ -326,6 +327,8 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 .body table { border-collapse: collapse; } .body th, .body td { border: 1px solid var(--line); padding: 0.25rem 0.55rem; }
 .body blockquote { margin-left: 0; padding-left: 0.9rem; border-left: 2px solid var(--line); color: var(--muted); }
 .body a, .sources a { color: inherit; }
+.body math[display="block"] { overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }
+.body .math-error { color: #a3261b; }
 .private { background: var(--aside); box-shadow: 0 0 0 0.6rem var(--aside); border-radius: 2px; }
 .private .body { border-left-color: var(--aside-line); }
 .files { padding-left: 1.2rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); }

@@ -256,6 +256,8 @@ textarea { resize: vertical; }
 .entry .body th, .entry .body td { border: 1px solid var(--line); padding: 0.25rem 0.55rem; }
 .entry .body blockquote { margin-left: 0; padding-left: 0.9rem; border-left: 2px solid var(--line); color: var(--muted); }
 .entry .body hr { border: none; border-top: 1px solid var(--line); }
+.entry .body math[display="block"] { overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }
+.entry .body .math-error { color: var(--error); }
 
 .entry .sources {
   margin-top: 0.55rem;
