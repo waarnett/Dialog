@@ -1553,6 +1553,9 @@
       <div class="actions">
         <button id="btn-save" type="button" title="Save the whole conversation as an HTML file">Save
           All</button>
+        <button id="btn-resume" type="button"
+          title="Carry on with a conversation saved with Save All or Save Selected, with the same participants">Resume…</button>
+        <input id="resume-input" type="file" accept=".html,.htm,text/html" hidden>
         <button id="btn-new" type="button">New conversation</button>
         <button id="btn-settings" type="button">Settings</button>
       </div>
@@ -12739,8 +12742,27 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         function loadSession() {
           const v = read(SESSION_KEY);
           if (!isObj2(v) || !Array.isArray(v.entries)) return newSession();
+          const entries2 = cleanEntries(v.entries, (a) => {
+            try {
+              const data = localStorage.getItem(FILE_PREFIX + a.id);
+              if (data === null) return void 0;
+              storedFiles.add(a.id);
+              return data;
+            } catch {
+              return void 0;
+            }
+          });
+          const session2 = {
+            startedAt: str(v.startedAt, ( /* @__PURE__ */ new Date()).toISOString()),
+            entries: entries2
+          };
+          removeUnusedFiles(session2);
+          return session2;
+        }
+
+        function cleanEntries(raw, contents) {
           const entries2 = [];
-          for (const e of v.entries) {
+          for (const e of raw) {
             if (!isObj2(e) || typeof e.id !== "string" || typeof e.speaker !== "string" ||
               typeof e.text !== "string") continue;
             const entry = e;
@@ -12750,17 +12772,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 delete a.data;
                 continue;
               }
-              try {
-                const data = localStorage.getItem(FILE_PREFIX + a.id);
-                if (data !== null) {
-                  a.data = data;
-                  storedFiles.add(a.id);
-                } else {
-                  delete a.data;
-                }
-              } catch {
-                delete a.data;
-              }
+              const data = contents(a);
+              if (data !== void 0) a.data = data;
+              else delete a.data;
             }
             if (entry.status === "streaming") {
               const split = splitFiles(entry.text);
@@ -12773,12 +12787,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             }
             entries2.push(entry);
           }
-          const session2 = {
-            startedAt: str(v.startedAt, ( /* @__PURE__ */ new Date()).toISOString()),
-            entries: entries2
-          };
-          removeUnusedFiles(session2);
-          return session2;
+          return entries2;
         }
 
         function saveSession(s) {
@@ -12811,6 +12820,77 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               storedFiles.delete(key.slice(FILE_PREFIX.length));
             }
           } catch {}
+        }
+        var CONVERSATION_FORMAT = "dialog-conversation";
+        var DATA_OPEN = `<script type="application/json" id="${CONVERSATION_FORMAT}">`;
+
+        function withConversationData(html2, session2, settings2, only, savedAt = /* @__PURE__ */
+          new Date()) {
+          const entries2 = only?.size ? session2.entries.filter((e) => only.has(e.id) &&
+            isSettled(e)) : session2.entries;
+          const data = {
+            format: CONVERSATION_FORMAT,
+            version: 1,
+            savedAt: savedAt.toISOString(),
+            humanName: settings2.humanName,
+            aboutHuman: settings2.aboutHuman,
+            houseRules: settings2.houseRules,
+            seats: settings2.seats,
+            startedAt: session2.startedAt,
+            entries: entries2
+          };
+          const json = JSON.stringify(data, (key, value) => key === "unsaved" ? void 0 : value)
+            .replace(/</g, "\\u003c");
+          const block = `${DATA_OPEN}${json}<\/script>
+`;
+          const end = html2.lastIndexOf("</body>");
+          return end === -1 ? html2 + block : html2.slice(0, end) + block + html2.slice(end);
+        }
+
+        function conversationFromFile(text2, current) {
+          const start2 = text2.indexOf(DATA_OPEN);
+          const end = start2 === -1 ? -1 : text2.indexOf("<\/script>", start2);
+          let v;
+          if (end !== -1) {
+            try {
+              v = JSON.parse(text2.slice(start2 + DATA_OPEN.length, end));
+            } catch {
+              v = void 0;
+            }
+          }
+          if (!isObj2(v) || v.format !== CONVERSATION_FORMAT || !Array.isArray(v.entries)) {
+            if (start2 === -1 && /<header class="doc-head">/.test(text2)) {
+              throw new Error(
+                "That conversation was saved by an earlier version of Dialog, which didn't keep what's needed to resume it. It can still be read by a browser."
+                );
+            }
+            throw new Error(
+              "That isn't a conversation saved by Dialog (with Save All or Save Selected).");
+          }
+          const parsed = parseSettings({
+            ...v,
+            seats: Array.isArray(v.seats) ? v.seats : []
+          });
+          const settings2 = {
+            ...current,
+            humanName: parsed.humanName,
+            aboutHuman: parsed.aboutHuman,
+            houseRules: parsed.houseRules,
+            seats: parsed.seats
+          };
+          const entries2 = cleanEntries(v.entries, (a) => typeof a.data === "string" ? a.data :
+            void 0);
+          const session2 = {
+            startedAt: str(v.startedAt, ( /* @__PURE__ */ new Date()).toISOString()),
+            entries: entries2
+          };
+          const savedAt = typeof v.savedAt === "string" && !Number.isNaN(Date.parse(v.savedAt)) ?
+            new Date(v.savedAt) : void 0;
+          return {
+            session: session2,
+            settings: settings2,
+            savedAt
+          };
         }
         var MODELS_MAX_AGE_MS = 12 * 60 * 60 * 1e3;
 
@@ -12887,7 +12967,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.0";
+        var VERSION = "2.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -12913,6 +12993,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           modelRefresh: byId("model-refresh"),
           modelCancel: byId("model-cancel"),
           btnSave: byId("btn-save"),
+          btnResume: byId("btn-resume"),
           btnNew: byId("btn-new"),
           btnSettings: byId("btn-settings"),
           btnAddSeat: byId("btn-add-seat"),
@@ -12932,7 +13013,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           setRestoreFile: byId("set-restore-file"),
           setRestoreInput: byId("set-restore-input"),
           setIncludeKeys: byId("set-include-keys"),
-          setFileStatus: byId("set-file-status")
+          setFileStatus: byId("set-file-status"),
+          resumeInput: byId("resume-input")
         };
         purify_default.addHook("afterSanitizeAttributes", (node) => {
           if (node.tagName === "A") {
@@ -13019,6 +13101,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             `Save the ${n === 1 ? "ticked turn" : `${n} ticked turns`} as an HTML file. Untick them all to save everything.` :
             "Save the whole conversation as an HTML file. Tick the box beside particular turns to save just those.";
           els.btnSave.disabled = session.entries.length === 0;
+          els.btnResume.hidden = session.entries.length > 0;
         }
 
         function updateBanner() {
@@ -13089,7 +13172,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 ),
                 h2(
                   "li", {},
-                  "Save All saves the whole conversation as a web page, private exchanges included and marked. To save only some turns, tick the box beside each one; the button then reads Save Selected."
+                  "Save All saves the whole conversation as a web page, private exchanges included and marked. To save only some turns, tick the box beside each one; the button then reads Save Selected. Either file can be resumed later, with the same participants: press Resume\u2026 at the top, before the conversation starts."
                 )
               ),
               h2(
@@ -13634,6 +13717,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             controller
           });
           renderTranscript(true);
+          updateSaveButton();
           updateSeatStatus();
           updateComposerState();
           let raw = "";
@@ -15074,8 +15158,48 @@ Your name (${next.humanName}), About you, the house rules and the participants (
             ...exportOptions(),
             only: picked.size ? picked : void 0
           };
-          void download(prettyHtml(conversationHtml(session, settings, opts)),
-            conversationFileName(opts.savedAt, picked.size > 0));
+          const page2 = withConversationData(prettyHtml(conversationHtml(session, settings,
+            opts)), session, settings, opts.only, opts.savedAt);
+          void download(page2, conversationFileName(opts.savedAt, picked.size > 0));
+        }
+
+        function resumeConversation(file) {
+          const reader = new FileReader();
+          reader.onerror = () => alert(`Couldn't read \u201C${file.name}\u201D.`);
+          reader.onload = () => {
+            let resumed;
+            try {
+              resumed = conversationFromFile(String(reader.result), settings);
+            } catch (err) {
+              alert(err instanceof Error ? err.message : String(err));
+              return;
+            }
+            const n = resumed.session.entries.length;
+            const when2 = resumed.savedAt ?
+              `, saved ${formatDate(resumed.savedAt)} at ${formatTime(resumed.savedAt)}` : "";
+            const seats = resumed.settings.seats;
+            const who = seats.length ? seats.map((s) => s.name).join(", ") : "no participants";
+            const ok = confirm(
+              `Resume the conversation in \u201C${file.name}\u201D${when2}? It has ${n} ${n === 1 ? "turn" : "turns"}, with ${who}.
+
+Your participants, house rules, name and About you will be replaced with the ones saved with it. Your keys stay as they are.`
+            );
+            if (!ok) return;
+            stopAll();
+            settings = resumed.settings;
+            session = resumed.session;
+            picked.clear();
+            opened.clear();
+            persist();
+            fillSettingsForm();
+            updateBanner();
+            renderSeats();
+            renderComposerTo();
+            renderTranscript(true);
+            renderTopbar();
+            updateSeatStatus();
+          };
+          reader.readAsText(file);
         }
 
         function newConversation() {
@@ -15110,6 +15234,12 @@ Your name (${next.humanName}), About you, the house rules and the participants (
           });
           els.btnSave.addEventListener("click", saveConversation);
           els.btnNew.addEventListener("click", newConversation);
+          els.btnResume.addEventListener("click", () => els.resumeInput.click());
+          els.resumeInput.addEventListener("change", () => {
+            const file = els.resumeInput.files?.[0];
+            els.resumeInput.value = "";
+            if (file) resumeConversation(file);
+          });
           els.btnSettings.addEventListener("click", openSettings);
           els.btnAddSeat.addEventListener("click", addSeat);
           wireSeatDragging();

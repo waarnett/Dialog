@@ -136,7 +136,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
 }
 
 /** Dialog's version, shown on the welcome screen and in Settings. The second number goes up with each release. */
-const VERSION = "2.0";
+const VERSION = "2.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -163,6 +163,7 @@ const els = {
   modelRefresh: byId<HTMLButtonElement>("model-refresh"),
   modelCancel: byId<HTMLButtonElement>("model-cancel"),
   btnSave: byId<HTMLButtonElement>("btn-save"),
+  btnResume: byId<HTMLButtonElement>("btn-resume"),
   btnNew: byId<HTMLButtonElement>("btn-new"),
   btnSettings: byId<HTMLButtonElement>("btn-settings"),
   btnAddSeat: byId<HTMLButtonElement>("btn-add-seat"),
@@ -183,6 +184,7 @@ const els = {
   setRestoreInput: byId<HTMLInputElement>("set-restore-input"),
   setIncludeKeys: byId<HTMLInputElement>("set-include-keys"),
   setFileStatus: byId("set-file-status"),
+  resumeInput: byId<HTMLInputElement>("resume-input"),
 };
 
 // ---------------------------------------------------------------------------
@@ -281,7 +283,7 @@ function renderTopbar(): void {
 /** Turns ticked for saving (by id). Kept only while the page is open. */
 const picked = new Set<string>();
 
-/** "Save All", or "Save Selected" while any turn is ticked. */
+/** "Save All", or "Save Selected" while any turn is ticked; and Resume… only while the conversation is empty. */
 function updateSaveButton(): void {
   for (const id of picked) if (!session.entries.some((e) => e.id === id)) picked.delete(id);
   const n = picked.size;
@@ -290,6 +292,7 @@ function updateSaveButton(): void {
     ? `Save the ${n === 1 ? "ticked turn" : `${n} ticked turns`} as an HTML file. Untick them all to save everything.`
     : "Save the whole conversation as an HTML file. Tick the box beside particular turns to save just those.";
   els.btnSave.disabled = session.entries.length === 0;
+  els.btnResume.hidden = session.entries.length > 0;
 }
 
 function updateBanner(): void {
@@ -378,7 +381,8 @@ function emptyState(): HTMLElement {
           "li",
           {},
           "Save All saves the whole conversation as a web page, private exchanges included and marked. " +
-            "To save only some turns, tick the box beside each one; the button then reads Save Selected.",
+            "To save only some turns, tick the box beside each one; the button then reads Save Selected. " +
+            "Either file can be resumed later, with the same participants: press Resume… at the top, before the conversation starts.",
         ),
       ),
       h(
@@ -885,6 +889,7 @@ async function speak(
   const controller = new AbortController();
   busy.set(seat.id, { entryId: entry.id, controller });
   renderTranscript(true);
+  updateSaveButton(); // a reply has begun: no more Resume…
   updateSeatStatus();
   updateComposerState();
 
@@ -2307,11 +2312,54 @@ function exportOptions(): ExportOptions {
   return { models: allModels(), render: renderMarkdown, logo, savedAt: new Date(), details: opened };
 }
 
-/** Save the whole conversation, or just the ticked turns, as one HTML file. */
+/** Save the whole conversation, or just the ticked turns, as one HTML file that can be resumed. */
 function saveConversation(): void {
   updateSaveButton(); // forget ticks on turns that are gone
   const opts = { ...exportOptions(), only: picked.size ? picked : undefined };
-  void download(prettyHtml(conversationHtml(session, settings, opts)), conversationFileName(opts.savedAt, picked.size > 0));
+  const page = store.withConversationData(prettyHtml(conversationHtml(session, settings, opts)), session, settings, opts.only, opts.savedAt);
+  void download(page, conversationFileName(opts.savedAt, picked.size > 0));
+}
+
+/**
+ * Resume a conversation from a file saved with Save All or Save Selected (offered only while
+ * the conversation is empty, so nothing is in progress): its turns, and its participants, house rules,
+ * name and About you in place of the current ones. The keys and LM Studio address stay.
+ */
+function resumeConversation(file: File): void {
+  const reader = new FileReader();
+  reader.onerror = () => alert(`Couldn't read “${file.name}”.`);
+  reader.onload = () => {
+    let resumed: store.ResumedConversation;
+    try {
+      resumed = store.conversationFromFile(String(reader.result), settings);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    const n = resumed.session.entries.length;
+    const when = resumed.savedAt ? `, saved ${formatDate(resumed.savedAt)} at ${formatTime(resumed.savedAt)}` : "";
+    const seats = resumed.settings.seats;
+    const who = seats.length ? seats.map((s) => s.name).join(", ") : "no participants";
+    const ok = confirm(
+      `Resume the conversation in “${file.name}”${when}? It has ${n} ${n === 1 ? "turn" : "turns"}, with ${who}.\n\n` +
+        "Your participants, house rules, name and About you will be replaced with the ones saved with it. Your keys stay as they are.",
+    );
+    if (!ok) return;
+    stopAll();
+    settings = resumed.settings;
+    session = resumed.session;
+    picked.clear();
+    opened.clear();
+    persist();
+    fillSettingsForm();
+    updateBanner();
+    renderSeats();
+    renderComposerTo();
+    renderTranscript(true);
+    renderTopbar();
+    updateSeatStatus();
+  };
+  reader.readAsText(file);
 }
 
 function newConversation(): void {
@@ -2349,6 +2397,12 @@ function wire(): void {
 
   els.btnSave.addEventListener("click", saveConversation);
   els.btnNew.addEventListener("click", newConversation);
+  els.btnResume.addEventListener("click", () => els.resumeInput.click());
+  els.resumeInput.addEventListener("change", () => {
+    const file = els.resumeInput.files?.[0];
+    els.resumeInput.value = ""; // so the same file can be chosen again
+    if (file) resumeConversation(file);
+  });
   els.btnSettings.addEventListener("click", openSettings);
   els.btnAddSeat.addEventListener("click", addSeat);
   wireSeatDragging();

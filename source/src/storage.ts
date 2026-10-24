@@ -2,7 +2,7 @@
 // computer, for this page, between visits. Every access is guarded: if storage is unavailable,
 // Dialog still works, it just can't remember anything after the page closes.
 
-import { defaultSettings, madeFileFrom, MODEL_SORTS, newId, newSession, SEAT_COLORS, splitFiles, upgradeHouseRules, type ModelSort } from "./engine";
+import { defaultSettings, isSettled, madeFileFrom, MODEL_SORTS, newId, newSession, SEAT_COLORS, splitFiles, upgradeHouseRules, type ModelSort } from "./engine";
 import type { ModelInfo } from "./openrouter";
 import type { Attachment, Entry, MadeFile, Seat, Session, Settings } from "./types";
 
@@ -160,29 +160,42 @@ function allAttachments(s: Session): (Attachment | MadeFile)[] {
 export function loadSession(): Session {
   const v = read(SESSION_KEY);
   if (!isObj(v) || !Array.isArray(v.entries)) return newSession();
+  const entries = cleanEntries(v.entries, (a) => {
+    try {
+      const data = localStorage.getItem(FILE_PREFIX + a.id);
+      if (data === null) return undefined;
+      storedFiles.add(a.id);
+      return data;
+    } catch {
+      return undefined;
+    }
+  });
+  const session = { startedAt: str(v.startedAt, new Date().toISOString()), entries };
+  removeUnusedFiles(session);
+  return session;
+}
+
+/**
+ * Entries as stored, or as saved in a file, made fit to use: malformed ones dropped, each
+ * file's contents taken from `contents` (absent if there are none), and a reply that was
+ * still arriving kept as stopped, with what had arrived.
+ */
+function cleanEntries(raw: unknown[], contents: (a: Attachment | MadeFile) => string | undefined): Entry[] {
   const entries: Entry[] = [];
-  for (const e of v.entries) {
+  for (const e of raw) {
     if (!isObj(e) || typeof e.id !== "string" || typeof e.speaker !== "string" || typeof e.text !== "string") continue;
     const entry = e as unknown as Entry;
     for (const a of [...(entry.attachments ?? []), ...(entry.made ?? [])]) {
       delete a.unsaved;
       if ("removed" in a && a.removed) {
-        delete a.data; // removed by you: its slot is freed below
+        delete a.data; // removed by you: its slot is freed when the conversation is next stored
         continue;
       }
-      try {
-        const data = localStorage.getItem(FILE_PREFIX + a.id);
-        if (data !== null) {
-          a.data = data;
-          storedFiles.add(a.id);
-        } else {
-          delete a.data;
-        }
-      } catch {
-        delete a.data;
-      }
+      const data = contents(a);
+      if (data !== undefined) a.data = data;
+      else delete a.data;
     }
-    // A reply that was still arriving when the page closed: keep what arrived, if anything.
+    // A reply that was still arriving when the page closed (or was saved): keep what arrived, if anything.
     if (entry.status === "streaming") {
       // (While arriving, a reply's text still holds any files it is writing.)
       const split = splitFiles(entry.text);
@@ -195,9 +208,7 @@ export function loadSession(): Session {
     }
     entries.push(entry);
   }
-  const session = { startedAt: str(v.startedAt, new Date().toISOString()), entries };
-  removeUnusedFiles(session);
-  return session;
+  return entries;
 }
 
 /** Save the conversation (without file contents) and any files not yet stored. */
@@ -233,6 +244,75 @@ function removeUnusedFiles(s: Session): void {
   } catch {
     /* storage unavailable */
   }
+}
+
+// A saved conversation, to resume: Save All and Save Selected write the readable page with
+// the conversation's data inside it, in a block the browser doesn't show or run.
+
+/** Marks the data block in a saved page as Dialog's. */
+const CONVERSATION_FORMAT = "dialog-conversation";
+const DATA_OPEN = `<script type="application/json" id="${CONVERSATION_FORMAT}">`;
+
+/**
+ * A saved page with the data to resume it added at the end: the turns (all of them, or just
+ * those in `only`, which then leaves out failed replies, as the page does), with every
+ * attachment and every file made in full, and the participants, house rules, your name and
+ * About you. Never the keys or the LM Studio address.
+ */
+export function withConversationData(html: string, session: Session, settings: Settings, only?: ReadonlySet<string>, savedAt = new Date()): string {
+  const entries = only?.size ? session.entries.filter((e) => only.has(e.id) && isSettled(e)) : session.entries;
+  const data = {
+    format: CONVERSATION_FORMAT,
+    version: 1,
+    savedAt: savedAt.toISOString(),
+    humanName: settings.humanName,
+    aboutHuman: settings.aboutHuman,
+    houseRules: settings.houseRules,
+    seats: settings.seats,
+    startedAt: session.startedAt,
+    entries,
+  };
+  // With every "<" written as \u003c, nothing in the data can end the block early.
+  const json = JSON.stringify(data, (key, value: unknown) => (key === "unsaved" ? undefined : value)).replace(/</g, "\\u003c");
+  const block = `${DATA_OPEN}${json}</script>\n`;
+  const end = html.lastIndexOf("</body>");
+  return end === -1 ? html + block : html.slice(0, end) + block + html.slice(end);
+}
+
+export interface ResumedConversation {
+  session: Session;
+  /** The current settings with the participants, house rules, name and About you from the file. */
+  settings: Settings;
+  savedAt?: Date;
+}
+
+/**
+ * Read a page saved with Save All or Save Selected. Throws an Error in plain words if it
+ * isn't one, or was saved before conversations could be resumed.
+ */
+export function conversationFromFile(text: string, current: Settings): ResumedConversation {
+  const start = text.indexOf(DATA_OPEN);
+  const end = start === -1 ? -1 : text.indexOf("</script>", start);
+  let v: unknown;
+  if (end !== -1) {
+    try {
+      v = JSON.parse(text.slice(start + DATA_OPEN.length, end));
+    } catch {
+      v = undefined;
+    }
+  }
+  if (!isObj(v) || v.format !== CONVERSATION_FORMAT || !Array.isArray(v.entries)) {
+    if (start === -1 && /<header class="doc-head">/.test(text)) {
+      throw new Error("That conversation was saved by an earlier version of Dialog, which didn't keep what's needed to resume it. It can still be read by a browser.");
+    }
+    throw new Error("That isn't a conversation saved by Dialog (with Save All or Save Selected).");
+  }
+  const parsed = parseSettings({ ...v, seats: Array.isArray(v.seats) ? v.seats : [] });
+  const settings: Settings = { ...current, humanName: parsed.humanName, aboutHuman: parsed.aboutHuman, houseRules: parsed.houseRules, seats: parsed.seats };
+  const entries = cleanEntries(v.entries, (a) => (typeof a.data === "string" ? a.data : undefined));
+  const session = { startedAt: str(v.startedAt, new Date().toISOString()), entries };
+  const savedAt = typeof v.savedAt === "string" && !Number.isNaN(Date.parse(v.savedAt)) ? new Date(v.savedAt) : undefined;
+  return { session, settings, savedAt };
 }
 
 // Dialog's copy of OpenRouter's model list, with the time it was fetched.

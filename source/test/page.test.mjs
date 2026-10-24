@@ -14,6 +14,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * the space between tags dropped, other runs of spaces and line breaks made one space.
  */
 const squash = (html) => html.replace(/>\s+</g, "><").replace(/\s+/g, " ");
+/** A saved page without the block of data for resuming it (which the browser neither shows nor runs). */
+const readable = (html) => html.replace(/<script type="application\/json" id="dialog-conversation">[^<]*<\/script>/, "");
 
 const MODELS = {
   data: [
@@ -318,7 +320,8 @@ test("a full conversation in the page", async () => {
   assert.ok(html.includes("stopped early"));
   assert.ok(html.includes("Total reported cost: $0.0190"));
   assert.ok(html.includes('class="medallion" src="data:image/png;base64,'), "the medallion travels with the file");
-  assert.ok(!/<script/i.test(html));
+  assert.ok(html.includes('<script type="application/json" id="dialog-conversation">'), "the data to resume it");
+  assert.ok(!/<script/i.test(readable(html)), "and no other script");
 
   // 8b. Tick turns to save just those.
   assert.equal($$(".entry .foot button").length, 0, "no per-turn save buttons any more");
@@ -805,6 +808,119 @@ test("settings can be saved to a file and restored from one", async () => {
   await until(() => !status().hidden && status().classList.contains("error"), "refusal");
   assert.match(status().textContent, /isn't a Dialog settings file/);
   assert.equal($$(".seat").length, 1);
+
+  await sleep(20);
+  assert.deepEqual(errors.map(String), [], "no script errors");
+});
+
+test("a saved conversation can be resumed with Resume… (top bar, only before it starts), whole or just the ticked turns", async () => {
+  const { w, d, blobs, replies, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const entries = () => $$("#transcript .entry");
+  const notBusy = () => !$("#transcript .entry.streaming");
+  await until(() => $$(".seat").length === 2, "seats");
+  const confirms = [];
+  w.confirm = (m) => (confirms.push(m), true);
+  const alerts = [];
+  w.alert = (m) => alerts.push(m);
+  const resume = (file) => {
+    const input = $("#resume-input");
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new w.Event("change"));
+  };
+  const resumeButton = () => $("#btn-resume");
+  assert.equal(resumeButton().textContent, "Resume…");
+  assert.equal(resumeButton().hidden, false, "in the top bar while the conversation is empty");
+  assert.ok(!$("#transcript .empty").textContent.includes("Resume a saved"), "not on the welcome screen itself");
+
+  // A short conversation: a public turn with an attached PDF, a reply, a private exchange.
+  const input = $("#attach-input");
+  const pdf = new w.File(["%PDF-1.4 hello"], "paper.pdf", { type: "application/pdf" });
+  Object.defineProperty(input, "files", { value: [pdf], configurable: true });
+  input.dispatchEvent(new w.Event("change"));
+  await until(() => $$("#attach-tray .chip").length === 1, "the PDF in the tray");
+  $("#composer-text").value = "What is time? </script> <!--";
+  $("#composer-send").click();
+  assert.equal(resumeButton().hidden, true, "gone once the conversation starts");
+  replies.push({ pieces: ["Change."], cost: 0.01 });
+  $$("#seat-list .seat")[0].querySelector("button.speak").click();
+  await until(() => entries().length === 2 && notBusy(), "Claude's reply");
+  $("#composer-to").value = "B";
+  $("#composer-to").dispatchEvent(new w.Event("change"));
+  $("#composer-text").value = "Psst";
+  replies.push({ pieces: ["Secret."], cost: 0.002 });
+  $("#composer-send").click();
+  await until(() => entries().length === 4 && notBusy(), "Grok's private reply");
+  const before = JSON.parse(w.localStorage.getItem("dialog.session.v1"));
+
+  // Save All, then start again and change the settings.
+  $("#btn-save").click();
+  await until(() => blobs.length === 1, "saved");
+  const all = await blobs[0].text();
+  assert.ok(!all.includes("sk-test"), "never the key");
+  $("#btn-new").click();
+  assert.equal(entries().length, 0);
+  assert.equal(resumeButton().hidden, false, "back after New conversation");
+  $("#btn-settings").click();
+  $("#set-name").value = "Someone";
+  $("#set-name").dispatchEvent(new w.Event("input"));
+  $$("#seat-list .seat")[1].querySelector('button[aria-label="Remove seat"]').click();
+  assert.equal($$("#seat-list .seat").length, 1);
+
+  // Resume it: the same turns, participants and name; the key stays.
+  resumeButton().click();
+  resume(new w.File([all], "Dialog 2026 Oct 23 1405.html", { type: "text/html" }));
+  await until(() => entries().length === 4, "resumed turns");
+  assert.equal(resumeButton().hidden, true);
+  assert.match(confirms.at(-1), /^Resume the conversation in “Dialog 2026 Oct 23 1405\.html”, saved \d{4} \w{3} \d\d at \d\d:\d\d\? It has 4 turns, with Claude, Grok\./);
+  assert.match(confirms.at(-1), /Your keys stay as they are\./);
+  assert.deepEqual($$("#seat-list .seat .seat-head input").map((i) => i.value), ["Claude", "Grok"]);
+  assert.equal($("#set-name").value, "Bill");
+  assert.equal($("#set-key").value, "sk-test");
+  assert.ok(entries()[0].textContent.includes("paper.pdf"));
+  assert.ok(entries()[2].classList.contains("private") && entries()[3].classList.contains("private"));
+  const after = JSON.parse(w.localStorage.getItem("dialog.session.v1"));
+  assert.deepEqual(after, before, "stored exactly as before it was saved");
+  assert.equal(after.entries[0].text, "What is time? </script> <!--", "text that looks like the end of the data block survives");
+  const pdfId = after.entries[0].attachments[0].id;
+  assert.ok(w.localStorage.getItem("dialog.file." + pdfId).startsWith("data:application/pdf;base64,"), "the PDF stored again");
+  assert.match($("#session-cost").textContent, /0\.0120/);
+  // The conversation carries on with the same participants.
+  replies.push({ pieces: ["Still change."], cost: 0.001 });
+  $$("#seat-list .seat")[0].querySelector("button.speak").click();
+  await until(() => entries().length === 5 && notBusy(), "Claude carries on");
+
+  // Save Selected: just the ticked turn, but every participant, so it can carry on with them all.
+  const box = entries()[1].querySelector("input.pick");
+  box.checked = true;
+  box.dispatchEvent(new w.Event("change", { bubbles: true }));
+  $("#btn-save").click();
+  await until(() => blobs.length === 2, "saved selected");
+  const one = await blobs[1].text();
+  $("#btn-new").click();
+  // A participant speaking first hides it too, from the moment the reply begins.
+  replies.push({ pieces: ["Hello."], cost: 0.001, pause: true });
+  $$("#seat-list .seat")[0].querySelector("button.speak").click();
+  assert.equal(resumeButton().hidden, true, "hidden while the first reply arrives");
+  await until(() => notBusy(), "the first reply");
+  $("#btn-new").click();
+  resumeButton().click();
+  resume(new w.File([one], "Dialog selected.html", { type: "text/html" }));
+  await until(() => entries().length === 1, "resumed selection");
+  assert.match(confirms.at(-1), /It has 1 turn, with Claude, Grok\./);
+  assert.equal(entries()[0].querySelector(".body").textContent.trim(), "Change.");
+  assert.equal($$("#seat-list .seat").length, 2);
+
+  // A page saved before conversations could be resumed, and something else entirely: refused.
+  $("#btn-new").click();
+  resume(new w.File([readable(one)], "Dialog old.html", { type: "text/html" }));
+  await until(() => alerts.length === 1, "refusal of an old file");
+  assert.match(alerts[0], /saved by an earlier version of Dialog.*It can still be read by a browser\./);
+  resume(new w.File(["<p>hello</p>"], "notes.html", { type: "text/html" }));
+  await until(() => alerts.length === 2, "refusal of another file");
+  assert.match(alerts[1], /isn't a conversation saved by Dialog/);
+  assert.equal(entries().length, 0, "nothing changed");
 
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");
@@ -1379,7 +1495,7 @@ test("participants make files: cards to open, save or remove; the others see the
   const saved = squash(await blobs.at(-1).text());
   assert.ok(saved.includes('<p class="files-label">Files made</p>'));
   assert.ok(saved.includes('calc.html (web page, 76 bytes) <span class="gone">removed</span>'));
-  assert.ok(!/<script/i.test(saved));
+  assert.ok(!/<script/i.test(readable(saved)), "no script but the data block, whatever the files hold");
 
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");

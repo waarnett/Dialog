@@ -232,8 +232,10 @@
         <li><strong>This month:</strong> what this API key has spent in the current calendar month.
           Months begin
           at midnight UTC. Hover for the key&#39;s all-time spending and its limit.</li>
-        <li><strong>Save All</strong> (or <strong>Save Selected</strong>), <strong>New
-            conversation</strong>, <strong>Settings</strong>: see below.</li>
+        <li><strong>Save All</strong> (or <strong>Save Selected</strong>), <strong>Resume…</strong>
+          (only while the conversation is empty),
+          <strong>New conversation</strong>, <strong>Settings</strong>: see below.
+        </li>
       </ul>
       <p>A <strong>notice</strong> appears under the top bar when something needs attention: no API
         key yet
@@ -925,6 +927,25 @@
           adjust and
           save again; untick them all and the button is Save All again. Ticks are not remembered
           when the page closes, and New conversation clears them.</li>
+        <li><strong>Resuming a saved conversation.</strong> Either kind of file can be picked up
+          again later, in
+          this browser or another one. While the conversation is empty (as after <strong>New
+            conversation</strong>), the top bar has a <strong>Resume…</strong> button beside Save
+          All; press it and choose
+          the file. The button goes away once the conversation starts. Dialog says when it was
+          saved, how many turns it has and who takes part, and asks
+          before going ahead. The conversation then comes back as it was when saved: every turn,
+          private exchanges, attached files (PDFs included) and the participants&#39; files, costs
+          and
+          speeds. The participants, the house rules, your name and About you are replaced with the
+          ones saved with it, so everyone carries on as before. A file from Save Selected brings
+          back
+          only its turns, but every participant who was in the conversation, including those who
+          don&#39;t speak in those turns. Your keys and the LM Studio address are never put in a
+          saved
+          file and stay as they are. Files saved before Dialog 2.1 can&#39;t be resumed, but can
+          still
+          be read by a browser.</li>
         <li><strong>First sentence of About you:</strong> in either kind of file, only the first
           sentence (or
           first line, if that ends sooner) is shown, and a note says it is only the first sentence.
@@ -954,7 +975,8 @@
           files in a saved conversation) is left as it was.
         </li>
         <li><strong>New conversation</strong> clears the conversation (save first). Participants and
-          settings stay.</li>
+          settings stay.
+          To go back to a saved one, press <strong>Resume…</strong> in the top bar.</li>
         <li>Between visits, Dialog remembers the conversation, the participants and your settings.
         </li>
       </ul>
@@ -1176,7 +1198,10 @@
         using it in Safari and Chrome starts empty, with no key, participants or conversation. To
         carry your setup across, use <strong>Save settings to a file</strong> in one and
         <strong>Restore from a file</strong>
-        in the other. Messages go only to OpenRouter, which passes each one to the
+        in the other; to carry a conversation across, save it with <strong>Save All</strong> and
+        resume it in
+        the other. A saved conversation holds its attached files in full, but never your keys.
+        Messages go only to OpenRouter, which passes each one to the
         model you chose. The management key, if you add one, goes only to OpenRouter&#39;s credit
         check. A participant using a model in LM Studio is different: its messages go only to
         LM Studio, on this computer, and never to OpenRouter. Drawing the seat cards&#39; logos asks

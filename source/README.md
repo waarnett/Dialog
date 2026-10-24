@@ -55,7 +55,8 @@ Dialog's version number, which also appears at the top of Settings.
   page in a new tab, where you can add more.
 - **This month:** what this API key has spent in the current calendar month. Months begin
   at midnight UTC. Hover for the key's all-time spending and its limit.
-- **Save All** (or **Save Selected**), **New conversation**, **Settings**: see below.
+- **Save All** (or **Save Selected**), **Resume…** (only while the conversation is empty),
+  **New conversation**, **Settings**: see below.
 
 A **notice** appears under the top bar when something needs attention: no API key yet
 (click the notice to open Settings), or the browser refusing to let Dialog save, in which case
@@ -441,6 +442,18 @@ rules, under Settings).
   "Dialog 2026 Oct 07 2205 selected.html". Ticks stay after saving, so you can adjust and
   save again; untick them all and the button is Save All again. Ticks are not remembered
   when the page closes, and New conversation clears them.
+- **Resuming a saved conversation.** Either kind of file can be picked up again later, in
+  this browser or another one. While the conversation is empty (as after **New
+  conversation**), the top bar has a **Resume…** button beside Save All; press it and choose
+  the file. The button goes away once the conversation starts. Dialog says when it was saved, how many turns it has and who takes part, and asks
+  before going ahead. The conversation then comes back as it was when saved: every turn,
+  private exchanges, attached files (PDFs included) and the participants' files, costs and
+  speeds. The participants, the house rules, your name and About you are replaced with the
+  ones saved with it, so everyone carries on as before. A file from Save Selected brings back
+  only its turns, but every participant who was in the conversation, including those who
+  don't speak in those turns. Your keys and the LM Studio address are never put in a saved
+  file and stay as they are. Files saved before Dialog 2.1 can't be resumed, but can still
+  be read by a browser.
 - **First sentence of About you:** in either kind of file, only the first sentence (or
   first line, if that ends sooner) is shown, and a note says it is only the first sentence.
   Full stops in abbreviations such as "e.g.", "Dr." or "Ph.D." don't end the sentence. The
@@ -460,6 +473,7 @@ rules, under Settings).
   page looks exactly the same in a browser, and text in preformatted blocks (such as the
   files in a saved conversation) is left as it was.
 - **New conversation** clears the conversation (save first). Participants and settings stay.
+  To go back to a saved one, press **Resume…** in the top bar.
 - Between visits, Dialog remembers the conversation, the participants and your settings.
 
 ## Models on this computer (LM Studio)
@@ -609,7 +623,8 @@ The conversation, attached files, the participants' files, settings and your key
 for this page, on this computer only. Each browser keeps its own: open Dialog in Chrome after
 using it in Safari and Chrome starts empty, with no key, participants or conversation. To
 carry your setup across, use **Save settings to a file** in one and **Restore from a file**
-in the other. Messages go only to OpenRouter, which passes each one to the
+in the other; to carry a conversation across, save it with **Save All** and resume it in
+the other. A saved conversation holds its attached files in full, but never your keys. Messages go only to OpenRouter, which passes each one to the
 model you chose. The management key, if you add one, goes only to OpenRouter's credit
 check. A participant using a model in LM Studio is different: its messages go only to
 LM Studio, on this computer, and never to OpenRouter. Drawing the seat cards' logos asks OpenRouter's site, and for a few makers Google's

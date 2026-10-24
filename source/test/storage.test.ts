@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { defaultSettings } from "../src/engine";
 import {
+  conversationFromFile,
   loadCachedModels,
   loadModelSort,
   saveModelSort,
@@ -13,7 +14,9 @@ import {
   saveSession,
   settingsFileText,
   settingsFromFile,
+  withConversationData,
 } from "../src/storage";
+import type { Entry, Session } from "../src/types";
 
 // A stand-in for the browser's local storage.
 const mem = new Map<string, string>();
@@ -180,4 +183,91 @@ test("the model picker's sort is remembered; anything else stored reads as by na
   assert.equal(loadModelSort(), "out-desc");
   mem.set("dialog.modelSort.v1", JSON.stringify("by-vibes"));
   assert.equal(loadModelSort(), "name");
+});
+
+test("saved conversation: the page carries everything needed to resume it, but no keys or LM Studio address", () => {
+  const s = defaultSettings();
+  s.apiKey = "sk-mine";
+  s.managementKey = "mk-mine";
+  s.localServer = "http://localhost:1234";
+  s.humanName = "Bill";
+  s.aboutHuman = "Retired engineer.";
+  s.houseRules = "Be civil.";
+  s.seats = [
+    { id: "A", name: "Claude", model: "anthropic/claude-opus-5.5", effort: "high", role: "Be brief.", color: "#c96442" },
+    { id: "B", name: "Grok", model: "x-ai/grok-4.7", effort: "default", role: "", color: "#6b7280", asleep: true },
+  ];
+  const T = "2026-10-23T14:05:00.000Z";
+  const entries: Entry[] = [
+    {
+      id: "h1", speaker: "human", speakerName: "Bill", text: "Look </script><!-- here", time: T,
+      attachments: [
+        { id: "f1", name: "paper.pdf", kind: "pdf", mime: "application/pdf", size: 9, data: "data:application/pdf;base64,JVBERi0=", unsaved: true },
+        { id: "f2", name: "gone.txt", kind: "text", mime: "text/plain", size: 3 },
+      ],
+    },
+    {
+      id: "b1", speaker: "A", speakerName: "Claude", text: "Here.", time: T, status: "done", cost: 0.01, model: "m",
+      made: [
+        { id: "m1", name: "plan.md", kind: "md", size: 5, data: "# Plan" },
+        { id: "m2", name: "old.md", kind: "md", size: 5, removed: true },
+      ],
+    },
+    { id: "h2", speaker: "human", speakerName: "Bill", text: "Psst", time: T, privateWith: "B" },
+    { id: "b2", speaker: "B", speakerName: "Grok", text: "broken", time: T, status: "error", error: "x" },
+    { id: "b3", speaker: "B", speakerName: "Grok", text: "Half.\n<file name=\"a.txt\">\nabc", time: T, status: "streaming" },
+  ];
+  const session: Session = { startedAt: T, entries };
+  const page = "<!doctype html>\n<html><body><main>…</main></body></html>\n";
+  const saved = withConversationData(page, session, s, undefined, new Date(T));
+
+  assert.ok(saved.startsWith("<!doctype html>\n<html><body><main>…</main><script type=\"application/json\" id=\"dialog-conversation\">"));
+  assert.ok(saved.endsWith("</script>\n</body></html>\n"), "the data goes just before the end of the page");
+  assert.equal(saved.split("</script>").length - 1, 1, "nothing inside can end the block early");
+  assert.ok(!saved.includes("<!--"));
+  for (const secret of ["sk-mine", "mk-mine", "localhost:1234", "unsaved"]) assert.ok(!saved.includes(secret), secret);
+
+  // Resumed into a browser with other settings: those from the file, but this browser's keys and address.
+  const here = defaultSettings();
+  here.apiKey = "sk-here";
+  here.localServer = "http://127.0.0.1:5678";
+  here.humanName = "Someone";
+  const r = conversationFromFile(saved, here);
+  assert.equal(r.savedAt?.toISOString(), T);
+  assert.equal(r.session.startedAt, T);
+  assert.equal(r.settings.apiKey, "sk-here");
+  assert.equal(r.settings.localServer, "http://127.0.0.1:5678");
+  assert.equal(r.settings.humanName, "Bill");
+  assert.equal(r.settings.aboutHuman, "Retired engineer.");
+  assert.equal(r.settings.houseRules, "Be civil.");
+  assert.deepEqual(r.settings.seats, s.seats, "every participant, asleep or not");
+  const [h1, b1, h2, b2, b3] = r.session.entries as [Entry, Entry, Entry, Entry, Entry];
+  assert.equal(h1.text, "Look </script><!-- here");
+  assert.deepEqual(h1.attachments, [
+    { id: "f1", name: "paper.pdf", kind: "pdf", mime: "application/pdf", size: 9, data: "data:application/pdf;base64,JVBERi0=" },
+    { id: "f2", name: "gone.txt", kind: "text", mime: "text/plain", size: 3 },
+  ]);
+  assert.deepEqual(b1.made, [
+    { id: "m1", name: "plan.md", kind: "md", size: 5, data: "# Plan" },
+    { id: "m2", name: "old.md", kind: "md", size: 5, removed: true },
+  ]);
+  assert.equal(b1.cost, 0.01);
+  assert.equal(h2.privateWith, "B");
+  assert.equal(b2.status, "error", "Save All keeps a failed reply, as it is on screen");
+  assert.equal(b3.status, "stopped", "a reply still arriving when saved comes back stopped");
+  assert.equal(b3.text, "Half.");
+  assert.equal(b3.made?.[0]?.name, "a.txt");
+
+  // Save Selected: just the ticked turns (never a failed one), but every participant.
+  const some = conversationFromFile(withConversationData(page, session, s, new Set(["b1", "b2"])), here);
+  assert.deepEqual(some.session.entries.map((e) => e.id), ["b1"]);
+  assert.deepEqual(some.settings.seats.map((x) => x.name), ["Claude", "Grok"]);
+});
+
+test("saved conversation: an older saved page, or anything else, is refused in plain words", () => {
+  const s = defaultSettings();
+  assert.throws(() => conversationFromFile('<html><body><header class="doc-head">Dialog</header></body></html>', s), /saved by an earlier version of Dialog/);
+  assert.throws(() => conversationFromFile("hello", s), /isn't a conversation saved by Dialog/);
+  assert.throws(() => conversationFromFile('<script type="application/json" id="dialog-conversation">{oops</script>', s), /isn't a conversation saved by Dialog/);
+  assert.throws(() => conversationFromFile('<script type="application/json" id="dialog-conversation">{"format":"dialog-settings","entries":[]}</script>', s), /isn't a conversation/);
 });
