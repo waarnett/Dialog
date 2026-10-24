@@ -34,11 +34,19 @@ always match the source. The build and the tests must finish with no errors and 
 Then commit (only when Bill asks). Pushing to `main` updates the live site within a minute or
 two, so confirm with Bill before pushing.
 
-Every push gets a new version number: `VERSION` in `source/src/main.ts` (shown on the welcome
-screen and in Settings). Before pushing, compare it with the one on `origin/main`
-(`git show origin/main:source/src/main.ts`); if they're the same, raise the second number
-(2.0 → 2.1 → 2.2 …), then test, release and commit that before the push. Bill says when to
-change the first number.
+Version numbers: `VERSION` in `source/src/main.ts` (shown on the welcome screen and in
+Settings). The public only ever sees two numbers; between pushes there is a third, so Bill
+sees a different version after every turn that changes the code.
+
+- Every push gets a new two-number version (2.0 → 2.1 → 2.2 …). Bill says when to change the
+  first number.
+- Each turn that changes anything under `source/src/` (the code, stylesheet, HTML template or
+  images; not the README, tests or build script) raises the third number by one, once per
+  turn. The working version always leads to the next public one: if `VERSION` is still the
+  two-number version on `origin/main` (`git show origin/main:source/src/main.ts`), the first
+  change goes to the next second number with a third of 1 (on origin 2.2 → 2.3.1, 2.3.2 …).
+- Before pushing, drop the third number (2.3.4 → 2.3), make sure the result is above the
+  version on `origin/main`, then test, release and commit that before the push.
 
 ## Gotchas
 

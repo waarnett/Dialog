@@ -12990,7 +12990,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.2";
+        var VERSION = "2.2.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -13228,10 +13228,17 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         function toggleDetails(e, article) {
           if (opened.has(e.id)) opened.delete(e.id);
           else opened.add(e.id);
-          if (opened.has(e.id)) void lookUpHost(e);
+          const open = opened.has(e.id);
+          if (open) void lookUpHost(e);
           const fresh = renderEntry(e);
           article.replaceWith(fresh);
-          (fresh.querySelector("button.glance") ?? fresh.querySelector("button.foot"))?.focus();
+          (fresh.querySelector("button.glance") ?? fresh.querySelector("button.foot"))?.focus({
+            preventScroll: open
+          });
+          const box = fresh.querySelector("button.foot.open");
+          if (box && typeof box.scrollIntoView === "function") box.scrollIntoView({
+            block: "nearest"
+          });
         }
         async function lookUpHost(e) {
           if (e.host || !e.requestId || !hasKey() || hostLookups.has(e.id)) return;

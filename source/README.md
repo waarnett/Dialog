@@ -273,8 +273,9 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
   level it was given; the **host**, the company whose servers ran the model (OpenRouter
   often has several for one model: for Qwen, say, Alibaba itself or an independent host);
   the cost with its token counts, including how much was re-read at the discount and how
-  much was stored for re-reading; and the speed's breakdown. Tap either again to hide them.
-  Particulars that are open when you save are saved in full too.
+  much was stored for re-reading; and the speed's breakdown. Below a long reply, the
+  conversation scrolls just far enough to bring them into view. Tap either again to hide
+  them. Particulars that are open when you save are saved in full too.
 - **The host** usually arrives with the reply. If it doesn't, Dialog asks OpenRouter the
   first time you open that reply's particulars ("Host: looking up…"), then keeps the answer.
   If OpenRouter can't say yet (just after a reply, its record may not

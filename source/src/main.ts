@@ -135,8 +135,11 @@ function h<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
-/** Dialog's version, shown on the welcome screen and in Settings. The second number goes up with each release. */
-const VERSION = "2.2";
+/**
+ * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
+ * with each release; between releases a third counts the changes made since (dropped on release).
+ */
+const VERSION = "2.2.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -412,15 +415,21 @@ const hostLookups = new Set<string>();
 
 /**
  * Tapping a reply's cost and speed: show its full particulars below the text, or hide them
- * again. Opening them asks OpenRouter for the host, if the reply didn't bring it.
+ * again. Opening them asks OpenRouter for the host, if the reply didn't bring it, and
+ * scrolls just far enough to show them (below a long reply, they would open out of sight).
  */
 function toggleDetails(e: Entry, article: HTMLElement): void {
   if (opened.has(e.id)) opened.delete(e.id);
   else opened.add(e.id);
-  if (opened.has(e.id)) void lookUpHost(e);
+  const open = opened.has(e.id);
+  if (open) void lookUpHost(e);
   const fresh = renderEntry(e);
   article.replaceWith(fresh);
-  (fresh.querySelector<HTMLElement>("button.glance") ?? fresh.querySelector<HTMLElement>("button.foot"))?.focus();
+  // When opening, the focus mustn't scroll: Safari would take the view back up to the
+  // focused button, at the top of a long reply, after the particulars were scrolled into view.
+  (fresh.querySelector<HTMLElement>("button.glance") ?? fresh.querySelector<HTMLElement>("button.foot"))?.focus({ preventScroll: open });
+  const box = fresh.querySelector<HTMLElement>("button.foot.open");
+  if (box && typeof box.scrollIntoView === "function") box.scrollIntoView({ block: "nearest" });
 }
 
 /**

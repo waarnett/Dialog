@@ -952,9 +952,29 @@ test("a reply's host: shown in its particulars, from the reply itself or looked 
   replies.push({ pieces: ["Hi."], cost: 0.001, genId: "gen-1", provider: "Alibaba" });
   speak(0);
   await until(() => entries().length === 2 && notBusy(), "first reply");
+  const scrolled = []; // what was scrolled into view, and how
+  w.Element.prototype.scrollIntoView = function (opts) {
+    scrolled.push({ el: this, opts });
+  };
+  const focusOptions = [];
+  const focus = w.HTMLElement.prototype.focus;
+  w.HTMLElement.prototype.focus = function (opts) {
+    focusOptions.push(opts?.preventScroll === true);
+    return focus.call(this, opts);
+  };
   toggle(1);
   assert.equal(lines(1)[1], "Host: Alibaba.");
   assert.equal(hostCalls.length, 0);
+  // Opening scrolls just far enough to show the particulars (below a long reply, they'd be
+  // out of sight); the focus doesn't scroll, so it can't undo that.
+  assert.deepEqual(focusOptions, [true]);
+  assert.equal(scrolled.length, 1);
+  assert.ok(scrolled[0].el.matches("button.foot.open") && entries()[1].contains(scrolled[0].el));
+  assert.equal(scrolled[0].opts.block, "nearest");
+  toggle(1);
+  assert.equal(scrolled.length, 1, "closing them doesn't scroll");
+  assert.deepEqual(focusOptions, [true, false], "and the focus may scroll as before");
+  toggle(1);
 
   // It doesn't: nothing asked until the particulars are opened; then looked up once and kept.
   replies.push({ pieces: ["Hey."], cost: 0.001, genId: "gen-2" });
