@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { citationsFrom, errorDetails, fetchHost, fetchModels, interpretPayload, requestBody, SSEParser, streamChat, OpenRouterError } from "../src/openrouter";
+import { citationsFrom, errorDetails, fetchHost, fetchModels, interpretPayload, requestBody, SSEParser, streamChat, thinkingFrom, OpenRouterError } from "../src/openrouter";
 
 test("SSE parser handles split lines, comments, CRLF and [DONE]", () => {
   const p = new SSEParser();
@@ -34,6 +34,16 @@ test("payload interpretation: text, usage, cost, citations, errors", () => {
   assert.match(err, /host failed partway through\. OpenRouter says: \u201cOverloaded\u201d \(code: server_error\)$/);
 });
 
+test("thinking: read once though OpenRouter sends it twice; LM Studio's fields; encrypted thinking skipped", () => {
+  const both = interpretPayload('{"choices":[{"delta":{"content":"","reasoning":"Hmm.","reasoning_details":[{"type":"reasoning.text","text":"Hmm."}]}}]}');
+  assert.equal(both.thinking, "Hmm.");
+  assert.equal(both.text, undefined);
+  assert.equal(thinkingFrom({ reasoning_details: [{ type: "reasoning.summary", summary: "In short, " }, { type: "reasoning.text", text: "yes." }] }), "In short, yes.");
+  assert.equal(thinkingFrom({ reasoning_details: [{ type: "reasoning.encrypted", data: "[REDACTED]" }] }), "");
+  assert.equal(thinkingFrom({ reasoning: null, reasoning_content: "Older LM Studio." }), "Older LM Studio.");
+  assert.equal(thinkingFrom({ content: "Hi" }), "");
+});
+
 test("error details: host, its code, what it said, and the request id", () => {
   assert.equal(errorDetails({ message: "x" }), "");
   assert.equal(
@@ -62,7 +72,7 @@ test("request body: thinking level when asked; web search and page reading for m
   const plain = requestBody({ ...base, effort: "default", tools: false });
   assert.deepEqual(plain, { model: "x-ai/grok-4.7", messages: base.messages, stream: true, session_id: "dialog-S1" });
   const full = requestBody({ ...base, effort: "high", tools: true });
-  assert.deepEqual(full.reasoning, { effort: "high", exclude: true });
+  assert.deepEqual(full.reasoning, { effort: "high" }, "the thinking comes back, to be shown");
   assert.deepEqual(full.tools, [
     { type: "openrouter:web_search", parameters: { max_uses: 10 } },
     { type: "openrouter:web_fetch" },

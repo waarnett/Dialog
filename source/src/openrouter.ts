@@ -46,6 +46,8 @@ export class SSEParser {
 /** What one streamed piece contributes. */
 export interface StreamPiece {
   text?: string;
+  /** More of the model's thinking. */
+  thinking?: string;
   citations?: Citation[];
   usage?: Usage;
   cost?: number;
@@ -72,6 +74,27 @@ export function citationsFrom(annotations: unknown): Citation[] {
     if (typeof inner.url === "string" && inner.url) {
       out.push({ url: inner.url, title: typeof inner.title === "string" ? inner.title : undefined });
     }
+  }
+  return out;
+}
+
+/**
+ * The thinking in one streamed piece. OpenRouter sends it as `reasoning`, and the same again
+ * as `reasoning_details`, so the second is read only when the first is missing.
+ * LM Studio sends `reasoning` (or, before version 0.3.23, `reasoning_content`). Encrypted
+ * thinking, which some models send instead, can't be shown and is skipped.
+ */
+export function thinkingFrom(delta: Json): string {
+  for (const key of ["reasoning", "reasoning_content"]) {
+    const v = delta[key];
+    if (typeof v === "string" && v) return v;
+  }
+  if (!Array.isArray(delta.reasoning_details)) return "";
+  let out = "";
+  for (const d of delta.reasoning_details) {
+    if (!isObj(d)) continue;
+    if (d.type === "reasoning.text" && typeof d.text === "string") out += d.text;
+    else if (d.type === "reasoning.summary" && typeof d.summary === "string") out += d.summary;
   }
   return out;
 }
@@ -127,6 +150,8 @@ export function interpretPayload(payload: string, local = false): StreamPiece {
     const delta = isObj(choice.delta) ? choice.delta : undefined;
     const message = isObj(choice.message) ? choice.message : undefined;
     if (delta && typeof delta.content === "string" && delta.content) piece.text = delta.content;
+    const thinking = delta && thinkingFrom(delta);
+    if (thinking) piece.thinking = thinking;
     const cites = [...citationsFrom(delta?.annotations), ...citationsFrom(message?.annotations)];
     if (cites.length) piece.citations = cites;
   }
@@ -175,6 +200,8 @@ export interface ChatRequest {
   signal?: AbortSignal;
   /** Called with each new piece of reply text as it arrives. */
   onText: (text: string) => void;
+  /** Called with each new piece of the model's thinking as it arrives. */
+  onThinking?: (text: string) => void;
   /**
    * Called (for OpenRouter, not LM Studio) when the request's id or host first arrives, so
    * they are known even for a reply that is stopped or fails.
@@ -201,13 +228,14 @@ export function isClaudeModel(model: string): boolean {
 }
 
 /** The JSON body sent to OpenRouter (exported so tests can check it). */
-export function requestBody(req: Omit<ChatRequest, "apiKey" | "signal" | "onText">): Json {
+export function requestBody(req: Omit<ChatRequest, "apiKey" | "signal" | "onText" | "onThinking">): Json {
   const body: Json = { model: req.model, messages: req.messages, stream: true, session_id: req.sessionId };
   // Ask Claude to cache the conversation so the next turn re-reads it at the discount.
   // The 1-hour cache costs more to store than the 5-minute one, but a seat often waits
   // more than 5 minutes between turns, and an expired cache costs more than none at all.
   if (isClaudeModel(req.model)) body.cache_control = { type: "ephemeral", ttl: "1h" };
-  if (req.effort !== "default") body.reasoning = { effort: req.effort, exclude: true };
+  // The thinking comes back with the reply (OpenRouter's default), to be shown under "Thinking".
+  if (req.effort !== "default") body.reasoning = { effort: req.effort };
   if (req.tools) {
     body.tools = [
       { type: "openrouter:web_search", parameters: { max_uses: MAX_SEARCHES } },
@@ -318,6 +346,7 @@ export async function streamChat(req: ChatRequest): Promise<ChatResult> {
       // Make sure the request id is there to look up on OpenRouter's Activity page.
       throw new OpenRouterError(p.error.includes("request ") || !requestId ? p.error : `${p.error} (request ${requestId})`);
     }
+    if (p.thinking) req.onThinking?.(p.thinking);
     if (p.text) req.onText(p.text);
     if (p.model) result.model = local ? LOCAL_PREFIX + p.model : p.model; // local: as the seat's model is written
     if (p.usage) result.usage = p.usage;

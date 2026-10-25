@@ -211,7 +211,7 @@ function cleanEntries(raw: unknown[], contents: (a: Attachment | MadeFile) => st
   return entries;
 }
 
-/** Save the conversation (without file contents) and any files not yet stored. */
+/** Save the conversation (without file contents or thinking) and any files not yet stored. */
 export function saveSession(s: Session): boolean {
   for (const a of allAttachments(s)) {
     if (!a.data || storedFiles.has(a.id)) continue;
@@ -223,7 +223,8 @@ export function saveSession(s: Session): boolean {
       a.unsaved = true;
     }
   }
-  const ok = write(SESSION_KEY, s, (key, value: unknown) => (key === "data" ? undefined : value));
+  // File contents go in their own slots; thinking is never stored.
+  const ok = write(SESSION_KEY, s, (key, value: unknown) => (key === "data" || key === "thinking" ? undefined : value));
   removeUnusedFiles(s);
   return ok;
 }
@@ -257,7 +258,7 @@ const DATA_OPEN = `<script type="application/json" id="${CONVERSATION_FORMAT}">`
  * A saved page with the data to resume it added at the end: the turns (all of them, or just
  * those in `only`, which then leaves out failed replies, as the page does), with every
  * attachment and every file made in full, and the participants, house rules, your name and
- * About you. Never the keys or the LM Studio address.
+ * About you. Never the keys, the LM Studio address or the participants' thinking.
  */
 export function withConversationData(html: string, session: Session, settings: Settings, only?: ReadonlySet<string>, savedAt = new Date()): string {
   const entries = only?.size ? session.entries.filter((e) => only.has(e.id) && isSettled(e)) : session.entries;
@@ -273,7 +274,8 @@ export function withConversationData(html: string, session: Session, settings: S
     entries,
   };
   // With every "<" written as \u003c, nothing in the data can end the block early.
-  const json = JSON.stringify(data, (key, value: unknown) => (key === "unsaved" ? undefined : value)).replace(/</g, "\\u003c");
+  // Thinking is never put in a saved file.
+  const json = JSON.stringify(data, (key, value: unknown) => (key === "unsaved" || key === "thinking" ? undefined : value)).replace(/</g, "\\u003c");
   const block = `${DATA_OPEN}${json}</script>\n`;
   const end = html.lastIndexOf("</body>");
   return end === -1 ? html + block : html.slice(0, end) + block + html.slice(end);

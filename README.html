@@ -333,7 +333,9 @@
           OpenRouter page,
           highest first, with the model&#39;s own default marked. Models with no thinking setting
           show
-          &quot;not adjustable&quot;. Hidden thinking is billed as output.</li>
+          &quot;not adjustable&quot;. Thinking is billed as output, whether or not you get to read
+          it (see
+          Reading the thinking, under Talking).</li>
         <li><strong>Role</strong> opens a box for that participant&#39;s standing instructions, e.g.
           &quot;argue the
           skeptic&#39;s side&quot;. It shows &quot;(set)&quot; or &quot;(none)&quot;. Use the role
@@ -507,9 +509,9 @@
             <li><strong>An independent round runs all at once.</strong> Since no participant waits
               for another&#39;s
               reply, every request goes out together. The replies take their places in the
-              conversation straight away, in the round&#39;s order, each showing
-              &quot;thinking…&quot; until its
-              first words arrive, and then fill in side by side; nothing moves while you read. The
+              conversation straight away, in the round&#39;s order, each showing &quot;waiting for
+              …&quot; until
+              something arrives, and then fill in side by side; nothing moves while you read. The
               round takes about as long as its slowest participant, not all of them one after
               another. Nobody goes first, so the note beside the button says &quot;↩ adds, then all
               5
@@ -612,11 +614,31 @@
           </ul>
         </li>
         <li>
-          <p><strong>Replies appear as they are written.</strong> &quot;thinking…&quot; shows until
-            the first words arrive.
+          <p><strong>Replies appear as they are written.</strong> &quot;waiting for Claude…&quot;
+            (or whoever is replying)
+            shows until something arrives: the request may still be on its way, queued at the host,
+            or searching the web.
             Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
             tab. If a model begins its reply with its own label (&quot;Claude says:&quot;), Dialog
             removes it.</p>
+        </li>
+        <li>
+          <p><strong>Reading the thinking.</strong> Above a reply that came with its thinking is a
+            folded-up
+            <strong>Thinking</strong> line: click it to read the thinking, and again to fold it
+            away. It appears
+            as soon as the thinking starts to arrive, and reads &quot;Thinking…&quot; until the
+            reply itself
+            begins; then &quot;Thinking&quot;, complete. Open, it fills in as the model thinks, and
+            stays open
+            while you carry on. How much there is depends on the
+            model: some send all their thinking, many (Claude and Gemini, for instance) a summary,
+            and some (OpenAI&#39;s) none, and then there is no Thinking line. The thinking is kept
+            only
+            while the page is open: it isn&#39;t stored in the browser or put in saved
+            conversations, so
+            reloading the page drops it. The participants never see anyone&#39;s thinking.
+          </p>
         </li>
         <li>
           <p><strong>Mathematics</strong> written in LaTeX, as models often write it, is shown as
@@ -947,7 +969,8 @@
           text, for any reply whose particulars you have open).
           A reply given with a different model or thinking level from the one its seat has now (you
           changed it since, or removed the seat) is marked with the one it used. Failed replies are
-          left out. The file is named like &quot;Dialog 2026 Oct 07 2205.html&quot;.</li>
+          left out, and so is the participants&#39; thinking. The file is named like &quot;Dialog
+          2026 Oct 07 2205.html&quot;.</li>
         <li><strong>Save Selected:</strong> tick the box beside any turns (yours or the
           participants&#39;; the box is
           faint until you point at the turn) and the top-bar button becomes <strong>Save
@@ -1067,9 +1090,8 @@
         <li><strong>No web search or page reading:</strong> those are done by OpenRouter.</li>
         <li><strong>No thinking setting:</strong> the card&#39;s Thinking menu is fixed at the
           model&#39;s own default.
-          A model that thinks before answering shows &quot;thinking…&quot; until its first words
-          appear;
-          the thinking itself isn&#39;t shown.</li>
+          A model&#39;s thinking appears under the Thinking line when LM Studio sends it apart from
+          the reply.</li>
         <li><strong>Images</strong> go to models LM Studio lists as able to view them; others are
           told an image
           was shared. <strong>PDFs</strong> aren&#39;t sent (see Attaching files).</li>
@@ -1225,8 +1247,8 @@
       <h2>Where your data lives</h2>
       <p>The conversation, attached files, the participants&#39; files, settings and your keys are
         kept in your browser&#39;s storage
-        for this page, on this computer only. Each browser keeps its own: open Dialog in Chrome
-        after
+        for this page, on this computer only. The participants&#39; thinking isn&#39;t kept: it goes
+        when the page closes. Each browser keeps its own: open Dialog in Chrome after
         using it in Safari and Chrome starts empty, with no key, participants or conversation. To
         carry your setup across, use <strong>Save settings to a file</strong> in one and
         <strong>Restore from a file</strong>

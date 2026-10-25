@@ -153,7 +153,9 @@ test("files the participants made are stored like attachments; a reply cut off m
   assert.equal(cut.made![0]!.data, "<p>Half");
   assert.equal(cut.made![0]!.incomplete, true);
 
+  cut.thinking = "Mulling it over.";
   assert.ok(saveSession(s));
+  assert.ok(!mem.get("dialog.session.v1")!.includes("Mulling"), "thinking is never stored");
   assert.equal(mem.get(`dialog.file.${cut.made![0]!.id}`), "<p>Half", "the recovered file gets its own slot");
   assert.ok(!mem.get("dialog.session.v1")!.includes("<p>Half"), "and is not in the conversation record");
 });
@@ -207,7 +209,7 @@ test("saved conversation: the page carries everything needed to resume it, but n
       ],
     },
     {
-      id: "b1", speaker: "A", speakerName: "Claude", text: "Here.", time: T, status: "done", cost: 0.01, model: "m",
+      id: "b1", speaker: "A", speakerName: "Claude", text: "Here.", time: T, status: "done", cost: 0.01, model: "m", thinking: "Mulling it over.",
       made: [
         { id: "m1", name: "plan.md", kind: "md", size: 5, data: "# Plan" },
         { id: "m2", name: "old.md", kind: "md", size: 5, removed: true },
@@ -225,7 +227,7 @@ test("saved conversation: the page carries everything needed to resume it, but n
   assert.ok(saved.endsWith("</script>\n</body></html>\n"), "the data goes just before the end of the page");
   assert.equal(saved.split("</script>").length - 1, 1, "nothing inside can end the block early");
   assert.ok(!saved.includes("<!--"));
-  for (const secret of ["sk-mine", "mk-mine", "localhost:1234", "unsaved"]) assert.ok(!saved.includes(secret), secret);
+  for (const secret of ["sk-mine", "mk-mine", "localhost:1234", "unsaved", "Mulling"]) assert.ok(!saved.includes(secret), secret);
 
   // Resumed into a browser with other settings: those from the file, but this browser's keys and address.
   const here = defaultSettings();

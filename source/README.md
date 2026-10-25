@@ -119,7 +119,8 @@ Each participant ("seat") has a card on the right:
   tools, so no web search or page reading". LM Studio models can't use the web.
 - **Thinking** offers exactly the levels the chosen model lists on its OpenRouter page,
   highest first, with the model's own default marked. Models with no thinking setting show
-  "not adjustable". Hidden thinking is billed as output.
+  "not adjustable". Thinking is billed as output, whether or not you get to read it (see
+  Reading the thinking, under Talking).
 - **Role** opens a box for that participant's standing instructions, e.g. "argue the
   skeptic's side". It shows "(set)" or "(none)". Use the role to give the participant a
   personality, a perspective or a job description.
@@ -205,8 +206,8 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
     saved files. Afterwards everyone sees them all, as usual.
   - **An independent round runs all at once.** Since no participant waits for another's
     reply, every request goes out together. The replies take their places in the
-    conversation straight away, in the round's order, each showing "thinking…" until its
-    first words arrive, and then fill in side by side; nothing moves while you read. The
+    conversation straight away, in the round's order, each showing "waiting for …" until
+    something arrives, and then fill in side by side; nothing moves while you read. The
     round takes about as long as its slowest participant, not all of them one after
     another. Nobody goes first, so the note beside the button says "↩ adds, then all 5
     reply independently, at once"; hover over it for the order the replies will appear in.
@@ -261,9 +262,20 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
   - Typing slips are forgiven ("privatly", "privatley"), but "private" doesn't count, and
     neither does "privately" anywhere but at the very end: "We spoke privately, Grok" asks
     Grok openly.
-- **Replies appear as they are written.** "thinking…" shows until the first words arrive.
+- **Replies appear as they are written.** "waiting for Claude…" (or whoever is replying)
+  shows until something arrives: the request may still be on its way, queued at the host,
+  or searching the web.
   Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
   tab. If a model begins its reply with its own label ("Claude says:"), Dialog removes it.
+- **Reading the thinking.** Above a reply that came with its thinking is a folded-up
+  **Thinking** line: click it to read the thinking, and again to fold it away. It appears
+  as soon as the thinking starts to arrive, and reads "Thinking…" until the reply itself
+  begins; then "Thinking", complete. Open, it fills in as the model thinks, and stays open
+  while you carry on. How much there is depends on the
+  model: some send all their thinking, many (Claude and Gemini, for instance) a summary,
+  and some (OpenAI's) none, and then there is no Thinking line. The thinking is kept only
+  while the page is open: it isn't stored in the browser or put in saved conversations, so
+  reloading the page drops it. The participants never see anyone's thinking.
 - **Mathematics** written in LaTeX, as models often write it, is shown as mathematics once
   the reply is complete (while it arrives, you see the LaTeX). A formula between `$$` and
   `$$`, or `\[` and `\]`, stands on its own line; one between `$` and `$`, or `\(` and
@@ -451,7 +463,7 @@ rules, under Settings).
   text, for any reply whose particulars you have open).
   A reply given with a different model or thinking level from the one its seat has now (you
   changed it since, or removed the seat) is marked with the one it used. Failed replies are
-  left out. The file is named like "Dialog 2026 Oct 07 2205.html".
+  left out, and so is the participants' thinking. The file is named like "Dialog 2026 Oct 07 2205.html".
 - **Save Selected:** tick the box beside any turns (yours or the participants'; the box is
   faint until you point at the turn) and the top-bar button becomes **Save Selected**. It
   saves just those turns, in order, and lists under Participants only those who speak in
@@ -534,8 +546,8 @@ key at all.
 - **No cost** is shown: the reply's speed and token counts are, as for any reply.
 - **No web search or page reading:** those are done by OpenRouter.
 - **No thinking setting:** the card's Thinking menu is fixed at the model's own default.
-  A model that thinks before answering shows "thinking…" until its first words appear;
-  the thinking itself isn't shown.
+  A model's thinking appears under the Thinking line when LM Studio sends it apart from
+  the reply.
 - **Images** go to models LM Studio lists as able to view them; others are told an image
   was shared. **PDFs** aren't sent (see Attaching files).
 - **The conversation must fit the model's window.** LM Studio loads a model with a fixed
@@ -638,7 +650,7 @@ re-read at the discount and how much was stored.
 ## Where your data lives
 
 The conversation, attached files, the participants' files, settings and your keys are kept in your browser's storage
-for this page, on this computer only. Each browser keeps its own: open Dialog in Chrome after
+for this page, on this computer only. The participants' thinking isn't kept: it goes when the page closes. Each browser keeps its own: open Dialog in Chrome after
 using it in Safari and Chrome starts empty, with no key, participants or conversation. To
 carry your setup across, use **Save settings to a file** in one and **Restore from a file**
 in the other; to carry a conversation across, save it with **Save All** and resume it in

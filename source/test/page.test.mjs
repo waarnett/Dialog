@@ -37,7 +37,7 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
   const chatCalls = [];
   const modelCalls = []; // the options of every request for the model list
   const state = { models, modelsStatus: 0, hosts: {} }; // hosts: OpenRouter's records, request id → host
-  const replies = []; // queue of { pieces, cost, status, slow, genId, provider }
+  const replies = []; // queue of { thinking, pieces, cost, status, slow, genId, provider }
   const hostCalls = []; // request ids looked up
   const blobs = [];
   const downloads = []; // file names the page asked the browser to save
@@ -47,6 +47,7 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
   function sse(reply, signal) {
     const enc = new TextEncoder();
     let i = 0;
+    let j = 0;
     return new Response(
       new ReadableStream({
         start(controller) {
@@ -55,6 +56,12 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
         async pull(controller) {
           await sleep(reply.slow || reply.pause ? 40 : 2); // slow: never finishes; pause: just takes its time
           if (signal?.aborted) return;
+          // Thinking first, as OpenRouter sends it: the same text in two fields.
+          if (j < (reply.thinking?.length ?? 0)) {
+            const t = reply.thinking[j++];
+            controller.enqueue(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "", reasoning: t, reasoning_details: [{ type: "reasoning.text", text: t }] } }] })}\n\n`));
+            return;
+          }
           if (i < reply.pieces.length) {
             const meta = { ...(reply.genId ? { id: reply.genId } : {}), ...(reply.provider ? { provider: reply.provider } : {}) };
             controller.enqueue(enc.encode(`data: ${JSON.stringify({ ...meta, choices: [{ delta: { content: reply.pieces[i++] } }] })}\n\n`));
@@ -209,7 +216,7 @@ test("a full conversation in the page", async () => {
   assert.equal($("#composer-text").value, "");
 
   // 2. Claude speaks.
-  replies.push({ pieces: ["Claude says: ", "Time is ", "change."], cost: 0.01 });
+  replies.push({ thinking: ["Pondering **chronology** ", "at length."], pieces: ["Claude says: ", "Time is ", "change."], cost: 0.01 });
   speakBtn(0).click();
   await until(() => entries().length === 2 && notBusy(), "Claude's reply");
   const c1 = chatCalls[0];
@@ -222,6 +229,16 @@ test("a full conversation in the page", async () => {
   assert.equal(c1.session_id, "dialog-A", "per-seat session label");
   assert.equal(c1.reasoning, undefined, "default thinking sends no reasoning setting");
   assert.equal(entries()[1].querySelector(".body").textContent.trim(), "Time is change.", "self-label stripped");
+  // The thinking: folded up above the reply until opened.
+  const thinkingBox = () => entries()[1].querySelector("details.thinking");
+  assert.equal(thinkingBox().nextElementSibling, entries()[1].querySelector(".body"), "just above the reply");
+  assert.equal(thinkingBox().querySelector("summary").textContent, "Thinking");
+  assert.equal(thinkingBox().open, false, "folded up at first");
+  assert.equal(thinkingBox().querySelector(".thought").innerHTML, "");
+  thinkingBox().open = true;
+  thinkingBox().dispatchEvent(new w.Event("toggle"));
+  assert.equal(thinkingBox().querySelector(".thought").innerHTML.trim(), "<p>Pondering <strong>chronology</strong> at length.</p>", "read once, though sent twice");
+  assert.equal(entries()[0].querySelector("details.thinking"), null, "none on Bill's turns");
   const head = entries()[1].querySelector("header");
   assert.equal(head.firstElementChild.className, "stamp", "tick box and time come first");
   assert.equal(head.querySelector(".stamp .time").textContent.length, 5);
@@ -266,7 +283,7 @@ test("a full conversation in the page", async () => {
   assert.equal(c2.tools, undefined, "this Grok can't use tools (in this test's model list)");
   assert.equal(c2.cache_control, undefined, "Grok caches automatically; not asked");
   assert.equal(c2.session_id, "dialog-B");
-  assert.deepEqual(c2.reasoning, { effort: "low", exclude: true });
+  assert.deepEqual(c2.reasoning, { effort: "low" });
   assert.match(c2.messages.at(-1).content, /Bill says \(privately, only you can see this\):\nBe contrarian\./);
   assert.ok(entries()[2].classList.contains("private") && entries()[3].classList.contains("private"));
   assert.equal(entries()[2].querySelector(".direction").textContent, "(privately, to Grok)");
@@ -293,10 +310,17 @@ test("a full conversation in the page", async () => {
   assert.ok(claudeText.includes("Grok says:\nTime is an illusion."));
   assert.deepEqual(claudeView.map((m) => m.role), ["system", "user", "assistant", "user"]);
 
-  // 6. Stop a slow reply partway.
-  replies.push({ pieces: ["Partial ", "thought"], slow: true });
+  // 6. Stop a slow reply partway. On the way: waiting, then thinking, then the reply.
+  replies.push({ thinking: ["Weighing it."], pieces: ["Partial ", "thought"], slow: true });
   speakBtn(1).click();
-  await until(() => entries().at(-1).textContent.includes("Partial"), "first piece");
+  const last = () => entries().at(-1);
+  assert.equal(last().querySelector(".waiting").textContent, "waiting for Grok…", "nothing has arrived yet");
+  assert.equal(last().querySelector("details.thinking"), null);
+  await until(() => last().querySelector("details.thinking"), "the thinking");
+  assert.equal(last().querySelector("summary").textContent, "Thinking…", "still thinking");
+  assert.equal(last().querySelector(".waiting"), null, "no longer waiting");
+  await until(() => last().textContent.includes("Partial"), "first piece");
+  assert.equal(last().querySelector("summary").textContent, "Thinking", "thinking done once the reply begins");
   const stopBtn = seatCards()[1].querySelector("button.danger:not([aria-label])");
   assert.equal(stopBtn.textContent, "Stop");
   assert.equal(speakBtn(0).disabled, true, "others can't speak meanwhile");
@@ -331,6 +355,7 @@ test("a full conversation in the page", async () => {
   assert.ok(html.includes('class="medallion" src="data:image/png;base64,'), "the medallion travels with the file");
   assert.ok(html.includes('<script type="application/json" id="dialog-conversation">'), "the data to resume it");
   assert.ok(!/<script/i.test(readable(html)), "and no other script");
+  assert.ok(!raw.includes("chronology"), "thinking is never saved");
 
   // 8b. Tick turns to save just those.
   assert.equal($$(".entry .foot button").length, 0, "no per-turn save buttons any more");
@@ -362,6 +387,8 @@ test("a full conversation in the page", async () => {
   // 9. The session is persisted.
   const saved = JSON.parse(w.localStorage.getItem("dialog.session.v1"));
   assert.equal(saved.entries.length, entries().length);
+  assert.ok(!w.localStorage.getItem("dialog.session.v1").includes("chronology"), "nor stored in the browser");
+  assert.equal(thinkingBox().open, true, "open thinking stays open when the transcript is redrawn");
 
   // 10. Copy a seat.
   seatCards()[0].querySelector(".seat-head button").click();
@@ -1359,13 +1386,17 @@ test("an independent round runs all at once: the replies fill in together; “in
   enter();
 
   // Every request goes out straight away, before any reply has come in; the replies take
-  // their places in round order at once, each “thinking…” until its words arrive.
+  // their places in round order at once, each “waiting for …” until its words arrive.
   assert.equal(chatCalls.length, 3, "all three asked at once");
   assert.deepEqual(speakers(), ["Bill", "Claude", "Claude 2", "Grok"]);
   assert.equal(arriving().length, 3, "all three arriving together");
   assert.equal($$(".seat.speaking").length, 3, "every card outlined");
   assert.equal($$(".seat .seat-actions button.danger").filter((b) => !b.hidden).length, 3, "every card has its own Stop");
-  assert.ok(arriving().every((e) => e.querySelector(".waiting")), "“thinking…” until the words come");
+  assert.deepEqual(
+    arriving().map((e) => e.querySelector(".waiting")?.textContent),
+    ["waiting for Claude…", "waiting for Claude 2…", "waiting for Grok…"],
+    "“waiting for …” until the words come",
+  );
   await until(() => arriving().length === 3 && arriving().every((e) => /P-\w+ a/.test(e.textContent)), "all three filling in at once");
 
   await until(() => notBusy() && arriving().length === 0, "the round");

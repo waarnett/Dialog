@@ -395,6 +395,7 @@
         margin-top: 0.15rem;
       }
 
+      .entry .thinking,
       .entry .body,
       .entry .sources,
       .entry .err,
@@ -500,6 +501,41 @@
 
       .entry .body .math-error {
         color: var(--error);
+      }
+
+      /* A reply's thinking, folded up above it until opened. */
+      .entry .thinking {
+        margin-bottom: 0.4rem;
+        padding-left: 1.2rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .entry .thinking summary {
+        cursor: pointer;
+        width: fit-content;
+      }
+
+      .entry .thinking .thought {
+        margin-top: 0.3rem;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
+      .entry .thinking .thought> :first-child {
+        margin-top: 0;
+      }
+
+      .entry .thinking .thought> :last-child {
+        margin-bottom: 0;
+      }
+
+      .entry .thinking .thought p {
+        margin: 0 0 0.6em;
+      }
+
+      .entry .thinking .thought pre {
+        overflow-x: auto;
       }
 
       .entry .sources {
@@ -1506,6 +1542,7 @@
           flex-wrap: wrap;
         }
 
+        .entry .thinking,
         .entry .body,
         .entry .sources,
         .entry .files,
@@ -3957,6 +3994,22 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           return out;
         }
 
+        function thinkingFrom(delta) {
+          for (const key of ["reasoning", "reasoning_content"]) {
+            const v = delta[key];
+            if (typeof v === "string" && v) return v;
+          }
+          if (!Array.isArray(delta.reasoning_details)) return "";
+          let out = "";
+          for (const d of delta.reasoning_details) {
+            if (!isObj(d)) continue;
+            if (d.type === "reasoning.text" && typeof d.text === "string") out += d.text;
+            else if (d.type === "reasoning.summary" && typeof d.summary === "string") out += d
+              .summary;
+          }
+          return out;
+        }
+
         function errorDetails(error, requestId) {
           const meta = isObj(error.metadata) ? error.metadata : {};
           const bits = [];
@@ -4005,6 +4058,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             const message = isObj(choice.message) ? choice.message : void 0;
             if (delta && typeof delta.content === "string" && delta.content) piece.text = delta
               .content;
+            const thinking = delta && thinkingFrom(delta);
+            if (thinking) piece.thinking = thinking;
             const cites = [...citationsFrom(delta?.annotations), ...citationsFrom(message
               ?.annotations)];
             if (cites.length) piece.citations = cites;
@@ -4042,8 +4097,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             ttl: "1h"
           };
           if (req.effort !== "default") body.reasoning = {
-            effort: req.effort,
-            exclude: true
+            effort: req.effort
           };
           if (req.tools) {
             body.tools = [{
@@ -4174,6 +4228,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               throw new OpenRouterError(p.error.includes("request ") || !requestId ? p.error :
                 `${p.error} (request ${requestId})`);
             }
+            if (p.thinking) req.onThinking?.(p.thinking);
             if (p.text) req.onText(p.text);
             if (p.model) result.model = local ? LOCAL_PREFIX + p.model : p.model;
             if (p.usage) result.usage = p.usage;
@@ -4534,7 +4589,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               a.unsaved = true;
             }
           }
-          const ok = write(SESSION_KEY, s, (key, value) => key === "data" ? void 0 : value);
+          const ok = write(SESSION_KEY, s, (key, value) => key === "data" || key === "thinking" ?
+            void 0 : value);
           removeUnusedFiles(s);
           return ok;
         }
@@ -4572,8 +4628,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             startedAt: session2.startedAt,
             entries
           };
-          const json = JSON.stringify(data, (key, value) => key === "unsaved" ? void 0 : value)
-            .replace(/</g, "\\u003c");
+          const json = JSON.stringify(data, (key, value) => key === "unsaved" || key ===
+            "thinking" ? void 0 : value).replace(/</g, "\\u003c");
           const block = `${DATA_OPEN}${json}<\/script>
 `;
           const end = html.lastIndexOf("</body>");
@@ -4700,7 +4756,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.2";
+        var VERSION = "2.3.2";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -4936,6 +4992,36 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           );
         }
         var opened = /* @__PURE__ */ new Set();
+        var thinkingOpen = /* @__PURE__ */ new Set();
+
+        function thinkingBox(e) {
+          const box = h(
+            "details", {
+              class: "thinking",
+              open: thinkingOpen.has(e.id),
+              ontoggle: () => {
+                if (box.open) thinkingOpen.add(e.id);
+                else thinkingOpen.delete(e.id);
+                fillThinking(box, e);
+              }
+            },
+            h("summary", {}, "Thinking"),
+            h("div", {
+              class: "thought"
+            })
+          );
+          fillThinking(box, e);
+          return box;
+        }
+
+        function fillThinking(box, e) {
+          const summary = box.querySelector("summary");
+          if (summary) summary.textContent = e.status === "streaming" && !e.text ?
+            "Thinking\u2026" : "Thinking";
+          const thought = box.querySelector(".thought");
+          if (thought) thought.innerHTML = box.open ? renderMarkdown(e.thinking ?? "", false, e
+            .status === "streaming") : "";
+        }
         var hostLookups = /* @__PURE__ */ new Set();
 
         function toggleDetails(e, article) {
@@ -4997,7 +5083,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const body = h("div", {
             class: "body"
           });
-          if (streaming) fillArrivingBody(body, e.text);
+          if (streaming) fillArrivingBody(body, e);
           else body.innerHTML = renderMarkdown(e.text, isHuman);
           if (!streaming && !e.text.trim() && (e.attachments?.length || e.made?.length)) body
             .hidden = true;
@@ -5086,6 +5172,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               },
               "\xD7"
             ),
+            e.thinking ? thinkingBox(e) : null,
             body
           );
           if (e.citations && e.citations.length) {
@@ -5186,12 +5273,14 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           return article;
         }
 
-        function fillArrivingBody(body, raw) {
-          const split = splitFiles(raw, true);
+        function fillArrivingBody(body, e) {
+          const split = splitFiles(e.text, true);
           body.innerHTML = split.text ? renderMarkdown(split.text, false, true) : "";
-          if (!split.text && !split.files.length && !split.writing) body.append(h("span", {
-            class: "waiting"
-          }, "thinking\u2026"));
+          if (!split.text && !split.files.length && !split.writing && !e.thinking) {
+            body.append(h("span", {
+              class: "waiting"
+            }, `waiting for ${e.speakerName}\u2026`));
+          }
           const done = split.files.map((f) => f.name);
           if (done.length || split.writing) {
             const parts = [done.length ? `Made ${done.join(", ")}.` : "", split.writing ?
@@ -5378,7 +5467,12 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             const stick = nearBottom();
             for (const e of streamChanged) {
               const body = els.transcript.querySelector(`[data-id="${e.id}"] .body`);
-              if (body) fillArrivingBody(body, e.text);
+              if (body) fillArrivingBody(body, e);
+              if (body && e.thinking) {
+                const box = body.parentElement?.querySelector(":scope > details.thinking");
+                if (box) fillThinking(box, e);
+                else body.before(thinkingBox(e));
+              }
             }
             streamChanged.clear();
             if (stick) scrollToBottom();
@@ -5503,6 +5597,10 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 if (tFirst === void 0) tFirst = performance.now();
                 raw += piece;
                 entry.text = stripSelfPrefix(raw, seat.name);
+                scheduleStreamUpdate(entry);
+              },
+              onThinking: (piece) => {
+                entry.thinking = (entry.thinking ?? "") + piece;
                 scheduleStreamUpdate(entry);
               },
               onMeta: (meta) => {

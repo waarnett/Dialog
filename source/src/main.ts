@@ -140,7 +140,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.2";
+const VERSION = "2.3.2";
 
 const els = {
   transcript: byId("transcript"),
@@ -416,6 +416,40 @@ function emptyState(): HTMLElement {
 /** Replies whose full particulars are showing (by id). Kept only while the page is open. */
 const opened = new Set<string>();
 
+/** Replies whose thinking is showing (by id). Kept only while the page is open. */
+const thinkingOpen = new Set<string>();
+
+/** A reply's thinking, folded up under a "Thinking" line until opened. */
+function thinkingBox(e: Entry): HTMLElement {
+  const box = h(
+    "details",
+    {
+      class: "thinking",
+      open: thinkingOpen.has(e.id),
+      ontoggle: () => {
+        if (box.open) thinkingOpen.add(e.id);
+        else thinkingOpen.delete(e.id);
+        fillThinking(box, e);
+      },
+    },
+    h("summary", {}, "Thinking"),
+    h("div", { class: "thought" }),
+  );
+  fillThinking(box, e);
+  return box;
+}
+
+/**
+ * The thinking so far, written out only while it is open. The line reads "Thinking…" while
+ * the thinking is still arriving (no reply text yet), and "Thinking" once it is complete.
+ */
+function fillThinking(box: HTMLDetailsElement, e: Entry): void {
+  const summary = box.querySelector("summary");
+  if (summary) summary.textContent = e.status === "streaming" && !e.text ? "Thinking…" : "Thinking";
+  const thought = box.querySelector<HTMLElement>(".thought");
+  if (thought) thought.innerHTML = box.open ? renderMarkdown(e.thinking ?? "", false, e.status === "streaming") : "";
+}
+
 /** Replies whose host is being asked of OpenRouter now (by id). */
 const hostLookups = new Set<string>();
 
@@ -488,7 +522,7 @@ function renderEntry(e: Entry): HTMLElement {
   if (privately) direction = `(${privately})`;
 
   const body = h("div", { class: "body" });
-  if (streaming) fillArrivingBody(body, e.text);
+  if (streaming) fillArrivingBody(body, e);
   else body.innerHTML = renderMarkdown(e.text, isHuman);
   if (!streaming && !e.text.trim() && (e.attachments?.length || e.made?.length)) body.hidden = true; // just files
 
@@ -563,6 +597,7 @@ function renderEntry(e: Entry): HTMLElement {
       },
       "×",
     ),
+    e.thinking ? thinkingBox(e) : null,
     body,
   );
 
@@ -637,12 +672,15 @@ function renderEntry(e: Entry): HTMLElement {
 
 /**
  * A reply still arriving: its text so far, without the files it is writing, and a line
- * saying which files are done and which is being written.
+ * saying which files are done and which is being written. Until anything at all arrives,
+ * "waiting for <name>…"; once thinking arrives, the Thinking line above says so instead.
  */
-function fillArrivingBody(body: HTMLElement, raw: string): void {
-  const split = splitFiles(raw, true);
+function fillArrivingBody(body: HTMLElement, e: Entry): void {
+  const split = splitFiles(e.text, true);
   body.innerHTML = split.text ? renderMarkdown(split.text, false, true) : "";
-  if (!split.text && !split.files.length && !split.writing) body.append(h("span", { class: "waiting" }, "thinking…"));
+  if (!split.text && !split.files.length && !split.writing && !e.thinking) {
+    body.append(h("span", { class: "waiting" }, `waiting for ${e.speakerName}…`));
+  }
   const done = split.files.map((f) => f.name);
   if (done.length || split.writing) {
     const parts = [done.length ? `Made ${done.join(", ")}.` : "", split.writing ? `Writing ${split.writing.name} (${formatBytes(split.writing.size)} so far)…` : ""];
@@ -816,7 +854,13 @@ function scheduleStreamUpdate(entry: Entry): void {
     const stick = nearBottom();
     for (const e of streamChanged) {
       const body = els.transcript.querySelector(`[data-id="${e.id}"] .body`);
-      if (body) fillArrivingBody(body as HTMLElement, e.text);
+      if (body) fillArrivingBody(body as HTMLElement, e);
+      // The thinking: its box is added when the first of it arrives.
+      if (body && e.thinking) {
+        const box = body.parentElement?.querySelector<HTMLDetailsElement>(":scope > details.thinking");
+        if (box) fillThinking(box, e);
+        else body.before(thinkingBox(e));
+      }
     }
     streamChanged.clear();
     if (stick) scrollToBottom();
@@ -960,6 +1004,10 @@ async function speak(
         if (tFirst === undefined) tFirst = performance.now();
         raw += piece;
         entry.text = stripSelfPrefix(raw, seat.name);
+        scheduleStreamUpdate(entry);
+      },
+      onThinking: (piece) => {
+        entry.thinking = (entry.thinking ?? "") + piece;
         scheduleStreamUpdate(entry);
       },
       onMeta: (meta) => {

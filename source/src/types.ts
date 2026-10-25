@@ -139,6 +139,11 @@ export interface Entry {
   timing?: { totalMs: number; firstTextMs?: number };
   citations?: Citation[];
   /**
+   * The model's thinking, as far as its host sends it (often a summary, sometimes nothing).
+   * Kept only while the page is open: never stored in the browser or put in a saved file.
+   */
+  thinking?: string;
+  /**
    * streaming: arriving now; done: complete; stopped: you pressed Stop
    * (partial text is kept); error: failed (never shown to any bot).
    */

@@ -223,6 +223,7 @@ textarea { resize: vertical; }
   margin-top: 0.15rem;
 }
 
+.entry .thinking,
 .entry .body,
 .entry .sources,
 .entry .err,
@@ -258,6 +259,15 @@ textarea { resize: vertical; }
 .entry .body hr { border: none; border-top: 1px solid var(--line); }
 .entry .body math[display="block"] { overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }
 .entry .body .math-error { color: var(--error); }
+
+/* A reply's thinking, folded up above it until opened. */
+.entry .thinking { margin-bottom: 0.4rem; padding-left: 1.2rem; font-size: 0.85rem; color: var(--muted); }
+.entry .thinking summary { cursor: pointer; width: fit-content; }
+.entry .thinking .thought { margin-top: 0.3rem; line-height: 1.5; overflow-wrap: anywhere; }
+.entry .thinking .thought > :first-child { margin-top: 0; }
+.entry .thinking .thought > :last-child { margin-bottom: 0; }
+.entry .thinking .thought p { margin: 0 0 0.6em; }
+.entry .thinking .thought pre { overflow-x: auto; }
 
 .entry .sources {
   margin-top: 0.55rem;
@@ -689,7 +699,7 @@ dialog::backdrop { background: rgba(20, 20, 18, 0.4); }
 @media (max-width: 640px) {
   .entry { grid-template-columns: minmax(0, 1fr) 1.75rem; }
   .entry > header { grid-column: 1; grid-row: auto; flex-direction: row; align-items: baseline; gap: 0.5rem; text-align: left; flex-wrap: wrap; }
-  .entry .body, .entry .sources, .entry .files, .entry .err, .entry .foot { grid-column: 1; }
+  .entry .thinking, .entry .body, .entry .sources, .entry .files, .entry .err, .entry .foot { grid-column: 1; }
   .entry .del { grid-column: 2; grid-row: 1; opacity: 1; }
   .entry .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }
   .empty { grid-template-columns: 1fr; justify-items: center; }
