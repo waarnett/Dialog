@@ -133,6 +133,9 @@ textarea { resize: vertical; }
 .transcript {
   flex: 1;
   overflow-y: auto;
+  /* Dialog keeps the scroll position itself; the browser's own adjustment would move a
+     conversation you've scrolled back in whenever it is redrawn. */
+  overflow-anchor: none;
   padding: 1.75rem 1.5rem 3rem;
   display: flex;
   flex-direction: column;

@@ -268,6 +268,10 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
   host, or searching the web.
   Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
   tab. If a model begins its reply with its own label ("Claude says:"), Dialog removes it.
+- **The conversation follows a reply as it comes in** while you're at the bottom. Scroll
+  back to read something earlier and it stays where you put it: the reply goes on arriving
+  below, out of view, until you scroll back down to the bottom, which follows it again.
+  Adding a message of your own takes you to the bottom.
 - **Reading the thinking.** Above a reply that came with its thinking is a folded-up
   **Thinking** line: click it to read the thinking, and again to fold it away. It appears
   as soon as the thinking starts to arrive, and reads "Thinking…" until the reply itself

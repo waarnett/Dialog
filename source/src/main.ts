@@ -141,7 +141,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.4.1";
+const VERSION = "2.4.2";
 
 const els = {
   transcript: byId("transcript"),
@@ -318,13 +318,34 @@ function updateBanner(): void {
 // ---------------------------------------------------------------------------
 // The conversation
 
-function nearBottom(): boolean {
+/**
+ * Is the conversation following the latest words? Yes until you scroll up from the bottom,
+ * and again once you scroll back down to it (see followScrolling). Arriving text is scrolled
+ * into view only while it is; otherwise the conversation stays where you put it.
+ */
+let following = true;
+let lastScrollTop = 0;
+
+/**
+ * On each scroll of the conversation. Only a move upward stops the following: the window or
+ * the panels around the conversation changing size can leave it short of the bottom without
+ * your having scrolled at all.
+ */
+function followScrolling(): void {
+  const top = els.transcript.scrollTop;
+  if (atBottom()) following = true;
+  else if (top < lastScrollTop) following = false;
+  lastScrollTop = top;
+}
+
+function atBottom(): boolean {
   const t = els.transcript;
-  return t.scrollHeight - t.scrollTop - t.clientHeight < 120;
+  return t.scrollHeight - t.scrollTop - t.clientHeight < 8;
 }
 
 function scrollToBottom(): void {
   els.transcript.scrollTop = els.transcript.scrollHeight;
+  following = true;
 }
 
 /** The welcome screen shown while the conversation is empty: the engraving and how to begin. */
@@ -856,11 +877,12 @@ function removeMadeFile(e: Entry, f: MadeFile): void {
 }
 
 function renderTranscript(forceScroll = false): void {
-  const stick = forceScroll || nearBottom();
+  const kept = els.transcript.scrollTop;
   els.transcript.replaceChildren(
     ...(session.entries.length ? session.entries.map(renderEntry) : [emptyState()]),
   );
-  if (stick) scrollToBottom();
+  if (forceScroll || following) scrollToBottom();
+  else els.transcript.scrollTop = kept; // you scrolled back: stay there
   updateComposerState(); // who ⌘↩ would ask next may have changed
 }
 
@@ -876,7 +898,6 @@ function scheduleStreamUpdate(entry: Entry): void {
   if (streamFrame) return;
   streamFrame = requestAnimationFrame(() => {
     streamFrame = 0;
-    const stick = nearBottom();
     for (const e of streamChanged) {
       const body = els.transcript.querySelector(`[data-id="${e.id}"] .body`);
       if (body) fillArrivingBody(body as HTMLElement, e);
@@ -888,7 +909,7 @@ function scheduleStreamUpdate(entry: Entry): void {
       }
     }
     streamChanged.clear();
-    if (stick) scrollToBottom();
+    if (following) scrollToBottom();
   });
 }
 
@@ -1006,7 +1027,7 @@ async function speak(
   const controller = new AbortController();
   busy.set(seat.id, { entryId: entry.id, controller });
   tickWaiting();
-  renderTranscript(true);
+  renderTranscript(); // to the new reply only if you haven't scrolled back
   updateSaveButton(); // a reply has begun: no more Resume…
   updateSeatStatus();
   updateComposerState();
@@ -2503,6 +2524,7 @@ function newConversation(): void {
 // Wiring
 
 function wire(): void {
+  els.transcript.addEventListener("scroll", followScrolling);
   els.composer.addEventListener("submit", (ev) => void onComposerSubmit(ev));
   els.composerTo.addEventListener("change", updateComposerState);
   els.composerText.addEventListener("input", updateComposerState); // who Return would ask follows your typing

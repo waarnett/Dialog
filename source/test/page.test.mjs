@@ -2098,3 +2098,51 @@ test("LM Studio: clicking into the empty Settings box fills in the usual address
   await sleep(450);
   assert.equal(JSON.parse(pw.localStorage.getItem("dialog.settings.v1")).localServer, "http://localhost:4321");
 });
+
+test("arriving text is followed only while you're at the bottom; scrolled back, the conversation stays put", async () => {
+  const { w, d, replies, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const notBusy = () => !$("#transcript .entry.streaming");
+  const seatCards = () => $$("#seat-list .seat");
+  const speakBtn = (i) => seatCards()[i].querySelector("button.speak");
+  await until(() => seatCards().length === 2, "seats");
+  // jsdom lays nothing out, so give the conversation a size: 2,000 px of it in a 500 px window.
+  const t = $("#transcript");
+  let top = 0;
+  Object.defineProperty(t, "scrollHeight", { get: () => 2000, configurable: true });
+  Object.defineProperty(t, "clientHeight", { get: () => 500, configurable: true });
+  Object.defineProperty(t, "scrollTop", { get: () => top, set: (v) => (top = Math.min(v, 1500)), configurable: true });
+  const scrollTo = (v) => {
+    top = v;
+    t.dispatchEvent(new w.Event("scroll"));
+  };
+
+  // At the bottom: the reply is followed as it grows (growing fires no scroll event).
+  scrollTo(1500);
+  replies.push({ pieces: ["One ", "two."], cost: 0.001 });
+  speakBtn(0).click();
+  top = 1200;
+  await until(() => notBusy(), "the first reply");
+  assert.equal(top, 1500, "followed to the bottom");
+
+  // Scrolled back a little, to read: the next reply comes in below, and the view stays put throughout.
+  scrollTo(1450);
+  replies.push({ thinking: ["Hmm."], pieces: ["Three ", "four."], cost: 0.001, pause: true });
+  speakBtn(1).click();
+  assert.equal(top, 1450, "not moved when the reply begins");
+  await until(() => notBusy(), "the second reply");
+  assert.equal(top, 1450, "nor while it arrives or when it ends");
+
+  // Your own message brings you back to the bottom, and the replies are followed again.
+  $("#composer-text").value = "Go on.";
+  $("#composer-text").dispatchEvent(new w.Event("input", { bubbles: true }));
+  $("#composer-send").click();
+  assert.equal(top, 1500, "your message shown");
+  replies.push({ pieces: ["Five."], cost: 0.001 });
+  speakBtn(0).click();
+  top = 1000;
+  await until(() => notBusy(), "the third reply");
+  assert.equal(top, 1500, "followed again");
+  assert.deepEqual(errors, []);
+});
