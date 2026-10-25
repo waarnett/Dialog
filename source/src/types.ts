@@ -33,6 +33,10 @@ export interface Usage {
   cachedTokens: number;
   /** Tokens stored in the cache for later re-reading (Claude charges a premium for this). */
   cacheWriteTokens: number;
+  /** Web searches the reply made, when its host reports them. */
+  webSearches?: number;
+  /** Web tools used in all (searches and pages read), when the host reports it; some report only searches. */
+  webToolsUsed?: number;
 }
 
 export interface Citation {

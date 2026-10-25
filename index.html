@@ -2413,6 +2413,22 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return `${read2}; ${wrote}`;
         }
 
+        function webUseText(u) {
+          const searches = u?.webSearches ?? 0;
+          const pages = u?.webToolsUsed === void 0 ? 0 : Math.max(0, u.webToolsUsed - searches);
+          const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+          return [searches ? plural(searches, "search", "searches") : "", pages ? plural(pages,
+            "page read", "pages read") : ""].filter(Boolean).join(" and ");
+        }
+
+        function pauseBreak(text) {
+          if (!text.trim() || splitFiles(text, true).writing) return "";
+          if ((text.match(/^ {0,3}```/gm) ?? []).length % 2 === 1) return "";
+          if (!/[.!?:][*_)\]"'”’]*\s*$/.test(text)) return "";
+          if (text.endsWith("\n\n")) return "";
+          return text.endsWith("\n") ? "\n" : "\n\n";
+        }
+
         function turnDetails(e, models2, lookingUpHost = false) {
           if (e.speaker === "human") return [];
           const lines = [];
@@ -2430,6 +2446,8 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
             const usage = usageText(e);
             lines.push(`Cost: ${formatCost(e.cost)}` + (usage ? `, for ${usage}.` : "."));
           }
+          const web = webUseText(e.usage);
+          if (web) lines.push(`Web: ${web}.`);
           const speed = turnSpeed(e);
           if (speed) lines.push(`Speed: ${speedDetails(e, speed)}`);
           if (e.status === "stopped") lines.push("Stopped early.");
@@ -3970,7 +3988,11 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         };
         var SSEParser = class {
           buffer = "";
-          /** Feed more text; returns the payloads (the text after "data: ") completed so far. */
+          /**
+           * Feed more text; returns, in order, the payloads (the text after "data: ") completed so
+           * far, and each keep-alive comment OpenRouter sends while nothing else is coming, as the
+           * line itself (starting with ":", which no payload does).
+           */
           push(text) {
             this.buffer += text;
             const out = [];
@@ -3979,8 +4001,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               if (nl === -1) break;
               const line = this.buffer.slice(0, nl).replace(/\r$/, "");
               this.buffer = this.buffer.slice(nl + 1);
-              if (line === "" || line.startsWith(":")) continue;
-              if (line.startsWith("data:")) out.push(line.slice(5).trimStart());
+              if (line === "") continue;
+              if (line.startsWith(":")) out.push(line);
+              else if (line.startsWith("data:")) out.push(line.slice(5).trimStart());
             }
             return out;
           }
@@ -4085,6 +4108,12 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               cachedTokens: num(u.cached_tokens) || num(ptd.cached_tokens),
               cacheWriteTokens: num(ptd.cache_write_tokens)
             };
+            const web = isObj(u.server_tool_use_details) ? u.server_tool_use_details : isObj(u
+              .server_tool_use) ? u.server_tool_use : {};
+            if (typeof web.web_search_requests === "number") piece.usage.webSearches = web
+              .web_search_requests;
+            if (typeof web.tool_calls_executed === "number") piece.usage.webToolsUsed = web
+              .tool_calls_executed;
             if (typeof u.cost === "number") piece.cost = u.cost;
           }
           return piece;
@@ -4223,7 +4252,12 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let host;
+          let quietNotes = 0;
           const handle = (payload) => {
+            if (payload.startsWith(":")) {
+              quietNotes++;
+              return false;
+            }
             const p = interpretPayload(payload, local);
             if (!local && (p.id && p.id !== requestId || p.provider && p.provider !== host)) {
               req.onMeta?.({
@@ -4239,7 +4273,10 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 `${p.error} (request ${requestId})`);
             }
             if (p.thinking) req.onThinking?.(p.thinking);
-            if (p.text) req.onText(p.text);
+            if (p.text) {
+              req.onText(p.text, quietNotes >= 2);
+              quietNotes = 0;
+            }
             if (p.model) result.model = local ? LOCAL_PREFIX + p.model : p.model;
             if (p.usage) result.usage = p.usage;
             if (p.cost !== void 0) result.cost = p.cost;
@@ -4766,7 +4803,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.4.2";
+        var VERSION = "2.4.3";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -5632,8 +5669,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               pdfEngine,
               localServer: settings.localServer,
               signal: controller.signal,
-              onText: (piece) => {
+              onText: (piece, afterPause) => {
                 if (tFirst === void 0) tFirst = performance.now();
+                if (afterPause) raw += pauseBreak(raw);
                 raw += piece;
                 entry.text = stripSelfPrefix(raw, seat.name);
                 scheduleStreamUpdate(entry);

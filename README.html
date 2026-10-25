@@ -687,7 +687,9 @@
             (OpenRouter
             often has several for one model: for Qwen, say, Alibaba itself or an independent host);
             the cost with its token counts, including how much was re-read at the discount and how
-            much was stored for re-reading; and the speed&#39;s breakdown. Below a long reply, the
+            much was stored for re-reading; its <strong>web use</strong> (see Searching and reading
+            web pages,
+            below); and the speed&#39;s breakdown. Below a long reply, the
             conversation scrolls just far enough to bring them into view. Tap either again to hide
             them. Particulars that are open when you save are saved in full too.</p>
         </li>
@@ -763,6 +765,15 @@
           a long
           page of 30,000 tokens adds about 12 cents with Claude Opus 5.5, 30 cents with GPT-6
           Astra.</li>
+        <li><strong>Which searches and pages a reply used</strong> appears in its particulars, as
+          its model&#39;s host
+          reports them: &quot;Web: 2 searches&quot;, or &quot;Web: 1 search and 1 page read&quot;.
+          Some hosts (Claude&#39;s,
+          for instance) count only searches, so a page read doesn&#39;t always show. Dialog
+          can&#39;t tell
+          while it happens that a participant is searching or reading: the reply simply pauses.
+          When the reply&#39;s text then goes on after a finished sentence, Dialog starts a new
+          paragraph, so the two parts don&#39;t run together.</li>
         <li><strong>Only the reader sees the page.</strong> The others see only what it says about
           the page, and
           Dialog keeps only the replies, not the pages. So if another participant wants the

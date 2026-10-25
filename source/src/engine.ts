@@ -9,7 +9,7 @@
 
 import { isLocalModel, localId, localModelName } from "./lmstudio";
 import type { ModelInfo } from "./openrouter";
-import type { Addressee, Attachment, ChatMessage, ContentPart, Entry, MadeFile, MadeKind, Seat, Session, Settings } from "./types";
+import type { Addressee, Attachment, ChatMessage, ContentPart, Entry, MadeFile, MadeKind, Seat, Session, Settings, Usage } from "./types";
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -396,9 +396,35 @@ export function usageText(e: Entry): string | undefined {
 }
 
 /**
+ * What a reply did on the web, as its host reports it: "2 searches", "1 search and 1 page
+ * read". Some hosts count only searches, so pages read appear only when the host counts all
+ * its web tools (searching and page reading are the only ones Dialog offers). Empty if none.
+ */
+export function webUseText(u: Usage | undefined): string {
+  const searches = u?.webSearches ?? 0;
+  const pages = u?.webToolsUsed === undefined ? 0 : Math.max(0, u.webToolsUsed - searches);
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return [searches ? plural(searches, "search", "searches") : "", pages ? plural(pages, "page read", "pages read") : ""].filter(Boolean).join(" and ");
+}
+
+/**
+ * What to put before reply text that resumes after a pause (the model was most likely
+ * searching or reading a page): a new paragraph, so "…as requested." and "**Version:** …"
+ * don't run together. Only where the text so far ends a sentence, and not inside a code
+ * block or a file being written; otherwise nothing.
+ */
+export function pauseBreak(text: string): string {
+  if (!text.trim() || splitFiles(text, true).writing) return "";
+  if ((text.match(/^ {0,3}```/gm) ?? []).length % 2 === 1) return ""; // inside a code block
+  if (!/[.!?:][*_)\]"'”’]*\s*$/.test(text)) return "";
+  if (text.endsWith("\n\n")) return "";
+  return text.endsWith("\n") ? "\n" : "\n\n";
+}
+
+/**
  * The full particulars of a reply, shown in place of its cost and speed when you tap them:
  * the model that answered and the thinking level it was given, the cost with its token
- * counts, the speed with its breakdown, and whether it was stopped early.
+ * counts, its web use, the speed with its breakdown, and whether it was stopped early.
  */
 export function turnDetails(e: Entry, models?: ModelInfo[], lookingUpHost = false): string[] {
   if (e.speaker === "human") return [];
@@ -415,6 +441,8 @@ export function turnDetails(e: Entry, models?: ModelInfo[], lookingUpHost = fals
     const usage = usageText(e);
     lines.push(`Cost: ${formatCost(e.cost)}` + (usage ? `, for ${usage}.` : "."));
   }
+  const web = webUseText(e.usage);
+  if (web) lines.push(`Web: ${web}.`);
   const speed = turnSpeed(e);
   if (speed) lines.push(`Speed: ${speedDetails(e, speed)}`);
   if (e.status === "stopped") lines.push("Stopped early.");

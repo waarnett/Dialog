@@ -51,6 +51,7 @@ import {
   newId,
   newSession,
   stripSelfPrefix,
+  pauseBreak,
   thinkingChoices,
   thinkingLabel,
   totalCost,
@@ -141,7 +142,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.4.2";
+const VERSION = "2.4.3";
 
 const els = {
   transcript: byId("transcript"),
@@ -1047,8 +1048,9 @@ async function speak(
       pdfEngine,
       localServer: settings.localServer,
       signal: controller.signal,
-      onText: (piece) => {
+      onText: (piece, afterPause) => {
         if (tFirst === undefined) tFirst = performance.now();
+        if (afterPause) raw += pauseBreak(raw); // back from the web: a new paragraph
         raw += piece;
         entry.text = stripSelfPrefix(raw, seat.name);
         scheduleStreamUpdate(entry);

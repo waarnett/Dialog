@@ -4,7 +4,7 @@ import { citationsFrom, errorDetails, fetchHost, fetchModels, interpretPayload, 
 
 test("SSE parser handles split lines, comments, CRLF and [DONE]", () => {
   const p = new SSEParser();
-  assert.deepEqual(p.push(": OPENROUTER PROCESSING\n\ndata: {\"a\""), []);
+  assert.deepEqual(p.push(": OPENROUTER PROCESSING\n\ndata: {\"a\""), [": OPENROUTER PROCESSING"], "keep-alive comments passed on, in order");
   assert.deepEqual(p.push(":1}\r\n\r\ndata: [DO"), ['{"a":1}']);
   assert.deepEqual(p.push("NE]\n"), ["[DONE]"]);
 });
@@ -42,6 +42,31 @@ test("thinking: read once though OpenRouter sends it twice; LM Studio's fields; 
   assert.equal(thinkingFrom({ reasoning_details: [{ type: "reasoning.encrypted", data: "[REDACTED]" }] }), "");
   assert.equal(thinkingFrom({ reasoning: null, reasoning_content: "Older LM Studio." }), "Older LM Studio.");
   assert.equal(thinkingFrom({ content: "Hi" }), "");
+});
+
+test("web use: searches, and all web tools where the host counts them, under either name", () => {
+  const observed = interpretPayload('{"usage":{"prompt_tokens":1,"completion_tokens":1,"server_tool_use_details":{"web_search_requests":1,"tool_calls_requested":2,"tool_calls_executed":2}}}');
+  assert.equal(observed.usage?.webSearches, 1);
+  assert.equal(observed.usage?.webToolsUsed, 2);
+  const documented = interpretPayload('{"usage":{"prompt_tokens":1,"completion_tokens":1,"server_tool_use":{"web_search_requests":3}}}');
+  assert.equal(documented.usage?.webSearches, 3);
+  assert.equal(documented.usage?.webToolsUsed, undefined);
+  assert.equal(interpretPayload('{"usage":{"prompt_tokens":1,"completion_tokens":1}}').usage?.webSearches, undefined);
+});
+
+test("streamChat: text resuming after a pause (two or more keep-alive comments) is marked", async () => {
+  const text = (t: string) => `data: {"choices":[{"delta":{"content":${JSON.stringify(t)}}}]}\n\n`;
+  const quiet = ": OPENROUTER PROCESSING\n\n";
+  const chunks = [quiet, quiet, quiet, text("Searching."), quiet, text(" Still"), quiet, quiet, text("Found it."), "data: [DONE]\n\n"];
+  await withFetch((async () => sseResponse(chunks)) as typeof fetch, async () => {
+    const got: [string, boolean][] = [];
+    await streamChat({ ...req(() => {}), onText: (t, afterPause) => got.push([t, afterPause]) });
+    assert.deepEqual(got, [
+      ["Searching.", true],
+      [" Still", false],
+      ["Found it.", true],
+    ]);
+  });
 });
 
 test("error details: host, its code, what it said, and the request id", () => {

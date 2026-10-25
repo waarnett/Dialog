@@ -28,6 +28,8 @@ import {
   upgradeHouseRules,
   turnSpeed,
   speedLabel,
+  pauseBreak,
+  webUseText,
   waitingLabel,
   speedDetails,
   describeAttachment,
@@ -308,6 +310,34 @@ test("tokens per second: overall, and visible text once it starts", () => {
   assert.equal(turnSpeed(bot(A, "x", { usage, timing: { totalMs: 16000, firstTextMs: 15800 } }))!.visibleTokensPerSecond, undefined);
   assert.equal(turnSpeed(bot(A, "x", { timing: { totalMs: 1000 } })), undefined);
   assert.equal(turnSpeed(bot(A, "x", { usage })), undefined);
+});
+
+test("web use in the particulars: searches, and pages read where the host counts them", () => {
+  const usage = { promptTokens: 1, completionTokens: 1, reasoningTokens: 0, cachedTokens: 0, cacheWriteTokens: 0 };
+  assert.equal(webUseText(usage), "");
+  assert.equal(webUseText({ ...usage, webSearches: 2 }), "2 searches");
+  assert.equal(webUseText({ ...usage, webSearches: 1, webToolsUsed: 2 }), "1 search and 1 page read");
+  assert.equal(webUseText({ ...usage, webSearches: 0, webToolsUsed: 3 }), "3 pages read");
+  assert.equal(webUseText({ ...usage, webSearches: 0, webToolsUsed: 0 }), "");
+  const s = setup();
+  const [A] = s.seats as [Seat];
+  const lines = turnDetails(bot(A, "x", { cost: 0.03, usage: { ...usage, webSearches: 1, webToolsUsed: 2 }, timing: { totalMs: 2000 } }));
+  assert.deepEqual(lines.map((l) => l.split(":")[0]), ["Model", "Cost", "Web", "Speed"]);
+  assert.equal(lines[2], "Web: 1 search and 1 page read.");
+});
+
+test("after a pause (back from the web), a new paragraph, but only after a finished sentence", () => {
+  assert.equal(pauseBreak("Opening the release page as requested."), "\n\n");
+  assert.equal(pauseBreak("Here is what I found:"), "\n\n");
+  assert.equal(pauseBreak("He said “yes.”"), "\n\n");
+  assert.equal(pauseBreak("A list of **things.**"), "\n\n");
+  assert.equal(pauseBreak("Done.\n"), "\n");
+  assert.equal(pauseBreak("Done.\n\n"), "");
+  assert.equal(pauseBreak(""), "", "nothing before it");
+  assert.equal(pauseBreak("The answer is"), "", "mid-sentence: a slow host, perhaps");
+  assert.equal(pauseBreak("```js\nconst a = 1;"), "", "inside a code block");
+  assert.equal(pauseBreak("```js\nconst a = 1;\n```\nThat's it."), "\n\n", "after one");
+  assert.equal(pauseBreak('Here.\n<file name="a.md">\nLine one.'), "", "inside a file being written");
 });
 
 test("waiting for a reply: the time waited from the first second on, in minutes past a minute", () => {

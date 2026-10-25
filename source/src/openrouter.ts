@@ -27,7 +27,11 @@ export class OpenRouterError extends Error {
 export class SSEParser {
   private buffer = "";
 
-  /** Feed more text; returns the payloads (the text after "data: ") completed so far. */
+  /**
+   * Feed more text; returns, in order, the payloads (the text after "data: ") completed so
+   * far, and each keep-alive comment OpenRouter sends while nothing else is coming, as the
+   * line itself (starting with ":", which no payload does).
+   */
   push(text: string): string[] {
     this.buffer += text;
     const out: string[] = [];
@@ -36,8 +40,9 @@ export class SSEParser {
       if (nl === -1) break;
       const line = this.buffer.slice(0, nl).replace(/\r$/, "");
       this.buffer = this.buffer.slice(nl + 1);
-      if (line === "" || line.startsWith(":")) continue; // blank separator or keep-alive comment
-      if (line.startsWith("data:")) out.push(line.slice(5).trimStart());
+      if (line === "") continue; // blank separator
+      if (line.startsWith(":")) out.push(line); // keep-alive comment
+      else if (line.startsWith("data:")) out.push(line.slice(5).trimStart());
     }
     return out;
   }
@@ -167,6 +172,10 @@ export function interpretPayload(payload: string, local = false): StreamPiece {
       cachedTokens: num(u.cached_tokens) || num(ptd.cached_tokens),
       cacheWriteTokens: num(ptd.cache_write_tokens),
     };
+    // Web use: OpenRouter's documentation names it server_tool_use; its replies say server_tool_use_details.
+    const web = isObj(u.server_tool_use_details) ? u.server_tool_use_details : isObj(u.server_tool_use) ? u.server_tool_use : {};
+    if (typeof web.web_search_requests === "number") piece.usage.webSearches = web.web_search_requests;
+    if (typeof web.tool_calls_executed === "number") piece.usage.webToolsUsed = web.tool_calls_executed;
     if (typeof u.cost === "number") piece.cost = u.cost;
   }
   return piece;
@@ -198,8 +207,12 @@ export interface ChatRequest {
   /** For an LM Studio model ("lmstudio/…"): the server's address, from Settings. */
   localServer?: string;
   signal?: AbortSignal;
-  /** Called with each new piece of reply text as it arrives. */
-  onText: (text: string) => void;
+  /**
+   * Called with each new piece of reply text as it arrives; `afterPause` when the text
+   * resumes after a pause of a second or so (OpenRouter's keep-alive comments meanwhile),
+   * as when the model has been searching or reading a page.
+   */
+  onText: (text: string, afterPause: boolean) => void;
   /** Called with each new piece of the model's thinking as it arrives. */
   onThinking?: (text: string) => void;
   /**
@@ -334,7 +347,12 @@ export async function streamChat(req: ChatRequest): Promise<ChatResult> {
   const decoder = new TextDecoder();
 
   let host: string | undefined;
+  let quietNotes = 0; // keep-alive comments since the last reply text
   const handle = (payload: string): boolean => {
+    if (payload.startsWith(":")) {
+      quietNotes++;
+      return false;
+    }
     const p = interpretPayload(payload, local);
     if (!local && ((p.id && p.id !== requestId) || (p.provider && p.provider !== host))) {
       req.onMeta?.({ requestId: p.id ?? requestId, host: p.provider ?? host });
@@ -347,7 +365,10 @@ export async function streamChat(req: ChatRequest): Promise<ChatResult> {
       throw new OpenRouterError(p.error.includes("request ") || !requestId ? p.error : `${p.error} (request ${requestId})`);
     }
     if (p.thinking) req.onThinking?.(p.thinking);
-    if (p.text) req.onText(p.text);
+    if (p.text) {
+      req.onText(p.text, quietNotes >= 2); // they come about every 0.4 s
+      quietNotes = 0;
+    }
     if (p.model) result.model = local ? LOCAL_PREFIX + p.model : p.model; // local: as the seat's model is written
     if (p.usage) result.usage = p.usage;
     if (p.cost !== undefined) result.cost = p.cost;

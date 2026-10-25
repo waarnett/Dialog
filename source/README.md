@@ -299,7 +299,8 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
   level it was given; the **host**, the company whose servers ran the model (OpenRouter
   often has several for one model: for Qwen, say, Alibaba itself or an independent host);
   the cost with its token counts, including how much was re-read at the discount and how
-  much was stored for re-reading; and the speed's breakdown. Below a long reply, the
+  much was stored for re-reading; its **web use** (see Searching and reading web pages,
+  below); and the speed's breakdown. Below a long reply, the
   conversation scrolls just far enough to bring them into view. Tap either again to hide
   them. Particulars that are open when you save are saved in full too.
 - **The host** usually arrives with the reply. If it doesn't, Dialog asks OpenRouter the
@@ -345,6 +346,12 @@ deciding for itself when to. OpenRouter does both on its behalf.
   costs at most a tenth of a cent, plus the page's text at the model's input price: a long
   page of 30,000 tokens adds about 12 cents with Claude Opus 5.5, 30 cents with GPT-6
   Astra.
+- **Which searches and pages a reply used** appears in its particulars, as its model's host
+  reports them: "Web: 2 searches", or "Web: 1 search and 1 page read". Some hosts (Claude's,
+  for instance) count only searches, so a page read doesn't always show. Dialog can't tell
+  while it happens that a participant is searching or reading: the reply simply pauses.
+  When the reply's text then goes on after a finished sentence, Dialog starts a new
+  paragraph, so the two parts don't run together.
 - **Only the reader sees the page.** The others see only what it says about the page, and
   Dialog keeps only the replies, not the pages. So if another participant wants the
   details, it reads the page for itself, and a participant that wants to look again later

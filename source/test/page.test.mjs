@@ -37,7 +37,7 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
   const chatCalls = [];
   const modelCalls = []; // the options of every request for the model list
   const state = { models, modelsStatus: 0, hosts: {} }; // hosts: OpenRouter's records, request id → host
-  const replies = []; // queue of { wait, thinking, pieces, cost, status, slow, genId, provider }
+  const replies = []; // queue of { wait, thinking, pieces, pauses, web, cost, status, slow, genId, provider }
   const hostCalls = []; // request ids looked up
   const blobs = [];
   const downloads = []; // file names the page asked the browser to save
@@ -64,6 +64,8 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
             return;
           }
           if (i < reply.pieces.length) {
+            // pauses: pieces (by index) preceded by a quiet spell, as while a model searches
+            if (reply.pauses?.includes(i)) controller.enqueue(enc.encode(": OPENROUTER PROCESSING\n\n: OPENROUTER PROCESSING\n\n"));
             const meta = { ...(reply.genId ? { id: reply.genId } : {}), ...(reply.provider ? { provider: reply.provider } : {}) };
             controller.enqueue(enc.encode(`data: ${JSON.stringify({ ...meta, choices: [{ delta: { content: reply.pieces[i++] } }] })}\n\n`));
             return;
@@ -71,7 +73,7 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
           if (reply.slow) return; // never finishes on its own; waits for Stop
           controller.enqueue(
             enc.encode(
-              `data: ${JSON.stringify({ model: "resolved/model", choices: [{ delta: { content: "" }, finish_reason: "stop" }], usage: { prompt_tokens: 50, completion_tokens: 10, reasoning_tokens: 4, cost: reply.cost } })}\n\ndata: [DONE]\n\n`,
+              `data: ${JSON.stringify({ model: "resolved/model", choices: [{ delta: { content: "" }, finish_reason: "stop" }], usage: { prompt_tokens: 50, completion_tokens: 10, reasoning_tokens: 4, cost: reply.cost, ...(reply.web ? { server_tool_use_details: reply.web } : {}) } })}\n\ndata: [DONE]\n\n`,
             ),
           );
           controller.close();
@@ -2144,5 +2146,31 @@ test("arriving text is followed only while you're at the bottom; scrolled back, 
   top = 1000;
   await until(() => notBusy(), "the third reply");
   assert.equal(top, 1500, "followed again");
+  assert.deepEqual(errors, []);
+});
+
+test("a reply that used the web: a new paragraph after each pause, and its searches in the particulars", async () => {
+  const { d, replies, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const notBusy = () => !$("#transcript .entry.streaming");
+  const seatCards = () => $$("#seat-list .seat");
+  await until(() => seatCards().length === 2, "seats");
+  replies.push({
+    pieces: ["Opening the release page as requested.", "**Version:** 26.12.1", " is the latest."],
+    pauses: [1, 2], // the second pause is mid-sentence: no break there
+    web: { web_search_requests: 2 },
+    cost: 0.28,
+  });
+  seatCards()[0].querySelector("button.speak").click();
+  await until(() => notBusy(), "the reply");
+  const reply = $$("#transcript .entry").at(-1);
+  assert.deepEqual(
+    [...reply.querySelectorAll(".body p")].map((p) => p.innerHTML),
+    ["Opening the release page as requested.", "<strong>Version:</strong> 26.12.1 is the latest."],
+  );
+  reply.querySelector("header .glance").click();
+  const lines = [...$$("#transcript .entry").at(-1).querySelectorAll(".foot .detail")].map((x) => x.textContent);
+  assert.equal(lines.find((l) => l.startsWith("Web:")), "Web: 2 searches.");
   assert.deepEqual(errors, []);
 });
