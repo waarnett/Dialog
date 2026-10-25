@@ -3,9 +3,10 @@
 //   dist/README.html  the instructions (from README.md), linked from the page's welcome screen
 //
 // Steps:
-//   1. esbuild translates the TypeScript in src/ to JavaScript and bundles it,
-//      together with the libraries it uses (marked, Temml, DOMPurify, js-beautify), into one
-//      script. Temml's stylesheet goes in as text, and its font as a data: URL.
+//   1. esbuild translates the TypeScript in src/ to JavaScript and bundles it into one script.
+//      The libraries it uses (marked, Temml, DOMPurify, js-beautify) go in minified, in a
+//      script of their own that the pretty-printer leaves alone: they are large, and nobody
+//      needs to read them. Temml's stylesheet goes in as text, and its font as a data: URL.
 //   2. The script, the stylesheet and the images are pasted into src/index.html.
 //   3. README.md is turned into a web page in the same style.
 //   4. Both pages go through the HTML pretty-printer (src/pretty.ts), and a check confirms the
@@ -17,6 +18,38 @@ import { build, transform } from "esbuild";
 import { marked } from "marked";
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 
+// The libraries, minified, in a script of their own that sets `dialogLibraries` for the page's
+// script to use. The markers tell the pretty-printer to leave it as it is.
+const librariesBuild = await build({
+  stdin: {
+    contents: `import temml from "temml"; import { Marked } from "marked"; import DOMPurify from "dompurify"; import beautify from "js-beautify";
+globalThis.dialogLibraries = { temml, Marked, DOMPurify, beautify };`,
+    resolveDir: ".",
+  },
+  bundle: true,
+  format: "iife",
+  target: ["safari16"],
+  minify: true,
+  write: false,
+  legalComments: "inline",
+});
+const librariesJs = `/* beautify ignore:start */\n${librariesBuild.outputFiles[0].text.trim()}\n/* beautify ignore:end */`;
+
+/** What the page's script gets when it imports each library: the one that script sets. */
+const FROM_LIBRARIES = {
+  temml: "export default dialogLibraries.temml;",
+  marked: "export const Marked = dialogLibraries.Marked;",
+  dompurify: "export default dialogLibraries.DOMPurify;",
+  "js-beautify": "export default dialogLibraries.beautify;",
+};
+const librariesFromPage = {
+  name: "libraries-from-page",
+  setup(b) {
+    b.onResolve({ filter: /^(temml|marked|dompurify|js-beautify)$/ }, (args) => ({ path: args.path, namespace: "libraries-from-page" }));
+    b.onLoad({ filter: /.*/, namespace: "libraries-from-page" }, (args) => ({ contents: FROM_LIBRARIES[args.path], loader: "js" }));
+  },
+};
+
 const result = await build({
   entryPoints: ["src/main.ts"],
   bundle: true,
@@ -26,6 +59,7 @@ const result = await build({
   write: false,
   legalComments: "inline",
   loader: { ".css": "text", ".woff2": "dataurl" },
+  plugins: [librariesFromPage],
 });
 
 const js = result.outputFiles[0].text;
@@ -48,6 +82,7 @@ const fillImages = (text) => {
 // Function replacements so "$" sequences in the code are not treated specially.
 const page = fillImages(template)
   .replace("/*__STYLES__*/", () => css)
+  .replace("/*__LIBRARIES__*/", () => librariesJs.replace(/<\/script/gi, "<\\/script"))
   .replace("/*__SCRIPT__*/", () => js.replace(/<\/script/gi, "<\\/script"));
 
 // The pretty-printer, the same one the page uses for the files it saves.

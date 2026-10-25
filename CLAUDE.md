@@ -40,9 +40,10 @@ sees a different version after every turn that changes the code.
 
 - Every push gets a new two-number version (2.0 → 2.1 → 2.2 …). Bill says when to change the
   first number.
-- Each turn that changes anything under `source/src/` (the code, stylesheet, HTML template or
-  images; not the README, tests or build script) raises the third number by one, once per
-  turn. The working version always leads to the next public one: if `VERSION` is still the
+- Each turn that changes the page itself raises the third number by one, once per turn: anything
+  under `source/src/` (the code, stylesheet, HTML template or images), the libraries it bundles,
+  or how `build.mjs` puts it together. Changes only to the README or the tests don't count.
+  The working version always leads to the next public one: if `VERSION` is still the
   two-number version on `origin/main` (`git show origin/main:source/src/main.ts`), the first
   change goes to the next second number with a third of 1 (on origin 2.2 → 2.3.1, 2.3.2 …).
 - Before pushing, drop the third number (2.3.4 → 2.3), make sure the result is above the

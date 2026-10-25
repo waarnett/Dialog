@@ -654,7 +654,8 @@ internet address and which logo it wants.
 The page is set like a printed dialogue: each speaker's name hangs in the left margin,
 private exchanges are set on parchment and marked like stage directions. Controls use Optima
 and the conversation uses Iowan Old Style, both built into macOS; on other systems similar
-fonts stand in. Dialog follows your system's light or dark appearance; in dark, the engraving is
+fonts stand in. Mathematics is drawn by the browser itself, in STIX Two Math (also built into
+macOS); Temml turns the models' LaTeX into the browser's math markup. Dialog follows your system's light or dark appearance; in dark, the engraving is
 shown on a paper-colored mount. In a narrow window, the participants move below the
 conversation.
 
