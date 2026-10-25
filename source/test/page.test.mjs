@@ -37,7 +37,7 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
   const chatCalls = [];
   const modelCalls = []; // the options of every request for the model list
   const state = { models, modelsStatus: 0, hosts: {} }; // hosts: OpenRouter's records, request id → host
-  const replies = []; // queue of { thinking, pieces, cost, status, slow, genId, provider }
+  const replies = []; // queue of { wait, thinking, pieces, cost, status, slow, genId, provider }
   const hostCalls = []; // request ids looked up
   const blobs = [];
   const downloads = []; // file names the page asked the browser to save
@@ -54,7 +54,8 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
           signal?.addEventListener("abort", () => controller.error(new Error("aborted")));
         },
         async pull(controller) {
-          await sleep(reply.slow || reply.pause ? 40 : 2); // slow: never finishes; pause: just takes its time
+          // wait: ms before anything arrives; slow: never finishes; pause: just takes its time
+          await sleep(reply.wait && i === 0 && j === 0 ? reply.wait : reply.slow || reply.pause ? 40 : 2);
           if (signal?.aborted) return;
           // Thinking first, as OpenRouter sends it: the same text in two fields.
           if (j < (reply.thinking?.length ?? 0)) {
@@ -311,10 +312,11 @@ test("a full conversation in the page", async () => {
   assert.deepEqual(claudeView.map((m) => m.role), ["system", "user", "assistant", "user"]);
 
   // 6. Stop a slow reply partway. On the way: waiting, then thinking, then the reply.
-  replies.push({ thinking: ["Weighing it."], pieces: ["Partial ", "thought"], slow: true });
+  replies.push({ wait: 1800, thinking: ["Weighing it."], pieces: ["Partial ", "thought"], slow: true });
   speakBtn(1).click();
   const last = () => entries().at(-1);
   assert.equal(last().querySelector(".waiting").textContent, "waiting for Grok…", "nothing has arrived yet");
+  await until(() => last().querySelector(".waiting")?.textContent === "waiting for Grok… 1 s", "the time waited", 2000);
   assert.equal(last().querySelector("details.thinking"), null);
   await until(() => last().querySelector("details.thinking"), "the thinking");
   assert.equal(last().querySelector("summary").textContent, "Thinking…", "still thinking");

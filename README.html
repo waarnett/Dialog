@@ -616,8 +616,11 @@
         <li>
           <p><strong>Replies appear as they are written.</strong> &quot;waiting for Claude…&quot;
             (or whoever is replying)
-            shows until something arrives: the request may still be on its way, queued at the host,
-            or searching the web.
+            shows until something arrives, counting the time waited from the first second
+            (&quot;waiting
+            for Claude… 12 s&quot;, then &quot;… 1 min 5 s&quot;): the request may still be on its
+            way, queued at the
+            host, or searching the web.
             Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
             tab. If a model begins its reply with its own label (&quot;Claude says:&quot;), Dialog
             removes it.</p>

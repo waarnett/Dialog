@@ -263,8 +263,9 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
     neither does "privately" anywhere but at the very end: "We spoke privately, Grok" asks
     Grok openly.
 - **Replies appear as they are written.** "waiting for Claude…" (or whoever is replying)
-  shows until something arrives: the request may still be on its way, queued at the host,
-  or searching the web.
+  shows until something arrives, counting the time waited from the first second ("waiting
+  for Claude… 12 s", then "… 1 min 5 s"): the request may still be on its way, queued at the
+  host, or searching the web.
   Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
   tab. If a model begins its reply with its own label ("Claude says:"), Dialog removes it.
 - **Reading the thinking.** Above a reply that came with its thinking is a folded-up

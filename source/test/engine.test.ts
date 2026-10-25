@@ -28,6 +28,7 @@ import {
   upgradeHouseRules,
   turnSpeed,
   speedLabel,
+  waitingLabel,
   speedDetails,
   describeAttachment,
   formatBytes,
@@ -307,6 +308,13 @@ test("tokens per second: overall, and visible text once it starts", () => {
   assert.equal(turnSpeed(bot(A, "x", { usage, timing: { totalMs: 16000, firstTextMs: 15800 } }))!.visibleTokensPerSecond, undefined);
   assert.equal(turnSpeed(bot(A, "x", { timing: { totalMs: 1000 } })), undefined);
   assert.equal(turnSpeed(bot(A, "x", { usage })), undefined);
+});
+
+test("waiting for a reply: the time waited from the first second on, in minutes past a minute", () => {
+  assert.equal(waitingLabel("Grok", 400), "waiting for Grok…");
+  assert.equal(waitingLabel("Grok", 1000), "waiting for Grok… 1 s");
+  assert.equal(waitingLabel("Grok", 59_900), "waiting for Grok… 59 s");
+  assert.equal(waitingLabel("Grok", 65_000), "waiting for Grok… 1 min 5 s");
 });
 
 test("default house rules: Bill's guidance included; untouched old copies upgraded, edited ones kept", () => {

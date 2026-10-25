@@ -2367,6 +2367,13 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return `${Math.round(s.tokensPerSecond).toLocaleString("en-US")} tokens/s`;
         }
 
+        function waitingLabel(name, ms) {
+          const s = Math.floor(ms / 1e3);
+          const waited = s < 1 ? "" : s < 60 ? ` ${s} s` :
+            ` ${Math.floor(s / 60)} min ${s % 60} s`;
+          return `waiting for ${name}\u2026${waited}`;
+        }
+
         function speedDetails(e, s) {
           const u = e.usage;
           const n = (x) => x.toLocaleString("en-US");
@@ -4756,7 +4763,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.3";
+        var VERSION = "2.4.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -5279,7 +5286,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           if (!split.text && !split.files.length && !split.writing && !e.thinking) {
             body.append(h("span", {
               class: "waiting"
-            }, `waiting for ${e.speakerName}\u2026`));
+            }, waitingLabel(e.speakerName, Date.now() - Date.parse(e.time))));
           }
           const done = split.files.map((f) => f.name);
           if (done.length || split.writing) {
@@ -5291,6 +5298,24 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               class: "writing"
             }, parts.filter(Boolean).join(" ")));
           }
+        }
+        var waitTicker;
+
+        function tickWaiting() {
+          waitTicker ??= setInterval(() => {
+            let waiting = false;
+            for (const e of session.entries) {
+              if (e.status !== "streaming") continue;
+              const line = els.transcript.querySelector(`[data-id="${e.id}"] .waiting`);
+              if (!line) continue;
+              line.textContent = waitingLabel(e.speakerName, Date.now() - Date.parse(e.time));
+              waiting = true;
+            }
+            if (!waiting) {
+              clearInterval(waitTicker);
+              waitTicker = void 0;
+            }
+          }, 500);
         }
 
         function madeFilesBox(e) {
@@ -5575,6 +5600,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             entryId: entry.id,
             controller
           });
+          tickWaiting();
           renderTranscript(true);
           updateSaveButton();
           updateSeatStatus();

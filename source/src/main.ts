@@ -35,6 +35,7 @@ import {
   isSettled,
   speedDetails,
   speedLabel,
+  waitingLabel,
   turnSpeed,
   turnDetails,
   privateGroup,
@@ -140,7 +141,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.3";
+const VERSION = "2.4.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -673,19 +674,43 @@ function renderEntry(e: Entry): HTMLElement {
 /**
  * A reply still arriving: its text so far, without the files it is writing, and a line
  * saying which files are done and which is being written. Until anything at all arrives,
- * "waiting for <name>…"; once thinking arrives, the Thinking line above says so instead.
+ * "waiting for <name>…" with the time waited (kept counting by tickWaiting); once thinking
+ * arrives, the Thinking line above says so instead.
  */
 function fillArrivingBody(body: HTMLElement, e: Entry): void {
   const split = splitFiles(e.text, true);
   body.innerHTML = split.text ? renderMarkdown(split.text, false, true) : "";
   if (!split.text && !split.files.length && !split.writing && !e.thinking) {
-    body.append(h("span", { class: "waiting" }, `waiting for ${e.speakerName}…`));
+    body.append(h("span", { class: "waiting" }, waitingLabel(e.speakerName, Date.now() - Date.parse(e.time))));
   }
   const done = split.files.map((f) => f.name);
   if (done.length || split.writing) {
     const parts = [done.length ? `Made ${done.join(", ")}.` : "", split.writing ? `Writing ${split.writing.name} (${formatBytes(split.writing.size)} so far)…` : ""];
     body.append(h("p", { class: "writing" }, parts.filter(Boolean).join(" ")));
   }
+}
+
+let waitTicker: ReturnType<typeof setInterval> | undefined;
+
+/**
+ * Once a reply has begun: twice a second, bring the time on each "waiting for …" line up to
+ * date. Stops by itself once no reply is waiting (anything arriving ends the wait).
+ */
+function tickWaiting(): void {
+  waitTicker ??= setInterval(() => {
+    let waiting = false;
+    for (const e of session.entries) {
+      if (e.status !== "streaming") continue;
+      const line = els.transcript.querySelector(`[data-id="${e.id}"] .waiting`);
+      if (!line) continue;
+      line.textContent = waitingLabel(e.speakerName, Date.now() - Date.parse(e.time));
+      waiting = true;
+    }
+    if (!waiting) {
+      clearInterval(waitTicker);
+      waitTicker = undefined;
+    }
+  }, 500);
 }
 
 /** The files a participant made in a reply, each with Open, Save and × (remove). */
@@ -980,6 +1005,7 @@ async function speak(
   session.entries.push(entry);
   const controller = new AbortController();
   busy.set(seat.id, { entryId: entry.id, controller });
+  tickWaiting();
   renderTranscript(true);
   updateSaveButton(); // a reply has begun: no more Resume…
   updateSeatStatus();

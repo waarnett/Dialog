@@ -350,6 +350,16 @@ export function speedLabel(s: Speed): string {
   return `${Math.round(s.tokensPerSecond).toLocaleString("en-US")} tokens/s`;
 }
 
+/**
+ * What a reply shows until anything arrives: "waiting for Grok…", and from the first second
+ * on, how long it has waited ("waiting for Grok… 12 s", "waiting for Grok… 1 min 5 s").
+ */
+export function waitingLabel(name: string, ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const waited = s < 1 ? "" : s < 60 ? ` ${s} s` : ` ${Math.floor(s / 60)} min ${s % 60} s`;
+  return `waiting for ${name}…${waited}`;
+}
+
 /** The longer explanation shown on hover. */
 export function speedDetails(e: Entry, s: Speed): string {
   const u = e.usage;
