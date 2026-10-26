@@ -3827,6 +3827,121 @@ body {
           ].join("");
           return page(`Dialog, ${formatDate(started)}${only ? " (selected turns)" : ""}`, inner);
         }
+        var INK = "#1e1d1b";
+        var MUTED = "#6a6c67";
+        var LINE = "#d3d5cf";
+        var PANEL = "#f8f8f5";
+        var ASIDE = "#f2e8cb";
+        var ASIDE_LINE = "#c2a04a";
+        var FONT_UI = `Optima, 'Optima Nova', Candara, 'Segoe UI', 'Gill Sans', sans-serif`;
+        var FONT_TEXT =
+          `'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif`;
+
+        function mix(a, b, share) {
+          const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+          if (![a, b].every((c) => /^#[0-9a-f]{6}$/i.test(c))) return a;
+          const [x, y] = [rgb(a), rgb(b)];
+          return "#" + x.map((v, i) => Math.round(v * share + y[i] * (1 - share)).toString(16)
+            .padStart(2, "0")).join("");
+        }
+        var TEXT_STYLES = {
+          p: "margin: 0 0 0.8em;",
+          pre: `background: ${PANEL}; border: 1px solid ${LINE}; padding: 0.6em 0.8em; border-radius: 6px; font-size: 0.85em; white-space: pre-wrap;`,
+          code: "font-family: ui-monospace, Menlo, monospace; font-size: 0.88em;",
+          table: "border-collapse: collapse;",
+          th: `border: 1px solid ${LINE}; padding: 0.25em 0.55em;`,
+          td: `border: 1px solid ${LINE}; padding: 0.25em 0.55em;`,
+          blockquote: `margin: 0 0 0.8em; padding-left: 0.9em; border-left: 2px solid ${LINE}; color: ${MUTED};`,
+          h1: `font-family: ${FONT_UI}; font-size: 1.2em; margin: 1.2em 0 0.4em;`,
+          h2: `font-family: ${FONT_UI}; font-size: 1.1em; margin: 1.2em 0 0.4em;`,
+          h3: `font-family: ${FONT_UI}; font-size: 1em; margin: 1.2em 0 0.4em;`,
+          h4: `font-family: ${FONT_UI}; font-size: 1em; margin: 1.2em 0 0.4em;`
+        };
+
+        function styleText(html) {
+          return html.replace(/<(p|pre|code|table|th|td|blockquote|h[1-4])(?=[\s>])/g, (_, tag) =>
+            `<${tag} style="${TEXT_STYLES[tag]}"`);
+        }
+
+        function copiedHtml(turns, settings2) {
+          const small = `font-family: ${FONT_UI}; font-size: 0.85em; color: ${MUTED};`;
+          const rows = turns.map((t) => {
+            const e = t.entry;
+            const seat = seatColor(e, settings2);
+            const nameColor = seat ? mix(seat, INK, 0.78) : INK;
+            const rule = e.privateWith ? ASIDE_LINE : seat ? mix(seat, "#ffffff", 0.45) : mix(
+              INK, "#ffffff", 0.22);
+            const dir = direction(e, settings2);
+            const model = e.speaker === "human" ? "" : e.model ?? e.seatModel ?? "";
+            const margin = [
+              `<div style="font-size: 0.85em; color: ${MUTED};">${formatTime(new Date(e.time))}</div>`,
+              `<div style="font-weight: 600; color: ${nameColor};">${esc(e.speakerName)}</div>`,
+              dir ?
+              `<div style="font-family: ${FONT_TEXT}; font-style: italic; font-size: 0.9em; color: ${MUTED};">${esc(dir)}</div>` :
+              "",
+              // A long model id wraps only after its maker ("anthropic/" above "claude-opus-5.5"), never mid-name.
+              model ?
+              `<div style="font-size: 0.8em; color: ${MUTED};">${esc(model).replace(/^([^/]*\/)?(.*)$/, '$1<wbr><span style="white-space: nowrap;">$2</span>')}</div>` :
+              ""
+            ].join("");
+            const parts = [];
+            if (t.thinking) parts.push(
+              `<div style="${small} margin-bottom: 0.4em;"><div>Thinking</div>${styleText(t.thinking)}</div>`
+              );
+            if (t.html) parts.push(
+              `<div style="padding-left: 1em; border-left: 2px solid ${rule};">${styleText(t.html)}</div>`
+              );
+            const files = t.files ? e.attachments ?? [] : [];
+            if (files.length) {
+              const items = files.map((a) => {
+                const picture = a.kind === "image" && a.data ?
+                  `<img src="${esc(a.data)}" alt="${esc(a.name)}" style="display: block; max-width: 320px; max-height: 256px;">` :
+                  "";
+                return `<div>${picture}${esc(describeAttachment(a))}${a.data ? "" : " (no longer available)"}</div>`;
+              });
+              parts.push(
+                `<div style="${small} margin-top: 0.5em; padding-left: 1em;">Attached${items.join("")}</div>`
+                );
+            }
+            const made = t.made ? e.made ?? [] : [];
+            if (made.length) {
+              const items = made.map((f) => {
+                const gone = f.removed || f.data === void 0;
+                const picture = f.kind === "svg" && !gone ?
+                  `<img src="${esc("data:image/svg+xml;charset=utf-8," + encodeURIComponent(f.data))}" alt="${esc(f.name)}" style="display: block; max-width: 320px; max-height: 256px;">` :
+                  "";
+                return `<div>${picture}${esc(describeMadeFile(f))}${f.removed ? " (removed)" : gone ? " (no longer available)" : ""}</div>`;
+              });
+              parts.push(
+                `<div style="${small} margin-top: 0.5em; padding-left: 1em;">Files made${items.join("")}</div>`
+                );
+            }
+            const links = t.sources ? (e.citations ?? []).filter((c) => /^https?:\/\//i.test(c
+              .url)) : [];
+            if (links.length) {
+              const lis = links.map((c) =>
+                `<li><a href="${esc(c.url)}" style="color: inherit;">${esc(c.title || c.url)}</a></li>`
+                ).join("");
+              parts.push(
+                `<div style="${small} margin-top: 0.5em; padding-left: 1em;">Sources:<ul style="margin: 0.15em 0 0; padding-left: 1.1em;">${lis}</ul></div>`
+                );
+            }
+            const tint = e.privateWith ? ` style="background: ${ASIDE};"` : "";
+            return `<tr${tint}><td style="width: 8.5em; padding: 0.4em 1.25em 1.2em 0.4em; vertical-align: top; text-align: right; font-family: ${FONT_UI}; line-height: 1.3;">${margin}</td><td style="padding: 0.4em 0.4em 1.2em 0; vertical-align: top; font-family: ${FONT_TEXT}; font-size: 1.0625em; line-height: 1.55;">${parts.join("")}</td></tr>`;
+          });
+          return `<table style="border-collapse: collapse; color: ${INK};">${rows.join("")}</table>`;
+        }
+
+        function copiedText(turns, settings2) {
+          return turns.map((t) => {
+            const e = t.entry;
+            const model = e.speaker === "human" ? "" : e.model ?? e.seatModel ?? "";
+            const head = [formatTime(new Date(e.time)), e.speakerName, direction(e,
+              settings2)].filter(Boolean).join(" ");
+            return [head, model, t.text.trim().replace(/\n{3,}/g, "\n\n")].filter(Boolean)
+              .join("\n");
+          }).join("\n\n");
+        }
         var EXPORT_CSS = `
 :root {
   --paper: #edeeea; --panel: #f8f8f5; --ink: #1e1d1b; --muted: #6a6c67; --line: #d3d5cf;
@@ -4803,7 +4918,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.4";
+        var VERSION = "2.5.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -7158,8 +7273,67 @@ Your participants, house rules, name and About you will be replaced with the one
           updateSeatStatus();
         }
 
+        function partWithin(range, el) {
+          if (!el) return null;
+          const part = document.createRange();
+          part.selectNodeContents(el);
+          if (range.compareBoundaryPoints(Range.START_TO_START, part) > 0) part.setStart(range
+            .startContainer, range.startOffset);
+          if (range.compareBoundaryPoints(Range.END_TO_END, part) < 0) part.setEnd(range
+            .endContainer, range.endOffset);
+          return part.toString().trim() ? part : null;
+        }
+
+        function htmlOf(range) {
+          const box = document.createElement("div");
+          box.append(range.cloneContents());
+          return box.innerHTML;
+        }
+
+        function copiedTurns(range) {
+          const turns = [];
+          for (const article of els.transcript.querySelectorAll("article.entry")) {
+            const e = session.entries.find((x) => x.id === article.dataset.id);
+            if (!e || !isSettled(e) || !range.intersectsNode(article)) continue;
+            const text = partWithin(range, article.querySelector(":scope > .body"));
+            const thinking = partWithin(range, article.querySelector(
+              ":scope > .thinking .thought"));
+            const turn = {
+              entry: e,
+              html: text ? htmlOf(text) : "",
+              text: text?.toString() ?? "",
+              thinking: thinking ? htmlOf(thinking) : void 0,
+              sources: partWithin(range, article.querySelector(":scope > .sources")) !== null,
+              files: partWithin(range, article.querySelector(":scope > .files")) !== null,
+              made: partWithin(range, article.querySelector(":scope > .made")) !== null
+            };
+            if (turn.html || turn.thinking || turn.sources || turn.files || turn.made) turns.push(
+              turn);
+          }
+          return turns;
+        }
+
+        function onCopy(ev) {
+          const selection = document.getSelection();
+          if (!ev.clipboardData || !selection || selection.rangeCount === 0 || selection
+            .isCollapsed) return;
+          if (ev.target instanceof Element && ev.target.closest("input, textarea")) return;
+          const range = selection.getRangeAt(0);
+          const turns = copiedTurns(range);
+          if (!turns.length) return;
+          const [first] = turns;
+          const justText = turns.length === 1 && !first.thinking && !first.sources && !first
+            .files && !first.made;
+          const margins = [...els.transcript.querySelectorAll("article.entry > header")];
+          if (justText && !margins.some((m) => partWithin(range, m))) return;
+          ev.clipboardData.setData("text/html", copiedHtml(turns, settings));
+          ev.clipboardData.setData("text/plain", copiedText(turns, settings));
+          ev.preventDefault();
+        }
+
         function wire() {
           els.transcript.addEventListener("scroll", followScrolling);
+          document.addEventListener("copy", onCopy);
           els.composer.addEventListener("submit", (ev) => void onComposerSubmit(ev));
           els.composerTo.addEventListener("change", updateComposerState);
           els.composerText.addEventListener("input", updateComposerState);

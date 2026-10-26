@@ -2174,3 +2174,66 @@ test("a reply that used the web: a new paragraph after each pause, and its searc
   assert.equal(lines.find((l) => l.startsWith("Web:")), "Web: 2 searches.");
   assert.deepEqual(errors, []);
 });
+
+test("copying turns: just the turns as on screen, with the model and no cost; a piece of one turn's text is left to the browser", async () => {
+  const { w, d, replies, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const notBusy = () => !$("#transcript .entry.streaming");
+  const seatCards = () => $$("#seat-list .seat");
+  await until(() => seatCards().length === 2, "seats");
+  $("#composer-text").value = "What is time?";
+  $("#composer-text").dispatchEvent(new w.Event("input", { bubbles: true }));
+  $("#composer-send").click();
+  replies.push({ pieces: ["Change, ", "mostly.\n\nAnd memory."], cost: 0.0213 });
+  seatCards()[0].querySelector("button.speak").click();
+  await until(() => notBusy(), "the reply");
+  const [q, r] = $$("#transcript .entry");
+
+  /** Copy with this range selected: what went on the clipboard, or null if left to the browser. */
+  const copy = (range) => {
+    const sel = w.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const data = {};
+    const ev = new w.Event("copy", { bubbles: true, cancelable: true });
+    ev.clipboardData = { setData: (type, value) => (data[type] = value) };
+    $("#transcript").dispatchEvent(ev);
+    return ev.defaultPrevented ? data : null;
+  };
+  const text = (el) => el.querySelector(".body p").firstChild;
+
+  // From the middle of the question to the middle of the reply's first paragraph.
+  const across = d.createRange();
+  across.setStart(text(q), 8);
+  across.setEnd(text(r), 6);
+  const got = copy(across);
+  assert.ok(got, "taken over");
+  const html = got["text/html"];
+  assert.ok(html.startsWith("<table"));
+  assert.ok(!/class=|<button|<input|\$0\.0213|tok\/s/.test(html), "no controls, no cost or speed");
+  assert.ok(html.includes(">Bill</div>") && html.includes(">Claude</div>"));
+  assert.ok(html.includes('>resolved/<wbr><span style="white-space: nowrap;">model</span></div>'), "the model under the name");
+  assert.ok(html.includes(">time?</p>"), "the question from where the selection starts");
+  assert.ok(html.includes(">Change</p>") && !html.includes("memory"), "the reply up to where it ends");
+  assert.match(got["text/plain"], /Bill\ntime\?\n\n\d\d:\d\d Claude\n[^\n]+\nChange$/);
+
+  // A piece of one turn's text: the browser's own copy.
+  const piece = d.createRange();
+  piece.setStart(text(r), 0);
+  piece.setEnd(text(r), 6);
+  assert.equal(copy(piece), null);
+
+  // One whole turn, name and all: taken over.
+  const whole = d.createRange();
+  whole.selectNode(r);
+  assert.ok(copy(whole)["text/html"].includes("memory."));
+
+  // Everything (Select All): just the conversation.
+  const all = d.createRange();
+  all.selectNodeContents(d.body);
+  const everything = copy(all);
+  assert.equal((everything["text/html"].match(/<tr/g) ?? []).length, 2);
+  assert.ok(!everything["text/plain"].includes("Participants") && !everything["text/plain"].includes("Save All"));
+  assert.deepEqual(errors, []);
+});

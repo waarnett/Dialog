@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { conversationFileName, conversationHtml, escapeHtml, firstSentence } from "../src/export";
-import { defaultSettings } from "../src/engine";
+import { conversationFileName, conversationHtml, copiedHtml, copiedText, escapeHtml, firstSentence, type CopiedTurn } from "../src/export";
+import { defaultSettings, formatTime } from "../src/engine";
 import type { Entry, Seat, Settings } from "../src/types";
 
 // A stand-in for the page's Markdown renderer: escape, wrap in <p>.
@@ -214,4 +214,43 @@ test("a reply whose particulars are open on screen is saved with them; a private
   assert.ok(html.includes('<article class="turn bot private"'));
   const none = conversationHtml({ startedAt: T, entries: [r] }, s, { render, models: [opusInfo] });
   assert.ok(!none.includes("foot details"), "none open: none saved");
+});
+
+test("copied turns: name, direction and model in the margin, the selected text beside; no cost, no controls", () => {
+  const s = setup();
+  const [A, B] = s.seats as [Seat, Seat];
+  const turn = (entry: Entry, html: string, text: string, extra: Partial<CopiedTurn> = {}): CopiedTurn => ({
+    entry, html, text, sources: false, files: false, made: false, ...extra,
+  });
+  const q = human("What is time?", { attachments: [{ id: "f", name: "orbit.png", kind: "image", mime: "image/png", size: 100, data: "data:image/png;base64,AAAA" }] });
+  const r = bot(A, "Change.", { cost: 0.02, citations: [{ url: "https://example.com", title: "Example" }] });
+  const p = bot(B, "Secret.", { privateWith: "B", cost: 0.01, seatModel: "x-ai/grok-4.7", model: undefined });
+  const turns = [
+    turn(q, "<p>What is time?</p>", "What is time?", { files: true }),
+    turn(r, "<p>Change.</p><pre><code>x</code></pre>", "Change.\n\n\n\nx", { sources: true, thinking: "<p>Hmm.</p>" }),
+    turn(p, "<p>Sec</p>", "Sec"),
+  ];
+  const html = copiedHtml(turns, s);
+
+  assert.ok(html.startsWith('<table style="border-collapse: collapse; color: #1e1d1b;">'));
+  assert.ok(!/class=|<button|<input|\$0\.0/.test(html), "no classes, no controls, no costs");
+  assert.ok(html.includes('<div style="font-weight: 600; color: #a35439;">Claude</div>'), "the name in its seat's color, as on screen");
+  assert.ok(html.includes('>anthropic/<wbr><span style="white-space: nowrap;">claude-opus-5.5</span></div>'), "the model under the name");
+  assert.ok(html.includes('>x-ai/<wbr><span style="white-space: nowrap;">grok-4.7</span></div>'), "the seat's model when the reply didn't say");
+  assert.ok(html.includes(">(privately, to Bill)</div>"));
+  assert.ok(html.includes('<tr style="background: #f2e8cb;">'), "a private exchange tinted");
+  assert.equal((html.match(/<tr/g) ?? []).length, 3);
+  assert.ok(html.includes('<p style="margin: 0 0 0.8em;">Change.</p><pre style="background: #f8f8f5;'), "the text's tags styled in place");
+  assert.ok(html.includes('<code style="font-family: ui-monospace'));
+  assert.ok(html.includes("<div>Thinking</div>"), "open thinking that was selected");
+  assert.ok(html.includes('<a href="https://example.com" style="color: inherit;">Example</a>'));
+  assert.ok(html.includes('<img src="data:image/png;base64,AAAA" alt="orbit.png"'), "a picture attached");
+
+  const unselected = copiedHtml([turn(r, "<p>Change.</p>", "Change.")], s);
+  assert.ok(!unselected.includes("Sources:") && !unselected.includes("Thinking"), "parts not selected left out");
+
+  assert.equal(
+    copiedText(turns, s),
+    "00:00 Bill\nWhat is time?\n\n00:00 Claude\nanthropic/claude-opus-5.5\nChange.\n\nx\n\n00:00 Grok (privately, to Bill)\nx-ai/grok-4.7\nSec".replace(/00:00/g, formatTime(new Date(T))),
+  );
 });

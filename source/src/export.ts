@@ -278,6 +278,134 @@ export function conversationHtml(session: Session, settings: Settings, opts: Exp
 }
 
 // ---------------------------------------------------------------------------
+// Copying turns, for pasting into an email
+
+/** What of one turn a copy took: the turn, and the parts of it that were selected. */
+export interface CopiedTurn {
+  entry: Entry;
+  /** The selected part of its text, as HTML and as plain text ("" if none of it). */
+  html: string;
+  text: string;
+  /** The selected part of its thinking, as HTML, when the thinking was open and selected. */
+  thinking?: string;
+  sources: boolean;
+  files: boolean;
+  made: boolean;
+}
+
+// The page's colors and type, written into every element: mail programs drop style sheets.
+const INK = "#1e1d1b";
+const MUTED = "#6a6c67";
+const LINE = "#d3d5cf";
+const PANEL = "#f8f8f5";
+const ASIDE = "#f2e8cb";
+const ASIDE_LINE = "#c2a04a";
+const FONT_UI = `Optima, 'Optima Nova', Candara, 'Segoe UI', 'Gill Sans', sans-serif`;
+const FONT_TEXT = `'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif`;
+
+/** `a` mixed with `b`, `share` of it `a` (as CSS's color-mix, which mail programs don't know). */
+function mix(a: string, b: string, share: number): string {
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  if (![a, b].every((c) => /^#[0-9a-f]{6}$/i.test(c))) return a;
+  const [x, y] = [rgb(a), rgb(b)];
+  return "#" + x.map((v, i) => Math.round(v * share + y[i]! * (1 - share)).toString(16).padStart(2, "0")).join("");
+}
+
+// The tags of a reply's text that need more than the mail program's defaults to look as on screen.
+const TEXT_STYLES: Record<string, string> = {
+  p: "margin: 0 0 0.8em;",
+  pre: `background: ${PANEL}; border: 1px solid ${LINE}; padding: 0.6em 0.8em; border-radius: 6px; font-size: 0.85em; white-space: pre-wrap;`,
+  code: "font-family: ui-monospace, Menlo, monospace; font-size: 0.88em;",
+  table: "border-collapse: collapse;",
+  th: `border: 1px solid ${LINE}; padding: 0.25em 0.55em;`,
+  td: `border: 1px solid ${LINE}; padding: 0.25em 0.55em;`,
+  blockquote: `margin: 0 0 0.8em; padding-left: 0.9em; border-left: 2px solid ${LINE}; color: ${MUTED};`,
+  h1: `font-family: ${FONT_UI}; font-size: 1.2em; margin: 1.2em 0 0.4em;`,
+  h2: `font-family: ${FONT_UI}; font-size: 1.1em; margin: 1.2em 0 0.4em;`,
+  h3: `font-family: ${FONT_UI}; font-size: 1em; margin: 1.2em 0 0.4em;`,
+  h4: `font-family: ${FONT_UI}; font-size: 1em; margin: 1.2em 0 0.4em;`,
+};
+
+/** A reply's text (sanitized HTML) with those styles written into its tags. */
+function styleText(html: string): string {
+  return html.replace(/<(p|pre|code|table|th|td|blockquote|h[1-4])(?=[\s>])/g, (_, tag: string) => `<${tag} style="${TEXT_STYLES[tag]}"`);
+}
+
+/**
+ * The copied turns as HTML that pastes into an email looking as on screen: a table with each
+ * turn's time, name, direction and model in the margin and what was selected of it beside.
+ * No cost, speed or other particulars, and none of the page's buttons or tick boxes.
+ */
+export function copiedHtml(turns: CopiedTurn[], settings: Settings): string {
+  const small = `font-family: ${FONT_UI}; font-size: 0.85em; color: ${MUTED};`;
+  const rows = turns.map((t) => {
+    const e = t.entry;
+    const seat = seatColor(e, settings);
+    const nameColor = seat ? mix(seat, INK, 0.78) : INK;
+    const rule = e.privateWith ? ASIDE_LINE : seat ? mix(seat, "#ffffff", 0.45) : mix(INK, "#ffffff", 0.22);
+    const dir = direction(e, settings);
+    const model = e.speaker === "human" ? "" : (e.model ?? e.seatModel ?? "");
+    const margin = [
+      `<div style="font-size: 0.85em; color: ${MUTED};">${formatTime(new Date(e.time))}</div>`,
+      `<div style="font-weight: 600; color: ${nameColor};">${esc(e.speakerName)}</div>`,
+      dir ? `<div style="font-family: ${FONT_TEXT}; font-style: italic; font-size: 0.9em; color: ${MUTED};">${esc(dir)}</div>` : "",
+      // A long model id wraps only after its maker ("anthropic/" above "claude-opus-5.5"), never mid-name.
+      model ? `<div style="font-size: 0.8em; color: ${MUTED};">${esc(model).replace(/^([^/]*\/)?(.*)$/, '$1<wbr><span style="white-space: nowrap;">$2</span>')}</div>` : "",
+    ].join("");
+
+    const parts: string[] = [];
+    if (t.thinking) parts.push(`<div style="${small} margin-bottom: 0.4em;"><div>Thinking</div>${styleText(t.thinking)}</div>`);
+    if (t.html) parts.push(`<div style="padding-left: 1em; border-left: 2px solid ${rule};">${styleText(t.html)}</div>`);
+    const files = t.files ? (e.attachments ?? []) : [];
+    if (files.length) {
+      const items = files.map((a) => {
+        const picture = a.kind === "image" && a.data ? `<img src="${esc(a.data)}" alt="${esc(a.name)}" style="display: block; max-width: 320px; max-height: 256px;">` : "";
+        return `<div>${picture}${esc(describeAttachment(a))}${a.data ? "" : " (no longer available)"}</div>`;
+      });
+      parts.push(`<div style="${small} margin-top: 0.5em; padding-left: 1em;">Attached${items.join("")}</div>`);
+    }
+    const made = t.made ? (e.made ?? []) : [];
+    if (made.length) {
+      const items = made.map((f) => {
+        const gone = f.removed || f.data === undefined;
+        const picture =
+          f.kind === "svg" && !gone
+            ? `<img src="${esc("data:image/svg+xml;charset=utf-8," + encodeURIComponent(f.data!))}" alt="${esc(f.name)}" style="display: block; max-width: 320px; max-height: 256px;">`
+            : "";
+        return `<div>${picture}${esc(describeMadeFile(f))}${f.removed ? " (removed)" : gone ? " (no longer available)" : ""}</div>`;
+      });
+      parts.push(`<div style="${small} margin-top: 0.5em; padding-left: 1em;">Files made${items.join("")}</div>`);
+    }
+    const links = t.sources ? (e.citations ?? []).filter((c) => /^https?:\/\//i.test(c.url)) : [];
+    if (links.length) {
+      const lis = links.map((c) => `<li><a href="${esc(c.url)}" style="color: inherit;">${esc(c.title || c.url)}</a></li>`).join("");
+      parts.push(`<div style="${small} margin-top: 0.5em; padding-left: 1em;">Sources:<ul style="margin: 0.15em 0 0; padding-left: 1.1em;">${lis}</ul></div>`);
+    }
+
+    const tint = e.privateWith ? ` style="background: ${ASIDE};"` : "";
+    return (
+      `<tr${tint}>` +
+      `<td style="width: 8.5em; padding: 0.4em 1.25em 1.2em 0.4em; vertical-align: top; text-align: right; font-family: ${FONT_UI}; line-height: 1.3;">${margin}</td>` +
+      `<td style="padding: 0.4em 0.4em 1.2em 0; vertical-align: top; font-family: ${FONT_TEXT}; font-size: 1.0625em; line-height: 1.55;">${parts.join("")}</td>` +
+      `</tr>`
+    );
+  });
+  return `<table style="border-collapse: collapse; color: ${INK};">${rows.join("")}</table>`;
+}
+
+/** The copied turns as plain text, for places that don't take HTML: a heading line for each turn, then its text. */
+export function copiedText(turns: CopiedTurn[], settings: Settings): string {
+  return turns
+    .map((t) => {
+      const e = t.entry;
+      const model = e.speaker === "human" ? "" : (e.model ?? e.seatModel ?? "");
+      const head = [formatTime(new Date(e.time)), e.speakerName, direction(e, settings)].filter(Boolean).join(" ");
+      return [head, model, t.text.trim().replace(/\n{3,}/g, "\n\n")].filter(Boolean).join("\n");
+    })
+    .join("\n\n");
+}
+
+// ---------------------------------------------------------------------------
 // Appearance (a compact version of Dialog's own)
 
 const EXPORT_CSS = `

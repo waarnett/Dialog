@@ -6,7 +6,7 @@
 import DOMPurify from "dompurify";
 import { Marked } from "marked";
 import { readAttachment } from "./attachments";
-import { conversationFileName, conversationHtml, escapeHtml, type ExportOptions } from "./export";
+import { conversationFileName, conversationHtml, copiedHtml, copiedText, escapeHtml, type CopiedTurn, type ExportOptions } from "./export";
 import { makerOf, type Maker } from "./makers";
 import { MATH_CSS, mathExtension, mathHtml, mathSource } from "./math";
 import { prettyHtml } from "./pretty";
@@ -142,7 +142,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.4";
+const VERSION = "2.5.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -2523,10 +2523,74 @@ function newConversation(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Copying
+
+/** The part of `range` that lies within `el`, if it takes in any of its text. */
+function partWithin(range: Range, el: Element | null): Range | null {
+  if (!el) return null;
+  const part = document.createRange();
+  part.selectNodeContents(el);
+  if (range.compareBoundaryPoints(Range.START_TO_START, part) > 0) part.setStart(range.startContainer, range.startOffset);
+  if (range.compareBoundaryPoints(Range.END_TO_END, part) < 0) part.setEnd(range.endContainer, range.endOffset);
+  return part.toString().trim() ? part : null;
+}
+
+function htmlOf(range: Range): string {
+  const box = document.createElement("div");
+  box.append(range.cloneContents());
+  return box.innerHTML;
+}
+
+/** The turns a selection takes in, each with the parts of it that are selected. Failed and arriving replies are left out. */
+function copiedTurns(range: Range): CopiedTurn[] {
+  const turns: CopiedTurn[] = [];
+  for (const article of els.transcript.querySelectorAll<HTMLElement>("article.entry")) {
+    const e = session.entries.find((x) => x.id === article.dataset.id);
+    if (!e || !isSettled(e) || !range.intersectsNode(article)) continue;
+    const text = partWithin(range, article.querySelector(":scope > .body"));
+    const thinking = partWithin(range, article.querySelector(":scope > .thinking .thought"));
+    const turn: CopiedTurn = {
+      entry: e,
+      html: text ? htmlOf(text) : "",
+      text: text?.toString() ?? "",
+      thinking: thinking ? htmlOf(thinking) : undefined,
+      sources: partWithin(range, article.querySelector(":scope > .sources")) !== null,
+      files: partWithin(range, article.querySelector(":scope > .files")) !== null,
+      made: partWithin(range, article.querySelector(":scope > .made")) !== null,
+    };
+    if (turn.html || turn.thinking || turn.sources || turn.files || turn.made) turns.push(turn);
+  }
+  return turns;
+}
+
+/**
+ * Copying more than a piece of one turn's text (or everything, with Select All): just the
+ * turns, as they look on screen but without the page's buttons and tick boxes, or the cost
+ * and speed, so they paste into an email as they look here. A piece of one turn's text is
+ * left to the browser, which copies that well.
+ */
+function onCopy(ev: ClipboardEvent): void {
+  const selection = document.getSelection();
+  if (!ev.clipboardData || !selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+  if (ev.target instanceof Element && ev.target.closest("input, textarea")) return;
+  const range = selection.getRangeAt(0);
+  const turns = copiedTurns(range);
+  if (!turns.length) return;
+  const [first] = turns;
+  const justText = turns.length === 1 && !first!.thinking && !first!.sources && !first!.files && !first!.made;
+  const margins = [...els.transcript.querySelectorAll("article.entry > header")];
+  if (justText && !margins.some((m) => partWithin(range, m))) return;
+  ev.clipboardData.setData("text/html", copiedHtml(turns, settings));
+  ev.clipboardData.setData("text/plain", copiedText(turns, settings));
+  ev.preventDefault();
+}
+
+// ---------------------------------------------------------------------------
 // Wiring
 
 function wire(): void {
   els.transcript.addEventListener("scroll", followScrolling);
+  document.addEventListener("copy", onCopy);
   els.composer.addEventListener("submit", (ev) => void onComposerSubmit(ev));
   els.composerTo.addEventListener("change", updateComposerState);
   els.composerText.addEventListener("input", updateComposerState); // who Return would ask follows your typing

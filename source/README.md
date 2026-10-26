@@ -514,6 +514,15 @@ rules, under Settings).
   lines are broken at a space near 100 characters. Only the layout of the text changes: the
   page looks exactly the same in a browser, and text in preformatted blocks (such as the
   files in a saved conversation) is left as it was.
+- **Copying into an email.** Select part of the conversation, or all of it with ⌘A, and
+  copy (⌘C): what you paste into Mail (or any program that takes formatted text) looks as it
+  does on screen, with each turn's time, name and stage direction in the margin and the
+  participant's model under its name. Only the turns come along: none of the page's
+  buttons, tick boxes, the Participants panel or the box you type in, and no costs or
+  speeds. If the selection starts or ends partway through a turn, only the part you
+  selected is copied. Thinking is included only if it is open on screen and selected.
+  Copying a few words or paragraphs from within a single turn works as in any web page.
+  Programs that take only plain text get each turn's time and name, the model, and the text.
 - **New conversation** clears the conversation (save first). Participants and settings stay.
   To go back to a saved one, press **Resume…** in the top bar.
 - Between visits, Dialog remembers the conversation, the participants and your settings.
