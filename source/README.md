@@ -48,6 +48,8 @@ Dialog's version number, which also appears at the top of Settings.
 
 ## The top bar
 
+- **Dialog** and the Socrates medallion: click either to show Dialog's version number in
+  small type under the name; click again to hide it. (Settings shows it too.)
 - **This conversation:** what its replies have cost, as reported by OpenRouter.
   OpenRouter's 5.5% fee on credit purchases comes on top.
 - **Credit left** (only with a management key): your account's remaining credit, across

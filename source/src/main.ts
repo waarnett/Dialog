@@ -142,7 +142,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.5";
+const VERSION = "2.6.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -168,6 +168,8 @@ const els = {
   modelCount: byId("model-count"),
   modelRefresh: byId<HTMLButtonElement>("model-refresh"),
   modelCancel: byId<HTMLButtonElement>("model-cancel"),
+  brand: byId<HTMLButtonElement>("brand"),
+  brandVersion: byId("brand-version"),
   btnSave: byId<HTMLButtonElement>("btn-save"),
   btnResume: byId<HTMLButtonElement>("btn-resume"),
   btnNew: byId<HTMLButtonElement>("btn-new"),
@@ -2609,6 +2611,14 @@ function wire(): void {
     else void sendAndAsk(); // Return: add, and a participant replies
   });
 
+  // Clicking the medallion or the name shows the version under the name; clicking again hides it.
+  els.brandVersion.textContent = `Version ${VERSION}`;
+  els.brand.addEventListener("click", () => {
+    const show = els.brandVersion.hidden;
+    els.brandVersion.hidden = !show;
+    els.brand.setAttribute("aria-expanded", String(show));
+    els.brand.title = show ? "Hide Dialog's version" : "Show Dialog's version";
+  });
   els.btnSave.addEventListener("click", saveConversation);
   els.btnNew.addEventListener("click", newConversation);
   els.btnResume.addEventListener("click", () => els.resumeInput.click());

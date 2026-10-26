@@ -10,10 +10,13 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">
+  <button id="brand" class="brand" type="button" title="Show Dialog's version" aria-expanded="false">
     <img class="medallion" src="__MEDALLION_SRC__" alt="" width="44" height="44">
-    <span class="wordmark">Dialog</span>
-  </div>
+    <span class="brand-name">
+      <span class="wordmark">Dialog</span>
+      <span id="brand-version" class="brand-version" hidden></span>
+    </span>
+  </button>
   <div class="stats">
     <span id="session-cost" title="Total for this conversation, as reported by OpenRouter. Its fee on credit purchases is extra."></span>
     <span id="credit-info"></span>

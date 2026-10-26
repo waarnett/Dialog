@@ -99,6 +99,10 @@ textarea { resize: vertical; }
   flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: 0.7rem; }
+/* The medallion and name are a button: clicking shows the version under the name, or hides it again. */
+button.brand { border: none; background: none; padding: 0; text-align: left; }
+.brand-name { display: flex; flex-direction: column; }
+.brand-version { font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
 .medallion {
   width: 44px;
   height: 44px;

@@ -2237,3 +2237,20 @@ test("copying turns: just the turns as on screen, with the model and no cost; a 
   assert.ok(!everything["text/plain"].includes("Participants") && !everything["text/plain"].includes("Save All"));
   assert.deepEqual(errors, []);
 });
+
+test("clicking the medallion or the name shows the version under the name; clicking again hides it", async () => {
+  const { d, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  await until(() => $("#brand"), "the top bar");
+  const version = $("#brand-version");
+  assert.equal(version.hidden, true, "hidden at first");
+  assert.match(version.textContent, /^Version \d+\.\d+(\.\d+)?$/);
+  assert.equal(version.textContent, $("#set-version").textContent, "the same as in Settings");
+  $(".topbar .medallion").click();
+  assert.equal(version.hidden, false, "shown by the medallion");
+  assert.equal($("#brand").getAttribute("aria-expanded"), "true");
+  $(".topbar .wordmark").click();
+  assert.equal(version.hidden, true, "hidden again by the name");
+  assert.equal($("#brand").getAttribute("aria-expanded"), "false");
+  assert.deepEqual(errors, []);
+});
