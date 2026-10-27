@@ -1,41 +1,69 @@
-// Saving and loading through the browser's local storage, which keeps data on this
-// computer, for this page, between visits. Every access is guarded: if storage is unavailable,
-// Dialog still works, it just can't remember anything after the page closes.
+// Saving and loading through the browser's storage, which keeps data on this computer, for
+// this page. Each tab keeps its own conversation, files and settings in the tab's own storage
+// (kept while the tab is open, through reloads, and gone when it closes). The storage all tabs
+// share holds only what a new tab starts from: the latest settings, the model list and its
+// order. Every access is guarded: if storage is unavailable, Dialog still works, it just can't
+// remember anything.
 
 import { defaultSettings, isSettled, madeFileFrom, MODEL_SORTS, newId, newSession, SEAT_COLORS, splitFiles, upgradeHouseRules, type ModelSort } from "./engine";
 import type { ModelInfo } from "./openrouter";
 import type { Attachment, Entry, MadeFile, Seat, Session, Settings } from "./types";
 
-const SETTINGS_KEY = "dialog.settings.v1";
-const SESSION_KEY = "dialog.session.v1";
+const SETTINGS_KEY = "dialog.settings.v1"; // in this tab, and the latest in shared storage
+const SESSION_KEY = "dialog.session.v1"; // in this tab (in shared storage before tabs were separate)
+const SAVED_KEY = "dialog.saved.v1"; // in this tab
 const MODELS_KEY = "dialog.models.v5"; // v3 added what each model takes in; v4, whether it can use tools; v5, what a ~latest id stands for
 
-function read(key: string): unknown {
+/** This tab's own storage. */
+const tab = (): Storage => sessionStorage;
+/** The storage every tab shares. */
+const shared = (): Storage => localStorage;
+
+function read(area: () => Storage, key: string): unknown {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = area().getItem(key);
     return raw ? (JSON.parse(raw) as unknown) : null;
   } catch {
     return null;
   }
 }
 
-function write(key: string, value: unknown, replacer?: (key: string, value: unknown) => unknown): boolean {
+function write(area: () => Storage, key: string, value: unknown, replacer?: (key: string, value: unknown) => unknown): boolean {
   try {
-    localStorage.setItem(key, JSON.stringify(value, replacer));
+    area().setItem(key, JSON.stringify(value, replacer));
     return true;
   } catch {
     return false;
   }
 }
 
-/** True if the browser is letting this page store data. */
+/** True if the browser is letting this page store data, in the tab and shared. */
 export function storageWorks(): boolean {
   try {
-    localStorage.setItem("dialog.probe", "1");
-    localStorage.removeItem("dialog.probe");
+    for (const area of [tab(), shared()]) {
+      area.setItem("dialog.probe", "1");
+      area.removeItem("dialog.probe");
+    }
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Forget everything this tab has stored, so it starts afresh: for a tab opened with a new
+ * conversation, into which the browser may have copied the storage of the tab that opened it.
+ */
+export function forgetTab(): void {
+  try {
+    const mine: string[] = [];
+    for (let i = 0; i < tab().length; i++) {
+      const key = tab().key(i);
+      if (key?.startsWith("dialog.")) mine.push(key);
+    }
+    for (const key of mine) tab().removeItem(key);
+  } catch {
+    /* storage unavailable */
   }
 }
 
@@ -58,8 +86,18 @@ function cleanSeat(v: unknown): Seat | null {
   };
 }
 
+/** The settings this tab's storage holds ("" if none yet). */
+let tabSettings = "";
+/** The settings as loaded, or as last changed in this tab. */
+let ownSettings = "";
+
+/** This tab's settings; in a new tab, the latest settings changed in any tab. */
 export function loadSettings(): Settings {
-  return parseSettings(read(SETTINGS_KEY));
+  const mine = read(tab, SETTINGS_KEY);
+  const s = parseSettings(mine ?? read(shared, SETTINGS_KEY));
+  ownSettings = JSON.stringify(s);
+  tabSettings = mine ? ownSettings : "";
+  return s;
 }
 
 /** Settings from stored or file data; anything missing or malformed gets its default. */
@@ -78,8 +116,20 @@ function parseSettings(v: unknown): Settings {
   };
 }
 
+/**
+ * Store this tab's settings. Only when they have been changed here do they also become the
+ * latest, for new tabs, so that this tab's saves don't undo a change made in another tab.
+ */
 export function saveSettings(s: Settings): boolean {
-  return write(SETTINGS_KEY, s);
+  const json = JSON.stringify(s);
+  if (json !== ownSettings) {
+    write(shared, SETTINGS_KEY, s);
+    ownSettings = json;
+  }
+  if (json === tabSettings) return true;
+  const ok = write(tab, SETTINGS_KEY, s);
+  if (ok) tabSettings = json;
+  return ok;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +196,7 @@ export function settingsFromFile(text: string, current: Settings): RestoredSetti
 
 // Attached files are stored one per slot ("dialog.file.<id>"), apart from the conversation,
 // so a large file can't stop the conversation itself from being saved. Browsers allow each
-// page only a few megabytes in all; a file that doesn't fit stays in memory and is marked.
+// tab only a few megabytes in all; a file that doesn't fit stays in memory and is marked.
 
 const FILE_PREFIX = "dialog.file.";
 /** Files known to be in storage already, so they aren't rewritten on every save. */
@@ -157,21 +207,39 @@ function allAttachments(s: Session): (Attachment | MadeFile)[] {
   return s.entries.flatMap((e) => [...(e.attachments ?? []), ...(e.made ?? []).filter((f) => !f.removed)]);
 }
 
+/**
+ * This tab's conversation. A new tab starts with none, except that the first one opened since
+ * tabs became separate takes over the conversation (and its files) that all tabs used to share.
+ */
 export function loadSession(): Session {
-  const v = read(SESSION_KEY);
-  if (!isObj(v) || !Array.isArray(v.entries)) return newSession();
-  const entries = cleanEntries(v.entries, (a) => {
+  const mine = read(tab, SESSION_KEY);
+  const area = mine === null ? shared : tab;
+  const v = mine ?? read(shared, SESSION_KEY);
+  const contents = (a: Attachment | MadeFile) => {
     try {
-      const data = localStorage.getItem(FILE_PREFIX + a.id);
+      const data = area().getItem(FILE_PREFIX + a.id);
       if (data === null) return undefined;
-      storedFiles.add(a.id);
+      if (area === tab) storedFiles.add(a.id);
       return data;
     } catch {
       return undefined;
     }
-  });
-  const session = { startedAt: str(v.startedAt, new Date().toISOString()), entries };
-  removeUnusedFiles(session);
+  };
+  const session = isObj(v) && Array.isArray(v.entries)
+    ? { startedAt: str(v.startedAt, new Date().toISOString()), entries: cleanEntries(v.entries, contents) }
+    : newSession();
+  if (area === tab) {
+    removeUnusedFiles(session);
+    return session;
+  }
+  // Moved from shared storage into this tab's own.
+  try {
+    shared().removeItem(SESSION_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+  removeUnusedFiles(newSession(), shared);
+  if (session.entries.length) saveSession(session);
   return session;
 }
 
@@ -216,7 +284,7 @@ export function saveSession(s: Session): boolean {
   for (const a of allAttachments(s)) {
     if (!a.data || storedFiles.has(a.id)) continue;
     try {
-      localStorage.setItem(FILE_PREFIX + a.id, a.data);
+      tab().setItem(FILE_PREFIX + a.id, a.data);
       storedFiles.add(a.id);
       delete a.unsaved;
     } catch {
@@ -224,27 +292,48 @@ export function saveSession(s: Session): boolean {
     }
   }
   // File contents go in their own slots; thinking is never stored.
-  const ok = write(SESSION_KEY, s, (key, value: unknown) => (key === "data" || key === "thinking" ? undefined : value));
+  const ok = write(tab, SESSION_KEY, s, (key, value: unknown) => (key === "data" || key === "thinking" ? undefined : value));
   removeUnusedFiles(s);
   return ok;
 }
 
 /** Delete stored files that no entry refers to any more (removed entries, old conversations). */
-function removeUnusedFiles(s: Session): void {
+function removeUnusedFiles(s: Session, area = tab): void {
   const used = new Set(allAttachments(s).map((a) => a.id));
   try {
     const stale: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+    for (let i = 0; i < area().length; i++) {
+      const key = area().key(i);
       if (key?.startsWith(FILE_PREFIX) && !used.has(key.slice(FILE_PREFIX.length))) stale.push(key);
     }
     for (const key of stale) {
-      localStorage.removeItem(key);
+      area().removeItem(key);
       storedFiles.delete(key.slice(FILE_PREFIX.length));
     }
   } catch {
     /* storage unavailable */
   }
+}
+
+// Whether the conversation has been saved in a file since it last changed, so that closing
+// the tab can warn before losing it.
+
+/** The conversation as it is now, in short: a fingerprint of everything Save All keeps. */
+export function conversationMark(s: Session): string {
+  const json = JSON.stringify(s.entries, (key, value: unknown) => (key === "data" || key === "thinking" || key === "unsaved" ? undefined : value));
+  let hash = 0x811c9dc5; // FNV-1a
+  for (let i = 0; i < json.length; i++) hash = Math.imul(hash ^ json.charCodeAt(i), 0x01000193);
+  return `${json.length}.${(hash >>> 0).toString(16)}`;
+}
+
+/** Note that the conversation, as `mark` describes it, is saved in a file (or came from one). */
+export function markSaved(mark: string): void {
+  write(tab, SAVED_KEY, mark);
+}
+
+/** Does the conversation have turns not saved in a file? */
+export function hasUnsavedTurns(s: Session): boolean {
+  return s.entries.length > 0 && read(tab, SAVED_KEY) !== conversationMark(s);
 }
 
 // A saved conversation, to resume: Save All and Save Selected write the readable page with
@@ -333,7 +422,7 @@ export interface CachedModels {
  * is fetched, and kept if that fails. Null if there is none.
  */
 export function loadCachedModels(): CachedModels | null {
-  const v = read(MODELS_KEY);
+  const v = read(shared, MODELS_KEY);
   if (!isObj(v) || typeof v.at !== "number" || !Array.isArray(v.models)) return null;
   return { models: v.models as ModelInfo[], at: v.at };
 }
@@ -348,7 +437,7 @@ export function modelsAreStale(at: number, now = Date.now()): boolean {
 }
 
 export function saveCachedModels(models: ModelInfo[], at = Date.now()): void {
-  write(MODELS_KEY, { at, models });
+  write(shared, MODELS_KEY, { at, models });
 }
 
 // How the model picker sorts its list: remembered in this browser.
@@ -356,10 +445,10 @@ export function saveCachedModels(models: ModelInfo[], at = Date.now()): void {
 const MODEL_SORT_KEY = "dialog.modelSort.v1";
 
 export function loadModelSort(): ModelSort {
-  const v = read(MODEL_SORT_KEY);
+  const v = read(shared, MODEL_SORT_KEY);
   return MODEL_SORTS.find((x) => x === v) ?? "name";
 }
 
 export function saveModelSort(sort: ModelSort): void {
-  write(MODEL_SORT_KEY, sort);
+  write(shared, MODEL_SORT_KEY, sort);
 }

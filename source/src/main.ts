@@ -64,6 +64,17 @@ import type { Addressee, Attachment, Entry, MadeFile, MadeKind, Seat } from "./t
 // ---------------------------------------------------------------------------
 // State
 
+/**
+ * Added to the address of a tab opened with a new conversation (see newConversation), after
+ * a "#": Safari won't open a page saved on this computer with anything after a "?".
+ */
+const NEW_TAB = "new";
+// Such a tab starts empty, even if the browser copied into it the storage of the tab that
+// opened it; the marker is then taken off, so that reloading keeps what was done since.
+if (location.hash === `#${NEW_TAB}`) {
+  store.forgetTab();
+  history.replaceState(null, "", location.pathname + location.search);
+}
 let settings = store.loadSettings();
 let session = store.loadSession();
 /** OpenRouter's model list: Dialog's saved copy at first, however old, until a new one comes. */
@@ -142,7 +153,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.6";
+const VERSION = "2.7.4";
 
 const els = {
   transcript: byId("transcript"),
@@ -2468,7 +2479,10 @@ function saveConversation(): void {
   updateSaveButton(); // forget ticks on turns that are gone
   const opts = { ...exportOptions(), only: picked.size ? picked : undefined };
   const page = store.withConversationData(prettyHtml(conversationHtml(session, settings, opts)), session, settings, opts.only, opts.savedAt);
-  void download(page, conversationFileName(opts.savedAt, picked.size > 0));
+  const mark = store.conversationMark(session);
+  void download(page, conversationFileName(opts.savedAt, picked.size > 0)).then((name) => {
+    if (name && !opts.only) store.markSaved(mark); // only the whole conversation counts as saved
+  });
 }
 
 /**
@@ -2502,6 +2516,7 @@ function resumeConversation(file: File): void {
     picked.clear();
     opened.clear();
     persist();
+    store.markSaved(store.conversationMark(session));
     fillSettingsForm();
     updateBanner();
     renderSeats();
@@ -2513,7 +2528,17 @@ function resumeConversation(file: File): void {
   reader.readAsText(file);
 }
 
-function newConversation(): void {
+function newConversation(ev: MouseEvent): void {
+  // ⌘-click: the new conversation in a new tab (with the latest settings), this one left as it is.
+  // Opened as a link clicked with ⌘ held, which Safari puts in a tab (with Option held, or
+  // through window.open, it made a new window).
+  if (ev.metaKey || ev.ctrlKey) {
+    const a = h("a", { href: `${location.pathname}${location.search}#${NEW_TAB}`, target: "_blank", rel: "noopener" });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    return;
+  }
   if (!confirm("Start a new conversation? The current one will be cleared. (Save it first if you want to keep it.)")) return;
   stopAll();
   session = newSession();
@@ -2740,7 +2765,11 @@ function wire(): void {
   });
   closeOnClickOutside(els.modelDialog, closeModelPicker);
 
-  window.addEventListener("beforeunload", persist);
+  // Closing the tab loses its conversation, so the browser asks first if it has unsaved turns.
+  window.addEventListener("beforeunload", (ev) => {
+    persist();
+    if (store.hasUnsavedTurns(session)) ev.preventDefault();
+  });
 }
 
 function start(): void {

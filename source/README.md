@@ -526,8 +526,16 @@ rules, under Settings).
   Copying a few words or paragraphs from within a single turn works as in any web page.
   Programs that take only plain text get each turn's time and name, the model, and the text.
 - **New conversation** clears the conversation (save first). Participants and settings stay.
-  To go back to a saved one, press **Resume…** in the top bar.
-- Between visits, Dialog remembers the conversation, the participants and your settings.
+  To go back to a saved one, press **Resume…** in the top bar. **⌘-click** it (Ctrl-click on
+  other systems) to start the new conversation in a new tab instead, leaving this one as it is.
+- **Each tab is a conversation of its own.** Dialog can be open in several tabs at once, each
+  with its own conversation, attached files, participants and settings; what you do in one
+  doesn't touch the others. A new tab starts with an empty conversation and the participants
+  and settings as you last changed them, in whichever tab.
+- A tab keeps its conversation while it is open, including when you reload it. Closing the
+  tab (or quitting the browser) ends its conversation, so save it first with **Save All** to
+  keep it. If it has turns that aren't saved, the browser asks before closing (or reloading)
+  the tab. **Save Selected** saves only part of the conversation, so it doesn't count.
 
 ## Models on this computer (LM Studio)
 
@@ -673,7 +681,8 @@ re-read at the discount and how much was stored.
 ## Where your data lives
 
 The conversation, attached files, the participants' files, settings and your keys are kept in your browser's storage
-for this page, on this computer only. The participants' thinking isn't kept: it goes when the page closes. Each browser keeps its own: open Dialog in Chrome after
+for this page, on this computer only. Each tab keeps its own conversation and files until it
+closes; your latest settings and keys are kept for the next tab you open. The participants' thinking isn't kept: it goes when the page closes. Each browser keeps its own: open Dialog in Chrome after
 using it in Safari and Chrome starts empty, with no key, participants or conversation. To
 carry your setup across, use **Save settings to a file** in one and **Restore from a file**
 in the other; to carry a conversation across, save it with **Save All** and resume it in

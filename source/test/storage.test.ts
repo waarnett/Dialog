@@ -10,27 +10,32 @@ import {
   loadSettings,
   MODELS_MAX_AGE_MS,
   modelsAreStale,
+  conversationMark,
+  forgetTab,
+  hasUnsavedTurns,
+  markSaved,
   saveCachedModels,
   saveSession,
+  saveSettings,
   settingsFileText,
   settingsFromFile,
   withConversationData,
 } from "../src/storage";
 import type { Entry, Session } from "../src/types";
 
-// A stand-in for the browser's local storage.
-const mem = new Map<string, string>();
-Object.assign(globalThis, {
-  localStorage: {
-    getItem: (k: string) => mem.get(k) ?? null,
-    setItem: (k: string, v: string) => void mem.set(k, String(v)),
-    removeItem: (k: string) => void mem.delete(k),
-    key: (i: number) => [...mem.keys()][i] ?? null,
-    get length() {
-      return mem.size;
-    },
+// Stand-ins for the browser's storage: shared by all tabs (local) and this tab's own (session).
+const storageOver = (m: Map<string, string>) => ({
+  getItem: (k: string) => m.get(k) ?? null,
+  setItem: (k: string, v: string) => void m.set(k, String(v)),
+  removeItem: (k: string) => void m.delete(k),
+  key: (i: number) => [...m.keys()][i] ?? null,
+  get length() {
+    return m.size;
   },
 });
+const mem = new Map<string, string>();
+const tabMem = new Map<string, string>();
+Object.assign(globalThis, { localStorage: storageOver(mem), sessionStorage: storageOver(tabMem) });
 
 test("older web-search settings are dropped: every seat now searches and reads pages", () => {
   mem.set(
@@ -129,7 +134,8 @@ test("a sleeping seat stays asleep in the settings file; awake seats carry no ma
 
 test("files the participants made are stored like attachments; a reply cut off mid-file keeps what arrived", () => {
   mem.clear();
-  mem.set(
+  tabMem.clear();
+  tabMem.set(
     "dialog.session.v1",
     JSON.stringify({
       startedAt: "2026-10-11T20:00:00.000Z",
@@ -139,13 +145,13 @@ test("files the participants made are stored like attachments; a reply cut off m
       ],
     }),
   );
-  mem.set("dialog.file.m1", "# A");
-  mem.set("dialog.file.m2", "left over");
-  mem.set("dialog.file.zzz", "orphan");
+  tabMem.set("dialog.file.m1", "# A");
+  tabMem.set("dialog.file.m2", "left over");
+  tabMem.set("dialog.file.zzz", "orphan");
   const s = loadSession();
   assert.equal(s.entries[0]!.made![0]!.data, "# A", "contents come back from their slot");
   assert.equal(s.entries[0]!.made![1]!.data, undefined);
-  assert.ok(!mem.has("dialog.file.m2") && !mem.has("dialog.file.zzz"), "removed and orphaned files' slots freed");
+  assert.ok(!tabMem.has("dialog.file.m2") && !tabMem.has("dialog.file.zzz"), "removed and orphaned files' slots freed");
   const cut = s.entries[1]!;
   assert.equal(cut.status, "stopped");
   assert.equal(cut.text, "Writing.");
@@ -155,9 +161,72 @@ test("files the participants made are stored like attachments; a reply cut off m
 
   cut.thinking = "Mulling it over.";
   assert.ok(saveSession(s));
-  assert.ok(!mem.get("dialog.session.v1")!.includes("Mulling"), "thinking is never stored");
-  assert.equal(mem.get(`dialog.file.${cut.made![0]!.id}`), "<p>Half", "the recovered file gets its own slot");
-  assert.ok(!mem.get("dialog.session.v1")!.includes("<p>Half"), "and is not in the conversation record");
+  assert.ok(!tabMem.get("dialog.session.v1")!.includes("Mulling"), "thinking is never stored");
+  assert.equal(tabMem.get(`dialog.file.${cut.made![0]!.id}`), "<p>Half", "the recovered file gets its own slot");
+  assert.ok(!tabMem.get("dialog.session.v1")!.includes("<p>Half"), "and is not in the conversation record");
+});
+
+test("tabs: a new tab starts with the latest settings; its own are kept, and become the latest only when changed", () => {
+  mem.clear();
+  tabMem.clear();
+  const latest = defaultSettings();
+  latest.humanName = "Bill";
+  mem.set("dialog.settings.v1", JSON.stringify(latest));
+  const s = loadSettings();
+  assert.equal(s.humanName, "Bill", "a new tab starts from the latest settings");
+  assert.ok(saveSettings(s));
+  assert.equal(JSON.parse(tabMem.get("dialog.settings.v1")!).humanName, "Bill", "and keeps them as its own");
+
+  // Another tab changes the latest; saving this tab's unchanged settings leaves that alone.
+  mem.set("dialog.settings.v1", JSON.stringify({ ...latest, humanName: "Other" }));
+  assert.ok(saveSettings(s));
+  assert.equal(JSON.parse(mem.get("dialog.settings.v1")!).humanName, "Other");
+  assert.equal(loadSettings().humanName, "Bill", "reloading this tab keeps its own");
+
+  s.humanName = "William";
+  assert.ok(saveSettings(s));
+  assert.equal(JSON.parse(mem.get("dialog.settings.v1")!).humanName, "William", "a change here becomes the latest");
+  assert.equal(JSON.parse(tabMem.get("dialog.settings.v1")!).humanName, "William");
+});
+
+test("tabs: the conversation all tabs used to share moves into the first tab opened; the next starts empty", () => {
+  mem.clear();
+  tabMem.clear();
+  const entry = { id: "t1", speaker: "human", speakerName: "Bill", text: "Hello", time: "t", attachments: [{ id: "f-moved", name: "a.txt", kind: "text", mime: "text/plain", size: 2 }] };
+  mem.set("dialog.session.v1", JSON.stringify({ startedAt: "2026-10-11T20:00:00.000Z", entries: [entry] }));
+  mem.set("dialog.file.f-moved", "hi");
+  mem.set("dialog.file.f-orphan", "old");
+  const first = loadSession();
+  assert.equal(first.entries[0]!.attachments![0]!.data, "hi");
+  assert.ok(tabMem.has("dialog.session.v1") && tabMem.get("dialog.file.f-moved") === "hi", "now in the tab's own storage");
+  assert.deepEqual([...mem.keys()].filter((k) => k.startsWith("dialog.session") || k.startsWith("dialog.file")), [], "and gone from shared storage");
+  assert.equal(loadSession().entries[0]!.text, "Hello", "reloading the tab keeps it");
+
+  tabMem.clear(); // another tab
+  assert.equal(loadSession().entries.length, 0);
+});
+
+test("tabs: forgetting a tab's storage leaves other pages' data in it alone", () => {
+  tabMem.clear();
+  tabMem.set("dialog.session.v1", "{}");
+  tabMem.set("dialog.file.x", "x");
+  tabMem.set("other-app", "keep");
+  forgetTab();
+  assert.deepEqual([...tabMem.keys()], ["other-app"]);
+});
+
+test("unsaved turns: none in an empty conversation; saved until it changes", () => {
+  tabMem.clear();
+  const s: Session = { startedAt: "2026-10-11T20:00:00.000Z", entries: [] };
+  assert.equal(hasUnsavedTurns(s), false);
+  s.entries.push({ id: "u1", speaker: "human", speakerName: "Bill", text: "Hello", time: "t" } as Entry);
+  assert.equal(hasUnsavedTurns(s), true);
+  markSaved(conversationMark(s));
+  assert.equal(hasUnsavedTurns(s), false);
+  s.entries[0]!.thinking = "Hmm.";
+  assert.equal(hasUnsavedTurns(s), false, "thinking isn't saved in a file, so doesn't count");
+  s.entries[0]!.text = "Hello there";
+  assert.equal(hasUnsavedTurns(s), true);
 });
 
 test("the saved model list comes back with the time it was fetched, however old; over 12 hours old, it is stale", () => {

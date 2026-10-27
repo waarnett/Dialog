@@ -1630,7 +1630,9 @@
         <button id="btn-resume" type="button"
           title="Carry on with a conversation saved with Save All or Save Selected, with the same participants">Resume…</button>
         <input id="resume-input" type="file" accept=".html,.htm,text/html" hidden>
-        <button id="btn-new" type="button">New conversation</button>
+        <button id="btn-new" type="button"
+          title="Clear this conversation and start a new one. ⌘-click to start one in a new tab instead.">New
+          conversation</button>
         <button id="btn-settings" type="button">Settings</button>
       </div>
     </header>
@@ -4556,20 +4558,23 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         // src/storage.ts
         var SETTINGS_KEY = "dialog.settings.v1";
         var SESSION_KEY = "dialog.session.v1";
+        var SAVED_KEY = "dialog.saved.v1";
         var MODELS_KEY = "dialog.models.v5";
+        var tab = () => sessionStorage;
+        var shared = () => localStorage;
 
-        function read(key) {
+        function read(area, key) {
           try {
-            const raw = localStorage.getItem(key);
+            const raw = area().getItem(key);
             return raw ? JSON.parse(raw) : null;
           } catch {
             return null;
           }
         }
 
-        function write(key, value, replacer) {
+        function write(area, key, value, replacer) {
           try {
-            localStorage.setItem(key, JSON.stringify(value, replacer));
+            area().setItem(key, JSON.stringify(value, replacer));
             return true;
           } catch {
             return false;
@@ -4578,12 +4583,25 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
 
         function storageWorks() {
           try {
-            localStorage.setItem("dialog.probe", "1");
-            localStorage.removeItem("dialog.probe");
+            for (const area of [tab(), shared()]) {
+              area.setItem("dialog.probe", "1");
+              area.removeItem("dialog.probe");
+            }
             return true;
           } catch {
             return false;
           }
+        }
+
+        function forgetTab() {
+          try {
+            const mine = [];
+            for (let i = 0; i < tab().length; i++) {
+              const key = tab().key(i);
+              if (key?.startsWith("dialog.")) mine.push(key);
+            }
+            for (const key of mine) tab().removeItem(key);
+          } catch {}
         }
         var isObj2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
         var str = (v, fallback) => typeof v === "string" ? v : fallback;
@@ -4603,9 +4621,15 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             } : {}
           };
         }
+        var tabSettings = "";
+        var ownSettings = "";
 
         function loadSettings() {
-          return parseSettings(read(SETTINGS_KEY));
+          const mine = read(tab, SETTINGS_KEY);
+          const s = parseSettings(mine ?? read(shared, SETTINGS_KEY));
+          ownSettings = JSON.stringify(s);
+          tabSettings = mine ? ownSettings : "";
+          return s;
         }
 
         function parseSettings(v) {
@@ -4625,7 +4649,15 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         }
 
         function saveSettings(s) {
-          return write(SETTINGS_KEY, s);
+          const json = JSON.stringify(s);
+          if (json !== ownSettings) {
+            write(shared, SETTINGS_KEY, s);
+            ownSettings = json;
+          }
+          if (json === tabSettings) return true;
+          const ok = write(tab, SETTINGS_KEY, s);
+          if (ok) tabSettings = json;
+          return ok;
         }
         var FILE_FORMAT = "dialog-settings";
 
@@ -4714,23 +4746,32 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         }
 
         function loadSession() {
-          const v = read(SESSION_KEY);
-          if (!isObj2(v) || !Array.isArray(v.entries)) return newSession();
-          const entries = cleanEntries(v.entries, (a) => {
+          const mine = read(tab, SESSION_KEY);
+          const area = mine === null ? shared : tab;
+          const v = mine ?? read(shared, SESSION_KEY);
+          const contents = (a) => {
             try {
-              const data = localStorage.getItem(FILE_PREFIX + a.id);
+              const data = area().getItem(FILE_PREFIX + a.id);
               if (data === null) return void 0;
-              storedFiles.add(a.id);
+              if (area === tab) storedFiles.add(a.id);
               return data;
             } catch {
               return void 0;
             }
-          });
-          const session2 = {
-            startedAt: str(v.startedAt, ( /* @__PURE__ */ new Date()).toISOString()),
-            entries
           };
-          removeUnusedFiles(session2);
+          const session2 = isObj2(v) && Array.isArray(v.entries) ? {
+            startedAt: str(v.startedAt, ( /* @__PURE__ */ new Date()).toISOString()),
+            entries: cleanEntries(v.entries, contents)
+          } : newSession();
+          if (area === tab) {
+            removeUnusedFiles(session2);
+            return session2;
+          }
+          try {
+            shared().removeItem(SESSION_KEY);
+          } catch {}
+          removeUnusedFiles(newSession(), shared);
+          if (session2.entries.length) saveSession(session2);
           return session2;
         }
 
@@ -4768,33 +4809,50 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           for (const a of allAttachments(s)) {
             if (!a.data || storedFiles.has(a.id)) continue;
             try {
-              localStorage.setItem(FILE_PREFIX + a.id, a.data);
+              tab().setItem(FILE_PREFIX + a.id, a.data);
               storedFiles.add(a.id);
               delete a.unsaved;
             } catch {
               a.unsaved = true;
             }
           }
-          const ok = write(SESSION_KEY, s, (key, value) => key === "data" || key === "thinking" ?
-            void 0 : value);
+          const ok = write(tab, SESSION_KEY, s, (key, value) => key === "data" || key ===
+            "thinking" ? void 0 : value);
           removeUnusedFiles(s);
           return ok;
         }
 
-        function removeUnusedFiles(s) {
+        function removeUnusedFiles(s, area = tab) {
           const used = new Set(allAttachments(s).map((a) => a.id));
           try {
             const stale = [];
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
+            for (let i = 0; i < area().length; i++) {
+              const key = area().key(i);
               if (key?.startsWith(FILE_PREFIX) && !used.has(key.slice(FILE_PREFIX.length))) stale
                 .push(key);
             }
             for (const key of stale) {
-              localStorage.removeItem(key);
+              area().removeItem(key);
               storedFiles.delete(key.slice(FILE_PREFIX.length));
             }
           } catch {}
+        }
+
+        function conversationMark(s) {
+          const json = JSON.stringify(s.entries, (key, value) => key === "data" || key ===
+            "thinking" || key === "unsaved" ? void 0 : value);
+          let hash = 2166136261;
+          for (let i = 0; i < json.length; i++) hash = Math.imul(hash ^ json.charCodeAt(i),
+            16777619);
+          return `${json.length}.${(hash >>> 0).toString(16)}`;
+        }
+
+        function markSaved(mark) {
+          write(tab, SAVED_KEY, mark);
+        }
+
+        function hasUnsavedTurns(s) {
+          return s.entries.length > 0 && read(tab, SAVED_KEY) !== conversationMark(s);
         }
         var CONVERSATION_FORMAT = "dialog-conversation";
         var DATA_OPEN = `<script type="application/json" id="${CONVERSATION_FORMAT}">`;
@@ -4870,7 +4928,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         var MODELS_MAX_AGE_MS = 12 * 60 * 60 * 1e3;
 
         function loadCachedModels() {
-          const v = read(MODELS_KEY);
+          const v = read(shared, MODELS_KEY);
           if (!isObj2(v) || typeof v.at !== "number" || !Array.isArray(v.models)) return null;
           return {
             models: v.models,
@@ -4883,7 +4941,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         }
 
         function saveCachedModels(models2, at = Date.now()) {
-          write(MODELS_KEY, {
+          write(shared, MODELS_KEY, {
             at,
             models: models2
           });
@@ -4891,14 +4949,19 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         var MODEL_SORT_KEY = "dialog.modelSort.v1";
 
         function loadModelSort() {
-          const v = read(MODEL_SORT_KEY);
+          const v = read(shared, MODEL_SORT_KEY);
           return MODEL_SORTS.find((x) => x === v) ?? "name";
         }
 
         function saveModelSort(sort) {
-          write(MODEL_SORT_KEY, sort);
+          write(shared, MODEL_SORT_KEY, sort);
         }
         // src/main.ts
+        var NEW_TAB = "new";
+        if (location.hash === `#${NEW_TAB}`) {
+          forgetTab();
+          history.replaceState(null, "", location.pathname + location.search);
+        }
         var settings = loadSettings();
         var session = loadSession();
         var savedModels = loadCachedModels();
@@ -4942,7 +5005,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.6";
+        var VERSION = "2.7.4";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -5634,8 +5697,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
 
         function openMadeFile(f) {
           if (f.data === void 0) return;
-          const tab = window.open("", "_blank");
-          if (!tab) {
+          const tab2 = window.open("", "_blank");
+          if (!tab2) {
             alert(
               "The browser didn't open a new tab. Allow pop-up windows for this page, or use Save\u2026 instead."
               );
@@ -5644,12 +5707,12 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const popups = "allow-popups allow-popups-to-escape-sandbox";
           const sandbox = f.kind === "html" ?
             `allow-scripts allow-forms allow-modals allow-downloads ${popups}` : popups;
-          tab.document.open();
-          tab.document.write(
+          tab2.document.open();
+          tab2.document.write(
             `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(f.name)}</title><style>html,body{margin:0;height:100%}iframe{display:block;border:0;width:100%;height:100%}</style></head><body><iframe sandbox="${sandbox}" srcdoc="${escapeHtml(viewerDocument(f))}" title="${escapeHtml(f.name)}"></iframe></body></html>`
           );
-          tab.document.close();
-          tab.opener = null;
+          tab2.document.close();
+          tab2.opener = null;
         }
 
         function removeMadeFile(e, f) {
@@ -7244,7 +7307,11 @@ Your name (${next.humanName}), About you, the house rules and the participants (
           };
           const page2 = withConversationData(prettyHtml(conversationHtml(session, settings,
             opts)), session, settings, opts.only, opts.savedAt);
-          void download(page2, conversationFileName(opts.savedAt, picked.size > 0));
+          const mark = conversationMark(session);
+          void download(page2, conversationFileName(opts.savedAt, picked.size > 0)).then((
+          name) => {
+            if (name && !opts.only) markSaved(mark);
+          });
         }
 
         function resumeConversation(file) {
@@ -7275,6 +7342,7 @@ Your participants, house rules, name and About you will be replaced with the one
             picked.clear();
             opened.clear();
             persist();
+            markSaved(conversationMark(session));
             fillSettingsForm();
             updateBanner();
             renderSeats();
@@ -7286,7 +7354,18 @@ Your participants, house rules, name and About you will be replaced with the one
           reader.readAsText(file);
         }
 
-        function newConversation() {
+        function newConversation(ev) {
+          if (ev.metaKey || ev.ctrlKey) {
+            const a = h("a", {
+              href: `${location.pathname}${location.search}#${NEW_TAB}`,
+              target: "_blank",
+              rel: "noopener"
+            });
+            document.body.append(a);
+            a.click();
+            a.remove();
+            return;
+          }
           if (!confirm(
               "Start a new conversation? The current one will be cleared. (Save it first if you want to keep it.)"
               )) return;
@@ -7502,7 +7581,10 @@ Your participants, house rules, name and About you will be replaced with the one
             pickerSeatId = null;
           });
           closeOnClickOutside(els.modelDialog, closeModelPicker);
-          window.addEventListener("beforeunload", persist);
+          window.addEventListener("beforeunload", (ev) => {
+            persist();
+            if (hasUnsavedTurns(session)) ev.preventDefault();
+          });
         }
 
         function start() {

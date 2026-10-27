@@ -32,8 +32,9 @@ const MODELS = {
  * `savedModels`: Dialog's saved copy of the model list ({ at, models }) to start with.
  * `models`: what the fake OpenRouter lists at first (MODELS unless given).
  * `state.models` is what the fake OpenRouter lists; with `state.modelsStatus` set, it fails instead.
+ * `url`: the page's address. `tab`: what the tab's own storage holds to start with (key → value).
  */
-function makeHarness({ savedModels, models = MODELS } = {}) {
+function makeHarness({ savedModels, models = MODELS, url = "http://localhost/index.html", tab = {} } = {}) {
   const chatCalls = [];
   const modelCalls = []; // the options of every request for the model list
   const state = { models, modelsStatus: 0, hosts: {} }; // hosts: OpenRouter's records, request id → host
@@ -126,7 +127,7 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
   const dom = new JSDOM(html, {
     runScripts: "dangerously",
     pretendToBeVisual: true,
-    url: "http://localhost/index.html",
+    url,
     virtualConsole: vc,
     beforeParse(window) {
       window.fetch = fakeFetch;
@@ -155,6 +156,7 @@ function makeHarness({ savedModels, models = MODELS } = {}) {
         }),
       );
       if (savedModels) window.localStorage.setItem("dialog.models.v5", JSON.stringify(savedModels));
+      for (const [k, v] of Object.entries(tab)) window.sessionStorage.setItem(k, v);
     },
   });
   return { dom, w: dom.window, d: dom.window.document, chatCalls, modelCalls, state, replies, blobs, downloads, authByUrl, errors, hostCalls };
@@ -389,9 +391,9 @@ test("a full conversation in the page", async () => {
   tick(1, false);
   assert.equal($("#btn-save").textContent, "Save All");
   // 9. The session is persisted.
-  const saved = JSON.parse(w.localStorage.getItem("dialog.session.v1"));
+  const saved = JSON.parse(w.sessionStorage.getItem("dialog.session.v1"));
   assert.equal(saved.entries.length, entries().length);
-  assert.ok(!w.localStorage.getItem("dialog.session.v1").includes("chronology"), "nor stored in the browser");
+  assert.ok(!w.sessionStorage.getItem("dialog.session.v1").includes("chronology"), "nor stored in the browser");
   assert.equal(thinkingBox().open, true, "open thinking stays open when the transcript is redrawn");
 
   // 10. Copy a seat.
@@ -580,9 +582,9 @@ test("About you, and attaching files by drag and drop", async () => {
   assert.equal(entries()[0].querySelectorAll(".files .file").length, 2);
 
   // Storage: file contents in their own slots, not in the saved conversation.
-  const saved = w.localStorage.getItem("dialog.session.v1");
+  const saved = w.sessionStorage.getItem("dialog.session.v1");
   assert.ok(!saved.includes("Kepler was right"), "contents not in the conversation record");
-  const fileKeys = Object.keys(w.localStorage).filter((k) => k.startsWith("dialog.file."));
+  const fileKeys = Object.keys(w.sessionStorage).filter((k) => k.startsWith("dialog.file."));
   assert.equal(fileKeys.length, 2);
 
   // Claude (reads PDFs natively): parts include the text file inline and the PDF as a file; About-you in instructions.
@@ -639,7 +641,7 @@ test("About you, and attaching files by drag and drop", async () => {
   // Removing the entry frees its stored files.
   w.confirm = () => true;
   entries()[0].querySelector("button.del").click();
-  assert.equal(Object.keys(w.localStorage).filter((k) => k.startsWith("dialog.file.")).length, 1, "only data.csv remains");
+  assert.equal(Object.keys(w.sessionStorage).filter((k) => k.startsWith("dialog.file.")).length, 1, "only data.csv remains");
 
   await sleep(20);
   assert.deepEqual(errors.map(String), []);
@@ -892,7 +894,7 @@ test("a saved conversation can be resumed with Resume… (top bar, only before i
   replies.push({ pieces: ["Secret."], cost: 0.002 });
   $("#composer-send").click();
   await until(() => entries().length === 4 && notBusy(), "Grok's private reply");
-  const before = JSON.parse(w.localStorage.getItem("dialog.session.v1"));
+  const before = JSON.parse(w.sessionStorage.getItem("dialog.session.v1"));
 
   // Save All, then start again and change the settings.
   $("#btn-save").click();
@@ -920,11 +922,11 @@ test("a saved conversation can be resumed with Resume… (top bar, only before i
   assert.equal($("#set-key").value, "sk-test");
   assert.ok(entries()[0].textContent.includes("paper.pdf"));
   assert.ok(entries()[2].classList.contains("private") && entries()[3].classList.contains("private"));
-  const after = JSON.parse(w.localStorage.getItem("dialog.session.v1"));
+  const after = JSON.parse(w.sessionStorage.getItem("dialog.session.v1"));
   assert.deepEqual(after, before, "stored exactly as before it was saved");
   assert.equal(after.entries[0].text, "What is time? </script> <!--", "text that looks like the end of the data block survives");
   const pdfId = after.entries[0].attachments[0].id;
-  assert.ok(w.localStorage.getItem("dialog.file." + pdfId).startsWith("data:application/pdf;base64,"), "the PDF stored again");
+  assert.ok(w.sessionStorage.getItem("dialog.file." + pdfId).startsWith("data:application/pdf;base64,"), "the PDF stored again");
   assert.match($("#session-cost").textContent, /0\.0120/);
   // The conversation carries on with the same participants.
   replies.push({ pieces: ["Still change."], cost: 0.001 });
@@ -1023,7 +1025,7 @@ test("a reply's host: shown in its particulars, from the reply itself or looked 
   toggle(2); // opened again: asked again
   await until(() => lines(2)[1] === "Host: DeepInfra.", "the host looked up");
   assert.equal(hostCalls.length, 2);
-  assert.equal(JSON.parse(w.localStorage.getItem("dialog.session.v1")).entries[2].host, "DeepInfra", "kept with the reply");
+  assert.equal(JSON.parse(w.sessionStorage.getItem("dialog.session.v1")).entries[2].host, "DeepInfra", "kept with the reply");
   toggle(2);
   toggle(2);
   await sleep(20);
@@ -1594,9 +1596,9 @@ test("participants make files: cards to open, save or remove; the others see the
   assert.deepEqual([...cards()[1].querySelectorAll("button")].map((b) => b.textContent), ["Open", "Save…", "×"]);
 
   // Kept apart from the conversation record, like attachments.
-  const record = w.localStorage.getItem("dialog.session.v1");
+  const record = w.sessionStorage.getItem("dialog.session.v1");
   assert.ok(!record.includes("textContent"), "contents not in the conversation record");
-  assert.equal(Object.keys(w.localStorage).filter((k) => k.startsWith("dialog.file.")).length, 2);
+  assert.equal(Object.keys(w.sessionStorage).filter((k) => k.startsWith("dialog.file.")).length, 2);
 
   // Open: a new tab holding the file in a walled-off frame; only a web page may run scripts.
   const tabs = [];
@@ -1637,7 +1639,7 @@ test("participants make files: cards to open, save or remove; the others see the
   assert.ok(cards()[1].classList.contains("gone"));
   assert.equal(cards()[1].querySelector(".made-note").textContent, "Removed; no participant sees it now.");
   assert.equal(cards()[1].querySelectorAll("button").length, 0);
-  assert.equal(Object.keys(w.localStorage).filter((k) => k.startsWith("dialog.file.")).length, 1, "its storage is freed");
+  assert.equal(Object.keys(w.sessionStorage).filter((k) => k.startsWith("dialog.file.")).length, 1, "its storage is freed");
 
   // Claude revises the drawing: the earlier one is marked, and only the new one is sent.
   replies.push({ pieces: [`Bigger:\n<file name="orbit.svg">\n${svg.replace('r="4"', 'r="5"')}\n</file>`], cost: 0.01 });
@@ -2253,4 +2255,45 @@ test("clicking the medallion or the name shows the version under the name; click
   assert.equal(version.hidden, true, "hidden again by the name");
   assert.equal($("#brand").getAttribute("aria-expanded"), "false");
   assert.deepEqual(errors, []);
+});
+
+test("tabs: closing asks first only with unsaved turns; ⌘-click on New conversation opens an empty tab", async () => {
+  const { w, d, downloads, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const asksFirst = () => {
+    const ev = new w.Event("beforeunload", { cancelable: true });
+    w.dispatchEvent(ev);
+    return ev.defaultPrevented;
+  };
+  assert.equal(asksFirst(), false, "nothing to lose yet");
+  $("#composer-text").value = "What is time?";
+  $("#composer-send").click();
+  assert.equal(asksFirst(), true, "an unsaved turn");
+  $("#btn-save").click();
+  await sleep(0);
+  assert.equal(downloads.length, 1);
+  assert.equal(asksFirst(), false, "saved with Save All");
+  $("#composer-text").value = "And space?";
+  $("#composer-send").click();
+  assert.equal(asksFirst(), true, "changed since");
+
+  const opened = [];
+  w.HTMLAnchorElement.prototype.click = function () {
+    opened.push([this.getAttribute("href"), this.target, this.rel]);
+  };
+  assert.match($("#btn-new").title, /⌘-click/);
+  $("#btn-new").dispatchEvent(new w.MouseEvent("click", { metaKey: true, bubbles: true }));
+  assert.deepEqual(opened, [["/index.html#new", "_blank", "noopener"]], "opened as a link, which Safari puts in a tab");
+  assert.equal(d.querySelectorAll("#transcript .entry").length, 2, "this tab's conversation stays");
+
+  // The new tab, even with this tab's storage copied into it: empty, with the latest settings.
+  const copied = Object.fromEntries(Object.keys(w.sessionStorage).map((k) => [k, w.sessionStorage.getItem(k)]));
+  const fresh = makeHarness({ url: "http://localhost/index.html#new", tab: copied });
+  assert.equal(fresh.d.querySelectorAll("#transcript .entry").length, 0);
+  assert.ok(fresh.d.querySelector("#transcript .empty"), "the welcome shown");
+  assert.equal(fresh.w.location.href, "http://localhost/index.html", "the marker taken off");
+  const seatNames = [...fresh.d.querySelectorAll("#seat-list .seat .seat-head input[type=text]")].map((i) => i.value);
+  assert.deepEqual(seatNames, ["Claude", "Grok"], "the latest participants");
+  assert.deepEqual(errors, []);
+  assert.deepEqual(fresh.errors, []);
 });
