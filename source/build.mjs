@@ -144,6 +144,16 @@ table { border-collapse: collapse; font-size: 0.95em; margin: 0.8rem 0; }
 th, td { border: 1px solid var(--line); padding: 0.3rem 0.6rem; text-align: left; vertical-align: top; }
 th { font-family: var(--font-ui); background: var(--panel); }
 `;
+// Each heading gets an id made the way GitHub makes them, so the guide's contents links
+// work in README.html and on GitHub alike.
+marked.use({
+  renderer: {
+    heading({ tokens, depth, text }) {
+      const id = text.toLowerCase().replace(/[^\p{L}\p{N} _-]/gu, "").replace(/ /g, "-");
+      return `<h${depth} id="${id}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+    },
+  },
+});
 const readmeBody = marked.parse(await readFile("README.md", "utf8"), { gfm: true });
 const readme = `<!doctype html>
 <html lang="en">

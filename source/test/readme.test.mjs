@@ -25,3 +25,9 @@ test("README.html: no word in angle brackets is taken for an HTML tag", () => {
   assert.match(main.textContent, /To: Privately: <name>/);
   assert.match(main.textContent, /Send privately to <name>/);
 });
+
+test("README.html: the contents list links to every top-level section", () => {
+  const sections = [...main.querySelectorAll("h2")].map((h) => `#${h.id}`);
+  const links = [...main.querySelectorAll('a[href^="#"]')].map((a) => a.getAttribute("href"));
+  assert.deepEqual(links, sections);
+});

@@ -159,217 +159,224 @@
         alt=""><span class="wordmark">Dialog</span><a class="back" href="index.html">Open Dialog</a>
     </header>
     <main>
-      <h1>Dialog</h1>
-      <p>A moderated group conversation between you and several AI models (Claude, ChatGPT, Gemini,
-        Grok, DeepSeek, or any other model OpenRouter offers, and models running in LM Studio on
-        your
-        own computer), running as a single web page in your browser; Safari and Chrome are both
-        known to work. You decide who speaks next; every
-        participant sees the same conversation, except for private exchanges you have with one of
-        them.</p>
-      <h2>Getting started</h2>
-      <p><strong>No OpenRouter account?</strong> If you run models on your own computer with LM
-        Studio, you can
-        do without one: skip steps 1 and 6, leave the key empty in Settings, and set up LM Studio
-        as described in Models on this computer (LM Studio), below. Those models cost nothing, but
-        they can&#39;t search the web or read web pages.</p>
+      <h1 id="dialog">Dialog</h1>
+      <p>A moderated group conversation between you and several AI models: Claude, ChatGPT, Gemini,
+        Grok, DeepSeek or any other model OpenRouter offers, and models running in LM Studio on your
+        own computer. You decide who speaks next. Every participant sees the same conversation,
+        except for private exchanges you have with one or more of them. Dialog is a single web page;
+        Safari and Chrome both work.</p>
+      <p><strong>Contents</strong></p>
+      <ul>
+        <li><a href="#getting-started">Getting started</a></li>
+        <li><a href="#the-top-bar">The top bar</a></li>
+        <li><a href="#participants">Participants</a></li>
+        <li><a href="#roles">Roles</a></li>
+        <li><a href="#talking">Talking</a></li>
+        <li><a href="#reading-replies">Reading replies</a></li>
+        <li><a href="#web-search-and-reading-pages">Web search and reading pages</a></li>
+        <li><a href="#files">Files</a></li>
+        <li><a href="#saving-resuming-and-tabs">Saving, resuming and tabs</a></li>
+        <li><a href="#settings">Settings</a></li>
+        <li><a href="#models-on-this-computer-lm-studio">Models on this computer (LM Studio)</a>
+        </li>
+        <li><a href="#how-it-works-and-what-it-costs">How it works, and what it costs</a></li>
+        <li><a href="#where-your-data-lives">Where your data lives</a></li>
+        <li><a href="#credits">Credits</a></li>
+      </ul>
+      <h2 id="getting-started">Getting started</h2>
       <ol>
-        <li><strong>Get an OpenRouter API key.</strong> At openrouter.ai, sign in, add a small
-          amount of credit
-          (Credits page), then create a key (Keys page). Give the key a <strong>credit
-            limit</strong>: it caps
-          what Dialog can ever spend. A limit is a cap, not money; OpenRouter never spends past
-          the credit you&#39;ve bought. A limit can also be set to reset daily, weekly or monthly.
+        <li><strong>Get an OpenRouter API key.</strong> At openrouter.ai, sign in, add a little
+          credit (Credits
+          page), then create a key (Keys page). Give the key a <strong>credit limit</strong>: it
+          caps what Dialog
+          can ever spend, and can reset daily, weekly or monthly.</li>
+        <li><strong>Open Dialog</strong>: online at <a
+            href="https://waarnett.github.io/Dialog/">https://waarnett.github.io/Dialog/</a>, or
+          double-click a copy of
+          <code>index.html</code> (keep <code>README.html</code> beside it).
         </li>
-        <li><strong>Open <code>index.html</code></strong> in your browser (double-click it, or drag
-          it onto a browser
-          window).</li>
-        <li>Click <strong>Settings</strong> at the top of the page: paste the OpenRouter API key,
-          put in <strong>your
-            name</strong> (it starts as &quot;John Doe&quot;) and, if you like, a few sentences
-          <strong>about you</strong>. Review
-          the <strong>House rules</strong> and edit them if you like.</li>
-        <li>Click <strong>Done</strong>.</li>
+        <li>Click <strong>Settings</strong>, paste the key, and put in <strong>your name</strong>
+          and, if you like, a few
+          sentences <strong>about you</strong>. Look over the <strong>house rules</strong>, the
+          instructions every participant
+          gets. Click <strong>Done</strong>.</li>
         <li><strong>Add participants.</strong> Under Participants, on the right, press <strong>+ Add
-            a seat</strong> and choose
-          a model. Each new seat is named after its model (&quot;Claude&quot;, &quot;Grok&quot;…)
-          and takes that
-          family&#39;s color; rename it if you like. Add as many as you want, including several of
-          the same model. Optionally, give each one a <strong>role</strong>: any text you like. The
-          participant
-          receives it, along with the house rules, every time it speaks.</li>
-        <li><strong>Optional: a management key, to see your remaining credit.</strong> OpenRouter
-          shows the
-          account&#39;s remaining credit only to a <em>management key</em>, a separate kind of key
-          that can
-          create, change and delete your API keys but can&#39;t talk to the models. Create one at
-          openrouter.ai/settings/management-keys, giving it an expiration date (90 days or a
-          year), and paste it into Settings under &quot;OpenRouter management key&quot;. Dialog uses
-          it for
-          nothing but reading your credit. The risk: someone who got hold of it could make new
-          keys without limits, so the most they could spend is your remaining credit (plus any
-          automatic top-up, if you&#39;ve turned that on).</li>
+            a seat</strong> and choose a
+          model. Add as many as you like, including several of the same model, and give each one a
+          <strong>role</strong> if you want it to play a particular part (see Roles, below).
+        </li>
+        <li><strong>Talk.</strong> Type a message and end it with a name or with &quot;team&quot;:
+          &quot;What&#39;s the strongest
+          objection to this, team?&quot; (see Talking, below).</li>
       </ol>
-      <p>Until there is a first entry, the conversation area shows a short <strong>welcome</strong>:
-        how to begin,
-        including a reminder that the house rules can be edited in Settings, beside an engraving of
-        Socrates. Steps you&#39;ve already done (the key, adding seats) drop off. Under the steps, a
-        link opens this README in a new tab, and a note points out that the participants don&#39;t
-        get
-        the hidden instructions their makers&#39; own chat apps use (see How the participants are
-        kept
-        separate, below), so they may answer differently than those apps would. The last line shows
-        Dialog&#39;s version number, which also appears at the top of Settings.</p>
-      <h2>The top bar</h2>
+      <p><strong>No OpenRouter account?</strong> With models in LM Studio on your own computer you
+        can do without
+        one: leave the key empty and see Models on this computer (LM Studio), below.</p>
+      <p>Until the conversation starts, a welcome screen lists the steps still to do, links to this
+        guide and shows Dialog&#39;s version number.</p>
+      <h2 id="the-top-bar">The top bar</h2>
       <ul>
-        <li><strong>Dialog</strong> and the Socrates medallion: click either to show Dialog&#39;s
-          version number in
-          small type under the name; click again to hide it. (Settings shows it too.)</li>
-        <li><strong>This conversation:</strong> what its replies have cost, as reported by
-          OpenRouter.
-          OpenRouter&#39;s 5.5% fee on credit purchases comes on top.</li>
-        <li><strong>Credit left</strong> (only with a management key): your account&#39;s remaining
-          credit, across
-          all your keys. Hover for credit bought and used; click it to open OpenRouter&#39;s Credits
-          page in a new tab, where you can add more.</li>
-        <li><strong>This month:</strong> what this API key has spent in the current calendar month.
-          Months begin
-          at midnight UTC. Hover for the key&#39;s all-time spending and its limit.</li>
-        <li><strong>Save All</strong> (or <strong>Save Selected</strong>), <strong>Resume…</strong>
+        <li><strong>Dialog</strong> and the Socrates medallion: click either to show the version
+          number.</li>
+        <li><strong>This conversation:</strong> what its replies have cost, as OpenRouter reports
+          it. OpenRouter&#39;s
+          5.5% fee on credit purchases comes on top.</li>
+        <li><strong>Credit left</strong> (only with a management key; see Settings): your
+          account&#39;s remaining
+          credit. Hover for credit bought and used; click to open OpenRouter&#39;s Credits page.
+        </li>
+        <li><strong>This month:</strong> what this key has spent since the 1st (months begin at
+          midnight UTC).
+          Hover for its all-time spending and its limit.</li>
+        <li><strong>Save All</strong> or <strong>Save Selected</strong>, <strong>Resume…</strong>
           (only while the conversation is empty),
-          <strong>New conversation</strong>, <strong>Settings</strong>: see below.
+          <strong>New conversation</strong> and <strong>Settings</strong>: see Saving, resuming and
+          tabs, and Settings.
         </li>
       </ul>
-      <p>A <strong>notice</strong> appears under the top bar when something needs attention: no API
-        key yet
-        (click the notice to open Settings), or the browser refusing to let Dialog save, in which
-        case
-        the conversation and settings will be lost when the page closes.</p>
-      <h2>Participants</h2>
-      <p>Each participant (&quot;seat&quot;) has a card on the right:</p>
+      <p>A <strong>notice</strong> under the top bar says when something needs attention: no API key
+        yet, or the
+        browser refusing to let Dialog save (the conversation would then be lost when the page
+        closes).</p>
+      <h2 id="participants">Participants</h2>
+      <p>Each participant (a &quot;seat&quot;) has a card on the right:</p>
       <ul>
-        <li><strong>⠿ (the handle)</strong>, left of the name, moves the card: drag it up or down,
-          and a line
-          shows where it will land. Or click it and press ↑ or ↓. The order is the order of the To
-          menu, of the participant list every seat is given, and of Participants in saved files.
-          Since that list is part of every seat&#39;s instructions, a new order means each
-          seat&#39;s
-          next turn re-reads the conversation at full price once (no re-reading discount).
-          Sleeping participants&#39; folded cards stay at the end and have no handle.</li>
-        <li><strong>Name</strong>, at the top of the card, in the seat&#39;s color. Click it to
-          rename. The name is
-          what the others see (&quot;Skeptic says: …&quot;) and what appears in the margin of the
-          conversation. The logo of the model&#39;s maker comes just after the name (see The logos,
-          below).</li>
-        <li><strong>+ copy</strong> adds another seat with the same model and settings, a new name
-          (&quot;Claude 2&quot;)
-          and a darker shade of the color, without the role.</li>
-        <li><strong>×</strong> removes the seat. Its earlier contributions stay in the conversation.
+        <li><strong>Name</strong>, in the seat&#39;s color: click it to rename. It is what the
+          others see (&quot;Skeptic
+          says: …&quot;) and what appears in the conversation&#39;s margin. The logo of the
+          model&#39;s maker
+          follows it.</li>
+        <li><strong>The model button</strong> opens the model picker: every OpenRouter model with
+          its price
+          (dollars per million tokens, input / output), plus LM Studio&#39;s models if you use them.
+          Type a few words (&quot;opus&quot;, &quot;gemini pro&quot;) to narrow the list;
+          <strong>Sort</strong> orders it by name or
+          price; click a model or use the arrow keys and Return. A full model id (containing a
+          &quot;/&quot;)
+          can be typed too. <strong>Refresh list</strong> fetches the newest list at once, for a
+          model that has
+          only just appeared; the line under the list says how old it is.</li>
+        <li>Under the button, the model&#39;s <strong>id and price</strong>, or a warning that the
+          id is no longer in
+          OpenRouter&#39;s list. Ids beginning with &quot;~&quot; (such as
+          &quot;~google/gemini-pro-latest&quot;) always
+          follow a family&#39;s newest model, and the id shown is the one they stand for now.</li>
+        <li><strong>Thinking</strong>: how hard the model thinks before replying, offering exactly
+          the levels the
+          model supports, with its default marked. Thinking is billed as output, whether or not you
+          get to read it.</li>
+        <li><strong>Role</strong>: the participant&#39;s standing instructions; see Roles, below. It
+          shows &quot;(set)&quot; or
+          &quot;(none)&quot;.</li>
+        <li><strong>Sleep</strong> benches the participant without removing it. Its card folds up
+          and moves to the
+          end of the list. A sleeping participant sits out &quot;team&quot; rounds and isn&#39;t the
+          one Return
+          asks by default, but still replies when you name it. Untick Sleep and it returns to its
+          place.</li>
+        <li><strong>Speak</strong> asks the participant to reply now; <strong>Stop</strong> ends its
+          reply early. While it
+          speaks, its card is outlined.</li>
+        <li><strong>⠿</strong> (left of the name) moves the card: drag it, or click it and press ↑
+          or ↓. The order
+          is the order of the To menu and of &quot;team&quot; rounds.</li>
+        <li><strong>+ copy</strong> adds another seat with the same model and settings, but no role.
+          <strong>×</strong> removes
+          the seat; its earlier contributions stay in the conversation.</li>
+        <li>The participant&#39;s <strong>cost so far</strong> is at the bottom right of the card.
         </li>
-        <li><strong>The model button</strong> shows the model&#39;s name and opens the model picker,
-          a list of every
-          OpenRouter model with its price (dollars per million tokens, input / output), plus
-          LM Studio&#39;s models if you use LM Studio (see Models on this computer, below):<ul>
-            <li>Type a few words (&quot;opus&quot;, &quot;gemini pro&quot;) to narrow the list; the
-              current model is
-              marked &quot;(current)&quot;.</li>
-            <li><strong>Sort</strong>, beside the search box, puts the list in order by name, or by
-              input or output
-              price, lowest or highest first. Models at the same price are in name order. Routers,
-              which pass each request to a model they choose and so have no fixed price, are listed
-              with the price &quot;varies&quot; and come last either way. Dialog remembers the order
-              you chose.</li>
-            <li>Click a model, or use ↑ ↓ (Page Up / Page Down to jump) and Return.</li>
-            <li>Escape, Cancel, or a click outside the list closes it without changing anything.
-            </li>
-            <li>Any model id can be typed in full (it contains a &quot;/&quot;); a &quot;Use … as
-              typed&quot; row appears.</li>
-            <li>The list comes from OpenRouter and/or LM Studio. LM Studio&#39;s part is fetched
-              each time
-              you open the picker. Of OpenRouter&#39;s, Dialog keeps a copy and gets a new one when
-              its
-              copy is more than 12 hours old: when the page opens, and when you open the picker
-              (even
-              if the page has been open all along). The line under the list says how old the copy is
-              (&quot;from
-              OpenRouter&#39;s list as of 15:28 today&quot;).</li>
-            <li><strong>Refresh list</strong>, beside Cancel, gets a new list at once: use it for a
-              model that has
-              only just appeared. While the new list is on its way the button reads
-              &quot;Refreshing…&quot; and
-              the old list stays; your search and the highlighted model stay too. If the new list
-              can&#39;t be fetched, the line under the list says why, and the old list stays.</li>
-            <li>Dialog always asks OpenRouter itself for the list, never a copy the browser kept
-              from an
-              earlier visit.</li>
-          </ul>
-        </li>
-        <li>Under the button: the model&#39;s <strong>id and price</strong>, or a warning if the id
-          isn&#39;t in
-          OpenRouter&#39;s current list. For an id that always follows a family&#39;s newest model
-          (it
-          begins with &quot;~&quot;, such as &quot;~deepseek/deepseek-flash-latest&quot;), the id
-          shown is that of the
-          model it stands for now, such as &quot;deepseek/deepseek-v4.1-flash-1017&quot;; the
-          &quot;~&quot; name is on
-          the model button above it. On a Mac, pointing at the id shows the &quot;~&quot; id too.
-        </li>
-        <li><strong>The logos</strong> of the models&#39; makers (Anthropic, OpenAI, Google and so
-          on) sit on each
-          card&#39;s top line, just after the seat&#39;s name, folded cards included. They are the
-          ones
-          OpenRouter shows beside each model on its own pages, loaded
-          from the same places: OpenRouter&#39;s site, or for some makers (xAI, Z.ai, Xiaomi,
-          NVIDIA,
-          Amazon, MiniMax, StepFun) Google&#39;s service for a website&#39;s icon. Dialog knows the
-          logos of
-          about twenty makers; for any other, or if a logo doesn&#39;t load, the card shows the
-          maker&#39;s
-          initial in a small square instead.</li>
-        <li><strong>Web search and page reading</strong> are always on; there is nothing to set (see
-          Searching
-          and reading web pages, below). If the model can&#39;t use tools, the card says
-          &quot;Can&#39;t use
-          tools, so no web search or page reading&quot;. LM Studio models can&#39;t use the web.
-        </li>
-        <li><strong>Thinking</strong> offers exactly the levels the chosen model lists on its
-          OpenRouter page,
-          highest first, with the model&#39;s own default marked. Models with no thinking setting
-          show
-          &quot;not adjustable&quot;. Thinking is billed as output, whether or not you get to read
-          it (see
-          Reading the thinking, under Talking).</li>
-        <li><strong>Role</strong> opens a box for that participant&#39;s standing instructions, e.g.
-          &quot;argue the
-          skeptic&#39;s side&quot;. It shows &quot;(set)&quot; or &quot;(none)&quot;. Use the role
-          to give the participant a
-          personality, a perspective or a job description.</li>
-        <li><strong>Sleep</strong>, beside Thinking, benches the participant for a while without
-          removing it.
-          Its card folds up to just its name, its maker&#39;s logo and the Sleep box, and moves to
-          the
-          end of the list.
-          While asleep it sits out &quot;team&quot; rounds and isn&#39;t the one Return asks when
-          your message
-          names no one. It still replies if you name it at the end of your message, and stays in
-          the To menu for private messages. It keeps its place in the order: untick Sleep and the
-          card unfolds where it was. (If you move other cards meanwhile, it comes back among the
-          same neighbors.) Sleeping participants still appear in the participant list every seat
-          is given, since they may be asked again.</li>
-        <li><strong>Speak</strong> asks the participant to reply now. Only one participant speaks at
-          a time,
-          except in an independent round, when all of them do at once (see Talking, below). While a
-          participant speaks, its card is outlined, the Speak buttons wait, and its
-          <strong>Stop</strong> button
-          ends its reply early.</li>
-        <li>The participant&#39;s <strong>cost so far</strong> in this conversation, at the bottom
-          right of the card.</li>
       </ul>
-      <h2>Talking</h2>
-      <p><strong>Words at the end of your message</strong> tell Dialog who will reply when you press
-        Return.
-        Dialog takes them off before anyone sees your message, and marks it with a stage direction
-        instead, such as &quot;(to Grok)&quot;. Each is explained in full below.</p>
+      <p>Web search and page reading are always on for models that can use them; the card says so
+        when a model can&#39;t.</p>
+      <h2 id="roles">Roles</h2>
+      <p>A role turns a model into a particular participant. &quot;Claude&quot; and
+        &quot;Claude-Skeptic&quot; can run
+        the same model; what makes them different is mostly the role.</p>
+      <p><strong>What a role is.</strong> Any text you write in the seat&#39;s Role box. That
+        participant receives it
+        every time it speaks, after the house rules and About you, as &quot;Your role in this
+        conversation&quot;. Because it comes last, a role can override the house rules for that one
+        participant.</p>
+      <p><strong>What a role can do:</strong></p>
+      <ul>
+        <li><strong>Give a point of view or a position:</strong> &quot;Argue the skeptic&#39;s side.
+          Find the weakest step in
+          each argument and press on it.&quot; Two seats with opposite positions make a debate.</li>
+        <li><strong>Give a job:</strong> fact-checker, editor, summarizer, devil&#39;s advocate,
+          note-taker. &quot;When I
+          ask, summarize where the group agrees, where it disagrees and what is still open, in under
+          200 words.&quot;</li>
+        <li><strong>Give a manner or a voice:</strong> blunt, patient, Socratic (answer with
+          questions), a teacher
+          explaining to a beginner, a historian who separates what is known from what is guessed.
+        </li>
+        <li><strong>Set the form of its replies:</strong> length, structure, language, level of
+          detail.</li>
+        <li><strong>Override a house rule</strong> for this participant only: &quot;For this role,
+          ignore the rule on
+          length: write as much as the question needs.&quot; Or &quot;Don&#39;t give confidence
+          percentages.&quot;</li>
+        <li><strong>Narrow its attention:</strong> &quot;Look only at the numbers: check every
+          figure anyone gives.&quot;</li>
+      </ul>
+      <p><strong>What a role can&#39;t do:</strong></p>
+      <ul>
+        <li><strong>Add knowledge or abilities.</strong> &quot;You are the world&#39;s leading
+          expert on X&quot; adds no
+          expertise; it mostly makes the model sound more sure of itself. Say instead what to focus
+          on and what to check.</li>
+        <li><strong>Tell the others anything.</strong> A role is seen only by its own participant.
+          The others see
+          its name and model, and what it says. If they should know its part, say so in a message,
+          or
+          let the name tell them (&quot;Skeptic&quot;).</li>
+        <li><strong>Make it speak up on its own,</strong> or decide who goes next: you do, every
+          turn.</li>
+        <li><strong>Show it what it can&#39;t see:</strong> other participants&#39; private
+          exchanges, their thinking, or
+          earlier conversations. Each participant knows only the conversation as it sees it.</li>
+        <li><strong>Change how Dialog works:</strong> how messages are labeled, who sees what, or
+          how files are
+          made.</li>
+        <li><strong>Get past the model&#39;s own limits.</strong> What its maker trained it to
+          refuse, it still refuses.</li>
+        <li><strong>Guarantee obedience.</strong> In a long conversation, or when a role pulls
+          against the model&#39;s
+          habits, a participant can drift out of it. Remind it in a message, or make the role
+          plainer and firmer.</li>
+      </ul>
+      <p><strong>Changing a role</strong> takes effect on the participant&#39;s next turn; its
+        earlier replies stay
+        as they were. Since the role is part of what the participant re-reads every turn, its next
+        turn reads the whole conversation at full price once (see The re-reading discount, below).
+      </p>
+      <p>Roles are saved with the conversation (Save All shows each participant&#39;s role) and with
+        the
+        settings (Save settings to a file).</p>
+      <p><strong>Role, house rules or About you?</strong> The house rules are for every participant;
+        a role is for
+        one. About you is what everyone should know about you.</p>
+      <h2 id="talking">Talking</h2>
+      <h3 id="adding-a-message-and-asking-for-a-reply">Adding a message and asking for a reply</h3>
+      <ul>
+        <li><strong>Return</strong> adds your message <em>and</em> asks a participant to reply, so a
+          back-and-forth needs
+          no clicking. The words at the end of your message say who (see below).</li>
+        <li><strong>⌘↩</strong> (Command-Return; Ctrl+Enter on other systems), or <strong>Add to
+            conversation</strong>, only adds
+          your message; nobody replies until you ask.</li>
+        <li><strong>Shift-Return</strong> or <strong>Option-Return</strong> starts a new line.</li>
+        <li><strong>Speak</strong>, on a card, adds whatever you&#39;ve typed and attached, then has
+          that participant
+          reply. With the box empty, it has that participant respond to the conversation as it
+          stands: the way to have one participant answer another.</li>
+      </ul>
+      <p>The note beside the button always shows what Return will do (&quot;↩ adds, then Grok
+        replies ·
+        ⌘↩ just adds&quot;) and changes as you type. With the box empty, Return does nothing, so a
+        stray
+        keypress never pays for a reply.</p>
+      <h3 id="choosing-who-replies">Choosing who replies</h3>
       <table>
         <thead>
           <tr>
@@ -408,1022 +415,395 @@
           <tr>
             <td>&quot;privately&quot;</td>
             <td>&quot;…, Grok, privately&quot;</td>
-            <td>The same as without &quot;privately&quot;, but private: only the participants named
-              see your message and their replies. With no name, it goes to whoever spoke last.</td>
+            <td>As without &quot;privately&quot;, but only those named see it (see Private
+              messages).</td>
           </tr>
           <tr>
             <td>&quot;only&quot;</td>
             <td>&quot;…, Grok only&quot;</td>
-            <td>The same as &quot;privately&quot;, but only right after a name, a list of names or
-              &quot;team&quot;.</td>
+            <td>The same as &quot;privately&quot;, right after a name, names or &quot;team&quot;.
+            </td>
+          </tr>
+          <tr>
+            <td>nothing of these</td>
+            <td>&quot;…that&#39;s my view.&quot;</td>
+            <td>Whoever spoke last replies.</td>
           </tr>
         </tbody>
       </table>
-      <p>&quot;parallel&quot; and &quot;in parallel&quot; mean the same as
-        &quot;independently&quot;, and can come before or after
-        the names or &quot;team&quot;. Without any of these endings, Return asks whoever spoke last.
-        ⌘↩ never
-        asks anyone: it just adds your message (privately, if it ends with &quot;privately&quot; or
-        &quot;only&quot;).</p>
       <ul>
-        <li>
-          <p><strong>Your input box</strong> is at the bottom. With <strong>To: Everyone</strong>,
-            <strong>Add to conversation</strong>, or
-            <strong>⌘↩</strong> (Command-Return; Ctrl+Enter on other systems), puts your message
-            into the
-            conversation; nobody answers until you press a participant&#39;s <strong>Speak</strong>
-            button.
-            <strong>Shift-Return</strong> or <strong>Option-Return</strong> starts a new line in the
-            box.
-          </p>
-        </li>
-        <li>
-          <p><strong>Return</strong> adds your message <em>and</em> asks a participant to reply, so
-            a back-and-forth needs
-            no clicking:</p>
-          <ul>
-            <li>If your message ends with a participant&#39;s name, that participant replies:
-              &quot;…what do
-              you think, Grok?&quot; asks Grok. Case and punctuation don&#39;t matter, the name must
-              be a word
-              of its own (&quot;Claudeish&quot; doesn&#39;t count), and the longest name wins
-              (&quot;…Claude 2&quot; asks
-              Claude 2, not Claude). It goes by the last word only, so &quot;I agree with
-              Claude.&quot; asks
-              Claude too.</li>
-            <li><strong>A list of names</strong> at the end asks just those participants, once each,
-              in the order
-              you typed them: &quot;…what do you think, Gemini and Claude?&quot; has Gemini reply,
-              then
-              Claude (who sees Gemini&#39;s reply). Separate the names with spaces, commas,
-              &quot;and&quot;, &quot;&amp;&quot;,
-              &quot;+&quot; or &quot;/&quot;. Add &quot;independently&quot; (or
-              &quot;parallel&quot;, or &quot;in parallel&quot;) before or after the
-              list (&quot;…, Claude and Grok, independently&quot;) and they all reply at once, each
-              without
-              seeing the others&#39; replies from that turn (see &quot;…independently, team&quot;,
-              below).
-              A name given twice counts once. Your message is marked &quot;(to Gemini and Claude, in
-              turn)&quot;.</li>
-            <li>Otherwise the participant who spoke last replies, unless it has been put to sleep
-              (see
-              Sleep, above); then the last awake one to speak does. Only the open conversation
-              counts; a private exchange doesn&#39;t change who is next.</li>
-            <li><strong>The name is for Dialog, not part of your message.</strong> Dialog takes it
-              off (&quot;What do you
-              think, Grok?&quot; becomes &quot;What do you think?&quot;) and shows your message with
-              a stage
-              direction under your name: &quot;(to Grok)&quot;. The participants are told the same
-              thing in
-              plain words (&quot;Bill says (to Grok): …&quot;), so everyone still knows whom you
-              asked.</li>
-          </ul>
-          <p>The note beside the button shows who it will be and changes as you type: &quot;↩ adds,
-            then
-            Grok replies · ⌘↩ just adds&quot;. If no participant has spoken yet and none is named,
-            or
-            while a reply is still arriving, Return only adds your message. With the box empty it
-            does nothing, so a stray keypress never pays for a reply. Return that finishes typing a
-            character with an input method (for Chinese or Japanese, say) is left alone.</p>
-        </li>
-        <li>
-          <p><strong>&quot;…, team&quot;</strong> at the end of your message has every participant
-            reply once, in turn,
-            when you press Return. Like a name, &quot;team&quot; (and &quot;independently&quot;) is
-            for Dialog: it&#39;s
-            taken off your message, which is marked &quot;(to everyone, in turn)&quot; or &quot;(to
-            everyone,
-            independently)&quot;, and the participants are told that in plain words instead. They go
-            around the table in card order, starting with the one after the last speaker, so nobody
-            speaks twice in a row. Each sees the replies before it. The note beside the button says
-            how many and who goes first (&quot;↩ adds, then all 5 reply in turn, Claude first&quot;,
-            or &quot;the
-            3 awake&quot; when some are asleep); hover over it for the whole order.</p>
-          <ul>
-            <li><strong>&quot;…independently, team&quot;</strong> (or &quot;…team,
-              independently&quot;) has each reply without seeing
-              the others&#39; replies from that round, which avoids everyone following whoever
-              answered
-              first. <strong>&quot;parallel&quot;</strong> or <strong>&quot;in
-                parallel&quot;</strong> means the same (&quot;…in parallel, team&quot;,
-              &quot;…team, parallel&quot;). Those replies are marked &quot;(answering
-              independently)&quot;, here and in
-              saved files. Afterwards everyone sees them all, as usual.</li>
-            <li><strong>An independent round runs all at once.</strong> Since no participant waits
-              for another&#39;s
-              reply, every request goes out together. The replies take their places in the
-              conversation straight away, in the round&#39;s order, each showing &quot;waiting for
-              …&quot; until
-              something arrives, and then fill in side by side; nothing moves while you read. The
-              round takes about as long as its slowest participant, not all of them one after
-              another. Nobody goes first, so the note beside the button says &quot;↩ adds, then all
-              5
-              reply independently, at once&quot;; hover over it for the order the replies will
-              appear in.</li>
-            <li>Because &quot;in parallel&quot; is ordinary English too, a question that ends
-              &quot;…can these run in
-              parallel, team?&quot; also starts an independent round, and is sent as &quot;…can
-              these run?&quot;.
-              The note beside the button shows this before you press Return; reword the question if
-              that isn&#39;t what you meant.</li>
-            <li>Typing slips are forgiven (&quot;tema&quot;, &quot;taem&quot;, &quot;teamm&quot;,
-              &quot;independantly&quot;, &quot;idnependently&quot;,
-              &quot;paralel&quot;, &quot;paralell&quot;, &quot;parralel&quot;), but real words a
-              slip or two away don&#39;t count:
-              &quot;…in the long term.&quot; doesn&#39;t start a round, nor do &quot;tea&quot;,
-              &quot;steam&quot;, &quot;teams&quot;, &quot;tear&quot;,
-              &quot;beam&quot; and the like, and &quot;parallels&quot;, &quot;parable&quot; and
-              &quot;parallax&quot; aren&#39;t &quot;parallel&quot;. A
-              participant&#39;s name at the end still wins: &quot;…what about you, Grok?&quot; asks
-              Grok alone.</li>
-            <li>Sleeping participants sit rounds out, including one put to sleep while a round is
-              running (if you&#39;d named it in a list, it still replies). If everyone is asleep,
-              &quot;…, team&quot; just adds your message, without &quot;team&quot;, and nobody
-              replies.</li>
-            <li>Participants without a model are skipped. While a round runs, the Speak buttons
-              wait.
-              In a round taken in turn, <strong>Stop</strong> ends the reply under way and the rest
-              of the round;
-              in an independent round, each card&#39;s <strong>Stop</strong> ends only that
-              participant&#39;s reply, and
-              the others go on. A failed reply is skipped and the round goes on. A round costs about
-              as much as all the participants&#39; replies together.</li>
-          </ul>
-        </li>
-        <li>
-          <p><strong>Speak also adds whatever you&#39;ve typed and attached</strong> before the
-            participant replies, so
-            one press both says something and asks someone to answer. To have one participant
-            respond to another, press the Speak button of the one who should respond, with the box
-            empty.</p>
-        </li>
-        <li>
-          <p><strong>To: Privately: &lt;name&gt;</strong> sends a message to that participant only.
-            The box turns
-            parchment-colored and the button reads &quot;Send privately to &lt;name&gt;&quot;;
-            Return and ⌘↩ do the
-            same. The participant answers at once. Both entries are set on parchment and marked like
-            stage directions,
-            &quot;(privately, to Grok)&quot; and &quot;(privately, to John Doe)&quot;, and no other
-            participant ever sees
-            them. The participant itself remembers them, as it would in its own chat window.</p>
-        </li>
-        <li>
-          <p><strong>&quot;…, privately&quot;</strong> as the very last word of your message does
-            the same without the To
-            menu: &quot;What do you really think, Grok, privately?&quot; goes to Grok alone, and
-            Grok answers.
-            Like a name, the word is for Dialog and comes off your message. While your message ends
-            with it, the box turns parchment-colored, the button reads <strong>Add
-              privately</strong>, and the
-            note beside it says who will reply (&quot;↩ sends privately; Grok replies · ⌘↩ just adds
-            it
-            privately&quot;).</p>
-          <ul>
-            <li><strong>Whom it goes to</strong> follows the usual rules for Return: the names at
-              the end (before
-              &quot;privately&quot;), or, if you name no one, the participant who spoke last. Press
-              a card&#39;s
-              <strong>Speak</strong> instead and, if you named no one, it goes to that participant.
-            </li>
-            <li><strong>Several names</strong> make a private group: &quot;…, Claude and Grok,
-              privately&quot; goes to Claude
-              and Grok, who reply in turn (or at once, with &quot;independently&quot;). Each sees
-              your message
-              and the other&#39;s reply; nobody else ever sees any of it. The entries are marked
-              &quot;(privately, to Claude and Grok, in turn)&quot;, &quot;(privately, to Bill and
-              Grok)&quot; and so on.
-              &quot;…, team, privately&quot; goes to every participant who is awake; sleeping ones
-              never see
-              it.</li>
-            <li><strong>&quot;only&quot;</strong> means the same as &quot;privately&quot;, but only
-              right after a name, a list of names
-              or &quot;team&quot;: &quot;…what do you really think, Grok only?&quot; goes to Grok
-              alone. Anywhere else it
-              is just a word, so &quot;Answer in one sentence only&quot; is an ordinary message.
-            </li>
-            <li><strong>⌘↩ or Add privately</strong> puts the message in privately without asking
-              anyone to reply.</li>
-            <li><strong>Nothing goes in for everyone by mistake.</strong> If no one has spoken yet
-              and you name no
-              one, the note says &quot;Say whom it&#39;s for&quot; and the button waits; while
-              replies are still
-              arriving, it says to wait until they&#39;ve finished.</li>
-            <li>Typing slips are forgiven (&quot;privatly&quot;, &quot;privatley&quot;), but
-              &quot;private&quot; doesn&#39;t count, and
-              neither does &quot;privately&quot; anywhere but at the very end: &quot;We spoke
-              privately, Grok&quot; asks
-              Grok openly.</li>
-          </ul>
-        </li>
-        <li>
-          <p><strong>Replies appear as they are written.</strong> &quot;waiting for Claude…&quot;
-            (or whoever is replying)
-            shows until something arrives, counting the time waited from the first second
-            (&quot;waiting
-            for Claude… 12 s&quot;, then &quot;… 1 min 5 s&quot;): the request may still be on its
-            way, queued at the
-            host, or searching the web.
-            Replies are formatted from Markdown (headings, lists, tables, code); links open in a new
-            tab. If a model begins its reply with its own label (&quot;Claude says:&quot;), Dialog
-            removes it.</p>
-        </li>
-        <li>
-          <p><strong>The conversation follows a reply as it comes in</strong> while you&#39;re at
-            the bottom. Scroll
-            back to read something earlier and it stays where you put it: the reply goes on arriving
-            below, out of view, until you scroll back down to the bottom, which follows it again.
-            Adding a message of your own takes you to the bottom.</p>
-        </li>
-        <li>
-          <p><strong>Reading the thinking.</strong> Above a reply that came with its thinking is a
-            folded-up
-            <strong>Thinking</strong> line: click it to read the thinking, and again to fold it
-            away. It appears
-            as soon as the thinking starts to arrive, and reads &quot;Thinking…&quot; until the
-            reply itself
-            begins; then &quot;Thinking&quot;, complete. Open, it fills in as the model thinks, and
-            stays open
-            while you carry on. How much there is depends on the
-            model: some send all their thinking, many (Claude and Gemini, for instance) a summary,
-            and some (OpenAI&#39;s) none, and then there is no Thinking line. The thinking is kept
-            only
-            while the page is open: it isn&#39;t stored in the browser or put in saved
-            conversations, so
-            reloading the page drops it. The participants never see anyone&#39;s thinking.
-          </p>
-        </li>
-        <li>
-          <p><strong>Mathematics</strong> written in LaTeX, as models often write it, is shown as
-            mathematics once
-            the reply is complete (while it arrives, you see the LaTeX). A formula between
-            <code>$$</code> and
-            <code>$$</code>, or <code>\[</code> and <code>\]</code>, stands on its own line; one
-            between <code>$</code> and <code>$</code>, or <code>\(</code> and
-            <code>\)</code>, sits within the sentence. Your own messages work the same way. Prices
-            are left
-            alone: a <code>$</code> counts as math only when the next character isn&#39;t a space,
-            and the closing
-            one comes right after the formula and isn&#39;t followed by a digit, so &quot;$5 and
-            $10&quot; stays
-            money. Math inside code is left as written. LaTeX that can&#39;t be read is shown as
-            written,
-            in red; point at it for the reason. Saved conversations show the math too. The
-            participants themselves receive the LaTeX, as written.
-          </p>
-        </li>
-        <li>
-          <p><strong>Each turn</strong> shows, in the margin, a tick box for saving (see Saving,
-            below), the time
-            it began and the speaker&#39;s name, and under a reply&#39;s name its
-            <strong>cost</strong> and <strong>speed</strong>
-            (below) on two lines. After the text come any <strong>sources</strong>, and
-            &quot;stopped early&quot; if you
-            stopped it.</p>
-        </li>
-        <li>
-          <p><strong>Tap (or click) a reply&#39;s cost and speed</strong> for the full particulars
-            below the text: the
-            exact model that answered (for a &quot;~&quot; id, the model it stood for then) and the
-            thinking
-            level it was given; the <strong>host</strong>, the company whose servers ran the model
-            (OpenRouter
-            often has several for one model: for Qwen, say, Alibaba itself or an independent host);
-            a small <strong>cost table</strong> (below); and the speed&#39;s breakdown. Below a long
-            reply, the
-            conversation scrolls just far enough to bring them into view. Tap either again to hide
-            them. Particulars that are open when you save are saved in full too.</p>
-        </li>
-        <li>
-          <p><strong>The cost table</strong> splits a reply&#39;s cost into what it cost to read
-            (the conversation it
-            was given, with how many tokens were re-read at the discount and how many were stored
-            for
-            re-reading), to write (with how many of the tokens were thinking), and, if it searched
-            or
-            read pages, the web (see Searching and reading web pages, below), with the total under
-            them. OpenRouter reports the total, and for some replies what reading and writing cost.
-            Otherwise Dialog works those out from the token counts and the model&#39;s listed prices
-            and
-            marks them &quot;about&quot;: the host may charge a little more or less than the listed
-            price. All
-            the amounts are to the cent.
-            OpenRouter doesn&#39;t say what searches and pages read cost, so the web&#39;s share is
-            what is
-            left of the total; any difference between the listed and the actual price ends up there
-            too. Without a listed price (a model whose price varies, for instance), only the total
-            is
-            given.</p>
-        </li>
-        <li>
-          <p><strong>The host</strong> usually arrives with the reply. If it doesn&#39;t, Dialog
-            asks OpenRouter the
-            first time you open that reply&#39;s particulars (&quot;Host: looking up…&quot;), then
-            keeps the answer.
-            If OpenRouter can&#39;t say yet (just after a reply, its record may not
-            be ready), the line is left out and Dialog asks again the next time you open them. It
-            can only look up replies made with the same OpenRouter account as your key, and only
-            replies from Dialog 2.2 on. Models in LM Studio have no host line.
-            Nothing needs hovering, so this works on an iPad too. (On a Mac, pointing at a
-            participant&#39;s name also shows the model and thinking level.)</p>
-        </li>
-        <li>
-          <p><strong>× on a turn</strong> (it appears when you hover over the turn) removes it, so
-            no participant
-            sees it from then on.</p>
-        </li>
-        <li>
-          <p><strong>Stopped replies</strong> keep what arrived, and the others will see it.</p>
-        </li>
-        <li>
-          <p><strong>When a reply fails</strong>, Dialog shows OpenRouter&#39;s message plus
-            whatever particulars it
-            sent: which host failed, the host&#39;s own error code or words, and the request id
-            (&quot;gen-…&quot;). When a host fails partway through, OpenRouter replaces its message
-            with a
-            generic one (for example &quot;JSON error injected into SSE stream&quot;), so those
-            particulars are
-            often the only real clue; the request id can be looked up on OpenRouter&#39;s Activity
-            page.
-            <strong>Try again</strong> replaces the failed reply with a fresh attempt by the same
-            participant,
-            without touching anything you&#39;ve typed. Failed replies are never shown to any
-            participant.
-          </p>
-        </li>
-        <li>
-          <p><strong>When a model is withdrawn</strong> from OpenRouter, that seat&#39;s card shows
-            &quot;… is not in
-            OpenRouter&#39;s current list&quot; (once Dialog&#39;s copy of the list is refreshed:
-            within 12 hours,
-            or at once with <strong>Refresh list</strong> in the model picker),
-            and pressing its Speak button gives a failed reply that says the model is no longer
-            listed and to choose another with the seat&#39;s model button. Nothing else is affected.
-            The
-            seat keeps its name, role and earlier turns; its new model will take those earlier
-            replies as its own. Model ids beginning with &quot;~&quot; (such as
-            &quot;~google/gemini-pro-latest&quot;)
-            follow the newest version, so they don&#39;t go away. If a model is still listed but all
-            its
-            hosts are down, the failed reply says that may be the cause; try again later.</p>
+        <li><strong>These words are for Dialog, not part of your message.</strong> Dialog takes them
+          off (&quot;What do
+          you think, Grok?&quot; becomes &quot;What do you think?&quot;) and marks your message with
+          a stage
+          direction instead: &quot;(to Grok)&quot;, &quot;(to everyone, in turn)&quot;. The
+          participants are told the
+          same in plain words, so everyone knows whom you asked.</li>
+        <li><strong>Only the last word counts,</strong> so &quot;I agree with Claude.&quot; asks
+          Claude. Case and
+          punctuation don&#39;t matter, and the longest matching name wins (&quot;…Claude 2&quot;
+          asks Claude 2).
+          Separate several names with spaces, commas, &quot;and&quot;, &quot;&amp;&quot;,
+          &quot;+&quot; or &quot;/&quot;.</li>
+        <li><strong>&quot;parallel&quot;</strong> and <strong>&quot;in parallel&quot;</strong> mean
+          the same as &quot;independently&quot;, before or after the
+          names. Since they are ordinary English too, &quot;…can these run in parallel, team?&quot;
+          starts an
+          independent round; the note beside the button shows this before you press Return.</li>
+        <li>Small typing slips are forgiven (&quot;tema&quot;, &quot;independantly&quot;,
+          &quot;paralel&quot;, &quot;privatly&quot;), but
+          real words that are close are not: &quot;…in the long term.&quot; starts no round.</li>
+        <li>With no name at the end, Return asks the last participant who spoke openly and is awake.
+          If nobody has spoken yet, Return only adds your message.</li>
+      </ul>
+      <h3 id="rounds">Rounds</h3>
+      <ul>
+        <li><strong>In turn</strong> (&quot;…, team&quot;, or several names): the participants reply
+          one after another, each
+          seeing the replies before it. A &quot;team&quot; round goes in card order, starting after
+          the last
+          speaker, so nobody speaks twice in a row. Hover over the note beside the button for the
+          order.</li>
+        <li><strong>Independently</strong> (&quot;…team, independently&quot;): every request goes
+          out at once, and the
+          replies fill in side by side, in their places. Nobody sees the others&#39; replies from
+          that
+          round, which keeps everyone from following whoever answered first; afterwards, everyone
+          sees them all. The round takes about as long as its slowest participant. Its replies are
+          marked &quot;(answering independently)&quot;.</li>
+        <li>Sleeping participants sit &quot;team&quot; rounds out. If everyone is asleep, your
+          message is just
+          added.</li>
+        <li>In a round taken in turn, <strong>Stop</strong> ends the current reply and the rest of
+          the round. In an
+          independent round, each card&#39;s Stop ends only that reply. A failed reply is skipped
+          and
+          the round goes on.</li>
+        <li>A round costs about as much as all its replies together.</li>
+      </ul>
+      <h3 id="private-messages">Private messages</h3>
+      <ul>
+        <li><strong>&quot;…, privately&quot;</strong> at the very end of your message, or
+          <strong>To: Privately: &lt;name&gt;</strong> in the
+          menu beside the button, sends the message to that participant only, and it answers at
+          once. While a message will be private, the box turns parchment-colored and the button
+          reads &quot;Add privately&quot; or &quot;Send privately to &lt;name&gt;&quot;.</li>
+        <li><strong>Several names</strong> make a private group: &quot;…, Claude and Grok,
+          privately&quot; goes to both, who
+          reply in turn (or at once, with &quot;independently&quot;) and see each other&#39;s
+          replies. &quot;…, team,
+          privately&quot; goes to every awake participant; sleeping ones never see it.</li>
+        <li><strong>&quot;only&quot;</strong> works like &quot;privately&quot;, but only right after
+          a name, names or &quot;team&quot; (&quot;…what do
+          you really think, Grok only?&quot;). Elsewhere it is an ordinary word: &quot;Answer in one
+          sentence
+          only&quot; is an ordinary message.</li>
+        <li>With no name, a private message goes to whoever spoke last; with a card&#39;s
+          <strong>Speak</strong>, to
+          that card&#39;s participant. <strong>⌘↩</strong> adds it privately without asking for a
+          reply.</li>
+        <li>Private exchanges are set on parchment and marked &quot;(privately, to Grok)&quot;. No
+          one outside
+          them ever sees them. The participants in them remember them, as they would in their own
+          chat window, and a private exchange doesn&#39;t change who is next.</li>
+        <li><strong>Nothing goes to everyone by mistake:</strong> if Dialog can&#39;t tell whom a
+          private message is
+          for, the button waits and the note says why.</li>
+      </ul>
+      <h2 id="reading-replies">Reading replies</h2>
+      <ul>
+        <li><strong>Replies appear as they are written.</strong> Until something arrives,
+          &quot;waiting for Claude… 12 s&quot;
+          shows; the request may be queued at the host or searching the web. Replies are formatted
+          (headings, lists, tables, code), and links open in a new tab.</li>
+        <li><strong>The page follows a reply</strong> while you&#39;re at the bottom. Scroll up to
+          read something
+          earlier and it stays put until you scroll back down.</li>
+        <li><strong>Thinking.</strong> When a model sends its thinking, a folded
+          <strong>Thinking</strong> line sits above its
+          reply: click to read it. Some models send all of it, many (Claude, Gemini) a summary, and
+          some (OpenAI&#39;s) none. Thinking is kept only while the page is open, is never saved,
+          and no
+          participant ever sees it.</li>
+        <li><strong>Mathematics</strong> in LaTeX, as models often write it, is shown as mathematics
+          once the reply
+          is complete. Prices such as &quot;$5 and $10&quot; stay money. LaTeX that can&#39;t be
+          read is shown in
+          red; point at it for the reason.</li>
+        <li><strong>The margin</strong> of each turn shows a tick box for saving, the time, the
+          speaker&#39;s name and,
+          for a reply, its <strong>cost</strong> and <strong>speed</strong>. After the text come any
+          <strong>sources</strong> used, and
+          &quot;stopped early&quot; if you stopped it.</li>
+        <li><strong>Click a reply&#39;s cost or speed</strong> for its particulars: the exact model
+          that answered and
+          its thinking level, the <strong>host</strong> (the company whose servers ran it), the cost
+          table and the
+          speed&#39;s breakdown. Click again to hide them.</li>
+        <li><strong>The cost table</strong> splits the cost into reading (the conversation it was
+          given, including
+          how much was re-read at the discount and how much was stored for re-reading), writing
+          (including thinking) and, when it used the web, searches and pages read. OpenRouter
+          reports the total; when it doesn&#39;t report the parts, Dialog works them out from the
+          model&#39;s listed prices and marks them &quot;about&quot;. Amounts are to the cent.</li>
+        <li><strong>Speed</strong> is the tokens the model wrote (thinking included) per second,
+          from pressing
+          Speak to the last word. It includes thinking, web searches and network delay, so it
+          measures how fast the participant answers you. The particulars also show how long the
+          first words took, and how fast the text came after that.</li>
+        <li><strong>× on a turn</strong> (it appears when you hover) removes it, so no participant
+          sees it again.</li>
+        <li><strong>A stopped reply</strong> keeps what arrived, and the others see it.</li>
+        <li><strong>When a reply fails</strong>, Dialog shows OpenRouter&#39;s message and whatever
+          details it sent
+          (which host failed, the request id). <strong>Try again</strong> replaces it with a fresh
+          attempt. Failed
+          replies are never shown to any participant.</li>
+        <li><strong>When a model is withdrawn</strong> from OpenRouter, its card says so and its
+          replies fail; choose
+          another model with the seat&#39;s model button. The seat keeps its name, role and earlier
+          turns. Ids beginning with &quot;~&quot; follow the newest version and don&#39;t go away.
         </li>
       </ul>
-      <h3>Searching and reading web pages</h3>
+      <h2 id="web-search-and-reading-pages">Web search and reading pages</h2>
       <p>Every participant whose model can use tools may <strong>search the web</strong> and
         <strong>read web pages</strong>,
-        deciding for itself when to. OpenRouter does both on its behalf.</p>
+        deciding for itself when. OpenRouter does both on its behalf; there is nothing to set.</p>
       <ul>
-        <li><strong>Searching:</strong> Claude, and models that use OpenRouter&#39;s own search
-          (DeepSeek and Qwen, for
-          instance), stop at 10 searches per reply. Models that use their maker&#39;s own search
-          (OpenAI&#39;s, Google&#39;s, xAI&#39;s) set their own pace; OpenRouter doesn&#39;t pass
-          them a limit. A
-          search costs about 1 to 3 cents. Sources a participant used are listed under its reply.
-        </li>
+        <li><strong>A search</strong> costs about 1 to 3 cents. Claude and some others stop at 10
+          searches a reply.
+          Sources used are listed under the reply.</li>
         <li><strong>Reading a page:</strong> a participant can read any web page or online PDF whose
-          address
-          comes up in the conversation, whether you typed it or another participant did. Reading
-          costs at most a tenth of a cent, plus the page&#39;s text at the model&#39;s input price:
-          a long
-          page of 30,000 tokens adds about 12 cents with Claude Opus 5.5, 30 cents with GPT-6
-          Astra.</li>
-        <li><strong>Which searches and pages a reply used</strong> appears in its cost table, as its
-          model&#39;s host
-          reports them: &quot;2 searches&quot;, or &quot;1 search and 1 page read&quot;. Some hosts
-          (Claude&#39;s, for
-          instance) count only searches, so Dialog also asks OpenRouter how many pages were read the
-          first time you open the reply&#39;s particulars, and keeps the answer. Dialog can&#39;t
-          tell
-          while it happens that a participant is searching or reading: the reply simply pauses.
-          When the reply&#39;s text then goes on after a finished sentence, Dialog starts a new
-          paragraph, so the two parts don&#39;t run together.</li>
-        <li><strong>Only the reader sees the page.</strong> The others see only what it says about
-          the page, and
-          Dialog keeps only the replies, not the pages. So if another participant wants the
-          details, it reads the page for itself, and a participant that wants to look again later
-          reads it again. Each reading is paid once. That is usually cheaper than attaching the
-          page as a file, which every participant re-reads every time it speaks: the same page
-          attached would cost about 29 cents over 10 turns of one Claude seat (re-reads are
-          discounted), and $1.20 with a model that gives no discount. Attach it instead (save it as
-          a PDF and drag it in) when everyone should work from exactly the same copy, or when a
-          site won&#39;t let OpenRouter in.</li>
+          address comes
+          up in the conversation. It costs very little, plus the page&#39;s text at the model&#39;s
+          input
+          price, which for a long page and an expensive model can be 10 to 30 cents.</li>
+        <li>While a participant searches or reads, its reply simply pauses. The cost table shows how
+          many searches and pages a reply used.</li>
+        <li><strong>Only the reader sees the page;</strong> the others see what it says about it.
+          Each reading is
+          paid once, which is usually far cheaper than attaching the page as a file, since an
+          attached file is re-read by every participant every turn. Attach it instead (save it as a
+          PDF and drag it in) when everyone should work from the same copy, or when a site won&#39;t
+          let
+          OpenRouter in.</li>
       </ul>
-      <h3>Speed</h3>
-      <p>In each reply&#39;s margin, under its cost, is its speed in tokens per second: the tokens
-        the model
-        wrote (its hidden thinking included, since that is billed and takes time) divided by the
-        seconds from pressing Speak to the last word. That time includes thinking, any web searches
-        and network delay, so it measures how fast the participant answers you, not raw model
-        speed. Tap it for the breakdown: how long until the first words appeared, and how
-        fast the visible text arrived after that, which is the closer measure of raw generation
-        speed. Stopped and failed replies have no speed (OpenRouter reports no token count for
-        them).</p>
-      <h2>Attaching files</h2>
-      <p>Drag files onto the conversation (a dashed outline shows where to drop) or click
-        <strong>Attach…</strong>. They wait above your input box (× drops one) and go out with your
-        next
-        message: with <strong>Add to conversation</strong>, with a <strong>Speak</strong> press, or
-        privately when To: names a
-        participant. In the conversation they appear under the message: images as pictures, other
-        files by name and size.
-      </p>
+      <h2 id="files">Files</h2>
+      <h3 id="attaching-files">Attaching files</h3>
+      <p>Drag files onto the conversation, or click <strong>Attach…</strong>. They wait above the
+        input box (×
+        drops one) and go out with your next message, privately if the message is private.</p>
       <ul>
-        <li>
-          <p>Text files (Markdown, plain text, CSV, code and the like) are sent as text.</p>
-        </li>
-        <li>
-          <p>Images (PNG, JPEG, WebP, GIF) are sent as images; large ones are scaled down first. A
-            participant whose model can&#39;t view images is told an image was shared.</p>
-        </li>
-        <li>
-          <p>PDFs go to models that read PDFs themselves; for the others, OpenRouter converts them
-            to
-            text with its free converter. Models in LM Studio get no PDFs: they are told a PDF was
-            shared, so attach the text instead (copy it into a text file) if they should read it
-            (Dialog asks for that one explicitly, because the paid
-            default costs $2 per 1,000 pages and a PDF is re-sent every turn).</p>
-        </li>
-        <li>
-          <p>Word, Pages, Excel and similar files can&#39;t be read; Dialog says so and suggests
-            exporting
-            them as PDF. Other refusals (a file too large, a type Dialog can&#39;t read) appear
-            above the
-            input box.</p>
-        </li>
-        <li>
-          <p>What some models take in, per OpenRouter&#39;s model list on 2026 Oct 07. Text files
-            work
-            with every model, since they arrive as ordinary text. Dialog checks OpenRouter&#39;s
-            current
-            list each time, so it adapts if this changes.</p>
-          <table>
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Images</th>
-                <th>PDFs</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Claude Opus 5.5</td>
-                <td>yes</td>
-                <td>read by the model itself</td>
-              </tr>
-              <tr>
-                <td>GPT-6 Astra</td>
-                <td>yes</td>
-                <td>read by the model itself</td>
-              </tr>
-              <tr>
-                <td>Gemini Pro (latest; now Gemini 3.1 Pro Preview)</td>
-                <td>yes</td>
-                <td>read by the model itself</td>
-              </tr>
-              <tr>
-                <td>Grok 4.7</td>
-                <td>yes</td>
-                <td>read by the model itself</td>
-              </tr>
-              <tr>
-                <td>DeepSeek Pro (latest; now DeepSeek V4 Pro 0813)</td>
-                <td>no; told an image was shared</td>
-                <td>converted to text by OpenRouter</td>
-              </tr>
-              <tr>
-                <td>Qwen 3.8 Max, Max Prime, Omni Flash</td>
-                <td>yes</td>
-                <td>converted to text by OpenRouter</td>
-              </tr>
-            </tbody>
-          </table>
-          <p>A model can misread an image even when it receives it. To check that one really saw a
-            picture, ask about a detail only the picture shows.</p>
-        </li>
-        <li>
-          <p><strong>Cost:</strong> like everything in the conversation, a file is re-read by each
-            participant every
-            time it speaks. Text files show their approximate size in tokens, and Dialog asks before
-            attaching one over 50,000 tokens.</p>
-        </li>
-        <li>
-          <p>Files are stored in the browser separately from the conversation. Browsers allow each
-            page
-            only a few megabytes in all, so a very large file may not fit; it is then marked
-            &quot;not saved&quot;
-            and lasts until the page closes. Removing a turn, or starting a new conversation, frees
-            the space its files used. A file that could not be kept is marked &quot;no longer
-            available&quot;,
-            and participants are told so.</p>
+        <li><strong>Text files</strong> (Markdown, plain text, CSV, code and the like) go to every
+          model as text.</li>
+        <li><strong>Images</strong> (PNG, JPEG, WebP, GIF) are scaled down if large. A model that
+          can&#39;t view images
+          is told one was shared. A model can misread an image: to check, ask about a detail only
+          the picture shows.</li>
+        <li><strong>PDFs</strong> go to models that read them themselves; for others, OpenRouter
+          converts them to
+          text free. Models in LM Studio get no PDFs: attach the text instead.</li>
+        <li><strong>Word, Pages, Excel</strong> and similar files can&#39;t be read; export them as
+          PDF.</li>
+        <li><strong>Cost:</strong> an attached file is re-read by every participant every time it
+          speaks. Text files
+          show their size in tokens, and Dialog asks before attaching one over 50,000 tokens.</li>
+        <li>Browsers give a page only a few megabytes of storage, so a very large file may be marked
+          &quot;not saved&quot;: it lasts until the page closes. Removing its turn frees the space.
         </li>
       </ul>
-      <h2>Files the participants make</h2>
-      <p>A participant can hand you a file: a document, a table, a drawing, a small web page. Ask
-        for
-        one (&quot;…put that in a Markdown file, Claude&quot;), or a participant may offer one when
-        a file is
-        clearly the best way to deliver something. Dialog tells every participant how (see House
-        rules, under Settings).</p>
+      <h3 id="files-the-participants-make">Files the participants make</h3>
+      <p>A participant can hand you a file: a document, a table, a drawing, a small web page (a
+        calculator, a chart, a game). Ask for one (&quot;…put that in a Markdown file,
+        Claude&quot;), or a
+        participant may offer one.</p>
       <ul>
-        <li>
-          <p><strong>Kinds:</strong> Markdown (<code>.md</code>), plain text (<code>.txt</code>, or
-            another text format such as <code>.csv</code>),
-            drawings (<code>.svg</code>) and web pages (<code>.html</code>). A web page can carry
-            its own styles and
-            scripts: a calculator, a chart, a small game.</p>
-        </li>
-        <li>
-          <p><strong>Each file is a card</strong> under the reply it came in: its name, kind and
-            size, a small
-            picture of a drawing, and three buttons.</p>
-          <ul>
-            <li><strong>Open</strong> shows it in a new tab: Markdown formatted, text as written, a
-              drawing full size,
-              a web page running. If nothing opens, allow pop-up windows for the page.</li>
-            <li><strong>Save…</strong> puts it on your computer (see Where files go, under Saving).
-              A web page goes
-              through the pretty-printer first (see Laid out for reading, under Saving); other files
-              are saved exactly as written.</li>
-            <li><strong>×</strong> removes it. The card stays, struck out, and no participant sees
-              the file from
-              then on. Save it first if you want to keep it.</li>
-          </ul>
-          <p>While a reply is arriving, it says which files are done and which one is being written.
-            If a reply ends, or you stop it, before a file is finished, the card says the file may
-            be
-            incomplete.</p>
-        </li>
-        <li>
-          <p><strong>A web page opens walled off from Dialog.</strong> A page a model wrote could
-            hold anything,
-            including a script meant to read what Dialog keeps in your browser, your OpenRouter keys
-            among it. So Open shows the page inside a <em>sandboxed</em> frame: the browser treats
-            it as a
-            separate site, with no way into Dialog&#39;s storage or the Dialog tab. Its scripts run,
-            and
-            it can load pictures or libraries from the web, but it can&#39;t reach Dialog. Drawings,
-            Markdown and text open the same way, with no scripts allowed at all.</p>
-        </li>
-        <li>
-          <p><strong>A saved web page has no such wall.</strong> In Chrome, every page opened from a
-            file on your
-            computer shares one storage, Dialog&#39;s included. So view a participant&#39;s web page
-            with
-            Open, and double-click a saved copy only if you&#39;ve read it, or trust it as you would
-            any
-            page downloaded from the web.</p>
-        </li>
-        <li>
-          <p><strong>The others see the files.</strong> A file goes to the other participants right
-            after the
-            text of its reply, in the same form as the files you attach, so anyone can comment on it
-            or improve it. A file in a private reply stays private. To revise a file, a participant
-            writes it again under the same name. The newer version then replaces the older one for
-            everyone: the older card says &quot;A later version replaces this one&quot;, and its
-            contents are
-            no longer sent.</p>
-        </li>
-        <li>
-          <p><strong>Cost:</strong> like a file you attach, a participant&#39;s file is re-read by
-            every participant
-            each time it speaks, until it is removed or replaced. A 20 KB web page is about 5,000
-            tokens: about 2 cents a turn for Claude Opus 5.5 at full price, a tenth of a cent at the
-            re-reading discount. Removing files nobody needs any more saves money.</p>
-        </li>
-        <li>
-          <p>Files are stored in the browser like attached files (see Attaching files), and the
-            saved conversation includes them: drawings as pictures, and every file&#39;s text in a
-            section
-            you click to open. A saved conversation never runs a web page; it shows its text.</p>
-        </li>
+        <li><strong>Kinds:</strong> Markdown (<code>.md</code>), plain text (<code>.txt</code>,
+          <code>.csv</code> and the like), drawings (<code>.svg</code>)
+          and web pages (<code>.html</code>).</li>
+        <li><strong>Each file is a card</strong> under its reply, with <strong>Open</strong> (in a
+          new tab: allow pop-ups if
+          nothing opens), <strong>Save…</strong> and <strong>×</strong> (remove it, so no
+          participant sees it again).</li>
+        <li><strong>The others see the files,</strong> and can comment on them or improve them. A
+          participant
+          revises a file by writing it again under the same name; the newer version replaces the
+          older one for everyone. A file in a private reply stays private.</li>
+        <li><strong>Cost:</strong> like an attached file, it is re-read by every participant every
+          turn until it is
+          removed or replaced. Removing files nobody needs saves money.</li>
+        <li><strong>Safety:</strong> a web page a model wrote could hold anything, so
+          <strong>Open</strong> shows it walled off
+          from Dialog, with no way to reach your keys or your conversation. A <strong>saved</strong>
+          copy has no
+          such wall: open it by double-clicking only if you&#39;ve read it or trust it as you would
+          any
+          download.</li>
       </ul>
-      <h2>Saving and starting over</h2>
+      <h2 id="saving-resuming-and-tabs">Saving, resuming and tabs</h2>
       <ul>
-        <li><strong>Save All</strong> (top bar) saves the whole conversation as one web page, styled
-          like Dialog
-          and readable in any browser: participants with their models, thinking levels and roles;
-          the first sentence of your About-you text, under your name; every turn, set as a dialogue,
-          with private exchanges included and marked (and the other stage directions too: &quot;(to
-          Grok)&quot;, &quot;(to everyone, in turn)&quot;, &quot;(answering independently)&quot;);
-          attached images shown,
-          attached text files tucked into a section you click to open, PDFs listed by name; the
-          participants&#39; files (see above); sources; each reply&#39;s cost and speed in the
-          margin, as on
-          screen, with the conversation&#39;s total at the end (and the full particulars below the
-          text, for any reply whose particulars you have open).
-          A reply given with a different model or thinking level from the one its seat has now (you
-          changed it since, or removed the seat) is marked with the one it used. Failed replies are
-          left out, and so is the participants&#39; thinking. The file is named like &quot;Dialog
-          2026 Oct 07 2205.html&quot;.</li>
-        <li><strong>Save Selected:</strong> tick the box beside any turns (yours or the
-          participants&#39;; the box is
-          faint until you point at the turn) and the top-bar button becomes <strong>Save
-            Selected</strong>. It
-          saves just those turns, in order, and lists under Participants only those who speak in
-          them; you appear there only if one of your own turns is ticked. The heading says how many
-          turns were chosen, and the total at the end is for those turns. The file is named like
-          &quot;Dialog 2026 Oct 07 2205 selected.html&quot;. Ticks stay after saving, so you can
-          adjust and
-          save again; untick them all and the button is Save All again. Ticks are not remembered
-          when the page closes, and New conversation clears them.</li>
-        <li><strong>Resuming a saved conversation.</strong> Either kind of file can be picked up
-          again later, in
-          this browser or another one. While the conversation is empty (as after <strong>New
-            conversation</strong>), the top bar has a <strong>Resume…</strong> button beside Save
-          All; press it and choose
-          the file. The button goes away once the conversation starts. Dialog says when it was
-          saved, how many turns it has and who takes part, and asks
-          before going ahead. The conversation then comes back as it was when saved: every turn,
-          private exchanges, attached files (PDFs included) and the participants&#39; files, costs
-          and
-          speeds. The participants, the house rules, your name and About you are replaced with the
-          ones saved with it, so everyone carries on as before. A file from Save Selected brings
-          back
-          only its turns, but every participant who was in the conversation, including those who
-          don&#39;t speak in those turns. Your keys and the LM Studio address are never put in a
-          saved
-          file and stay as they are. Files saved before Dialog 2.1 can&#39;t be resumed, but can
-          still
-          be read by a browser.</li>
-        <li><strong>First sentence of About you:</strong> in either kind of file, only the first
-          sentence (or
-          first line, if that ends sooner) is shown, and a note says it is only the first sentence.
-          Full stops in abbreviations such as &quot;e.g.&quot;, &quot;Dr.&quot; or &quot;Ph.D.&quot;
-          don&#39;t end the sentence. The
-          participants themselves still get the whole text.</li>
-        <li><strong>Where files go.</strong> In Chrome (and Edge), Dialog opens the Mac&#39;s
-          standard Save dialog, so
-          you choose the folder and can change the name; Cancel saves nothing. Safari doesn&#39;t
-          let a
-          web page open that dialog. To get it in Safari anyway, set Safari Settings › General ›
-          File download location to &quot;Ask for each download&quot;; Safari then shows the same
-          Save dialog
-          for every download. Otherwise Safari saves to your Downloads folder, asking permission
-          each time unless, in Safari Settings › Websites › Downloads, &quot;When visiting other
-          websites&quot; is set to Allow. This applies to conversations and to settings files alike.
+        <li><strong>Save All</strong> saves the whole conversation as one web page, readable in any
+          browser:
+          the participants with their models, thinking levels and roles; every turn, private
+          exchanges included and marked; attached images and files; the participants&#39; files;
+          sources; and each reply&#39;s cost and speed. Failed replies and thinking are left out.
         </li>
-        <li><strong>Laid out for reading.</strong> Every HTML file Dialog writes goes through a
-          <em>pretty-printer</em>, a
-          program that lays source text out for people to read (Dialog uses js-beautify): saved
-          conversations, participants&#39; web pages when you save them, and <code>index.html</code>
-          and
-          <code>README.html</code> themselves. Each element goes on its own line, indented two
-          spaces, and long
-          lines are broken at a space near 100 characters. Only the layout of the text changes: the
-          page looks exactly the same in a browser, and text in preformatted blocks (such as the
-          files in a saved conversation) is left as it was.
+        <li><strong>Save Selected:</strong> tick the box beside some turns (it shows when you point
+          at a turn) and
+          the button becomes Save Selected, which saves just those turns.</li>
+        <li><strong>Resume…</strong> brings a saved conversation back, in this browser or another.
+          It appears in the
+          top bar while the conversation is empty (after New conversation, say). Everything comes
+          back as it was, including the participants, house rules, your name and About you. Your
+          keys
+          are never in a saved file, so yours stay.</li>
+        <li><strong>Where files go:</strong> Chrome lets you choose the folder and name. Safari
+          saves to Downloads,
+          unless you set Safari Settings › General › File download location to &quot;Ask for each
+          download&quot;.</li>
+        <li><strong>Copying into an email:</strong> select part of the conversation (or all of it
+          with ⌘A), copy and
+          paste into Mail: it looks as it does on screen, without buttons, costs or speeds.</li>
+        <li><strong>New conversation</strong> clears the conversation; participants and settings
+          stay. Save first if
+          you want to keep it. <strong>⌘-click</strong> it (Ctrl-click on other systems) to start a
+          new
+          conversation in a new tab instead, leaving this one as it is.</li>
+        <li><strong>Each tab is a conversation of its own,</strong> with its own participants and
+          settings. A new
+          tab starts empty, with the participants and settings as you last changed them in any tab.
         </li>
-        <li><strong>Copying into an email.</strong> Select part of the conversation, or all of it
-          with ⌘A, and
-          copy (⌘C): what you paste into Mail (or any program that takes formatted text) looks as it
-          does on screen, with each turn&#39;s time, name and stage direction in the margin and the
-          participant&#39;s model under its name. Only the turns come along: none of the page&#39;s
-          buttons, tick boxes, the Participants panel or the box you type in, and no costs or
-          speeds. If the selection starts or ends partway through a turn, only the part you
-          selected is copied. Thinking is included only if it is open on screen and selected.
-          Copying a few words or paragraphs from within a single turn works as in any web page.
-          Programs that take only plain text get each turn&#39;s time and name, the model, and the
-          text.</li>
-        <li><strong>New conversation</strong> clears the conversation (save first). Participants and
-          settings stay.
-          To go back to a saved one, press <strong>Resume…</strong> in the top bar.
-          <strong>⌘-click</strong> it (Ctrl-click on
-          other systems) to start the new conversation in a new tab instead, leaving this one as it
-          is.</li>
-        <li><strong>Each tab is a conversation of its own.</strong> Dialog can be open in several
-          tabs at once, each
-          with its own conversation, attached files, participants and settings; what you do in one
-          doesn&#39;t touch the others. A new tab starts with an empty conversation and the
-          participants
-          and settings as you last changed them, in whichever tab.</li>
-        <li>A tab keeps its conversation while it is open, including when you reload it. Closing the
-          tab (or quitting the browser) ends its conversation without asking, so save it first with
-          <strong>Save All</strong> to keep it.
-        </li>
+        <li>A tab keeps its conversation when you reload it. <strong>Closing the tab</strong> (or
+          quitting the
+          browser) ends the conversation without asking, so save it first if you want it.</li>
       </ul>
-      <h2>Models on this computer (LM Studio)</h2>
-      <p>Alongside OpenRouter&#39;s models, a participant can use a model running in
-        <a href="https://lmstudio.ai">LM Studio</a> on your own computer. It costs nothing per
-        reply, and its
-        messages never leave the computer. LM Studio participants and OpenRouter participants can
-        share one conversation; a conversation with only LM Studio participants needs no OpenRouter
-        key at all.
-      </p>
+      <h2 id="settings">Settings</h2>
+      <ul>
+        <li><strong>OpenRouter API key</strong>, with <strong>Show</strong> to check what you
+          pasted.</li>
+        <li><strong>OpenRouter management key</strong> (optional), used only to show your remaining
+          credit in the
+          top bar. Create one at openrouter.ai/settings/management-keys, with an expiration date. Be
+          aware that a management key can create new keys: someone who got hold of it could spend
+          your remaining credit.</li>
+        <li><strong>LM Studio server</strong> (optional): see Models on this computer, below.</li>
+        <li><strong>Your name</strong>: what the participants call you.</li>
+        <li><strong>About you</strong>: a few sentences every participant receives on every turn,
+          after the house
+          rules and before its role.</li>
+        <li><strong>House rules</strong>: the instructions every participant receives. The defaults
+          explain how the
+          conversation works and ask for brief, honest, careful contributions: no flattery,
+          confidence given as a percentage, alternatives shown with the evidence against them, and
+          a qualified answer preferred to a confident mistake. Edit freely; <strong>Restore default
+            rules</strong> undoes your edits. These placeholders are filled in for each participant:
+          <strong>{name}</strong> its name, <strong>{humanName}</strong> your name,
+          <strong>{participants}</strong> everyone present with
+          their models, <strong>{date}</strong> today&#39;s date with your offset from UTC
+          (&quot;2026 Oct 27 (UTC-7)&quot;).
+          After the rules Dialog adds a short note of its own, on how to make files, which you
+          can&#39;t
+          edit.
+        </li>
+        <li><strong>Save settings to a file…</strong> saves your name, About you, the house rules
+          and every
+          participant (name, model, thinking level, role, color, asleep or not), as a backup or to
+          move to another browser. <strong>Include my keys in the saved file</strong> adds your
+          keys; keep such a
+          file private.</li>
+        <li><strong>Restore from a file…</strong> reads such a file and asks before replacing your
+          settings (and
+          your keys, if the file has them). The conversation isn&#39;t changed.</li>
+        <li><strong>Done</strong>, Escape or a click outside closes Settings. Changes are kept as
+          you type.</li>
+      </ul>
+      <h2 id="models-on-this-computer-lm-studio">Models on this computer (LM Studio)</h2>
+      <p>A participant can use a model running in <a href="https://lmstudio.ai">LM Studio</a> on
+        your own
+        computer. It costs nothing, and its messages never leave the computer. LM Studio and
+        OpenRouter participants can share a conversation.</p>
       <p><strong>Setting up:</strong></p>
       <ol>
         <li>In LM Studio, download a model and load it.</li>
-        <li>Start LM Studio&#39;s server with <strong>CORS</strong> on. CORS is what lets a web
-          page, such as Dialog,
-          talk to the server. The surest way is in Terminal:
+        <li>Start LM Studio&#39;s server with <strong>CORS</strong> on, which lets a web page talk
+          to it. In Terminal:
           <code>~/.lmstudio/bin/lms server start --cors</code>
-          LM Studio&#39;s own caution applies: while CORS is on, any website you visit can use the
-          server (only from browsers on this computer). Stop the server when you&#39;re done
-          (<code>~/.lmstudio/bin/lms server stop</code>) or start it again without
-          <code>--cors</code>.
+          While CORS is on, any website you visit in this computer&#39;s browsers can use the
+          server,
+          so stop it when you&#39;re done: <code>~/.lmstudio/bin/lms server stop</code>.
         </li>
-        <li>In Dialog&#39;s Settings, click the <strong>LM Studio server</strong> box: it fills in
-          the usual
-          address, <a href="http://localhost:1234">http://localhost:1234</a>. If your server has
-          another address, type it instead.</li>
-        <li>Press a seat&#39;s model button. LM Studio&#39;s chat models come first in the list,
-          marked
-          &quot;(LM Studio)&quot;, with &quot;loaded&quot; beside any model loaded now; the line
-          under the list says
-          how many there are, or why LM Studio couldn&#39;t be reached. Choose one, and a new seat
-          is
-          named after the model (&quot;Gemma 4 31B QAT&quot;). A model not loaded yet is loaded by
-          LM Studio
-          when it is first asked, which can take a while.</li>
+        <li>In Settings, click the <strong>LM Studio server</strong> box: it fills in the usual
+          address,
+          <a href="http://localhost:1234">http://localhost:1234</a>.
+        </li>
+        <li>Press a seat&#39;s model button: LM Studio&#39;s models come first, marked &quot;(LM
+          Studio)&quot;, with
+          &quot;loaded&quot; beside those loaded now. One not loaded is loaded when first asked,
+          which can
+          take a while.</li>
       </ol>
-      <p><strong>Which browser:</strong></p>
+      <p><strong>Which browser:</strong> Chrome works with the online Dialog; allow it to reach
+        devices on your
+        local network when it asks. Safari works only with a copy of <code>index.html</code> opened
+        from your
+        disk. That copy keeps its own settings; Save settings to a file and Restore from a file
+        carry
+        them across.</p>
+      <p><strong>What&#39;s different:</strong></p>
       <ul>
-        <li><strong>Chrome</strong> works with the online Dialog. The first time, Chrome asks
-          whether the page may
-          reach devices on your local network; allow it.</li>
-        <li><strong>Safari</strong> doesn&#39;t let the online Dialog (an https page) reach a server
-          on this computer.
-          It works when Dialog is opened from a copy of <code>index.html</code> on your disk (keep
-          <code>README.html</code> beside it): double-click the copy. Safari keeps that copy&#39;s
-          settings and
-          conversation apart from the online page&#39;s, so you set it up again there (Save settings
-          to a file and Restore from a file carry your setup across).
+        <li>No cost is shown, and there is no web search or page reading.</li>
+        <li>The Thinking setting is fixed at the model&#39;s default.</li>
+        <li>Images go only to models LM Studio lists as able to view them; PDFs aren&#39;t sent.
         </li>
+        <li><strong>The conversation must fit the model&#39;s context length,</strong> which LM
+          Studio sets when it
+          loads the model (often 8,192 tokens). A longer conversation fails with a message saying
+          how many tokens it needs: load the model again with a larger context length.</li>
+        <li>If Dialog <strong>can&#39;t reach LM Studio</strong>, check that the server is running
+          with CORS on and that
+          the address in Settings is right.</li>
       </ul>
-      <p><strong>What&#39;s different about an LM Studio participant:</strong></p>
-      <ul>
-        <li><strong>No cost</strong> is shown: the reply&#39;s speed and token counts are, as for
-          any reply.</li>
-        <li><strong>No web search or page reading:</strong> those are done by OpenRouter.</li>
-        <li><strong>No thinking setting:</strong> the card&#39;s Thinking menu is fixed at the
-          model&#39;s own default.
-          A model&#39;s thinking appears under the Thinking line when LM Studio sends it apart from
-          the reply.</li>
-        <li><strong>Images</strong> go to models LM Studio lists as able to view them; others are
-          told an image
-          was shared. <strong>PDFs</strong> aren&#39;t sent (see Attaching files).</li>
-        <li><strong>The conversation must fit the model&#39;s window.</strong> LM Studio loads a
-          model with a fixed
-          context length (often 8,192 tokens, though many models support far more). A conversation
-          longer than that fails with a message saying how many tokens it needs; in LM Studio, load
-          the model again with a larger context length, or start a new conversation.</li>
-        <li>If the card says the model <strong>is not among LM Studio&#39;s models</strong>, it was
-          removed from
-          LM Studio, or the id was typed wrongly. LM Studio answers such a request with whichever
-          model it has loaded, so choose the model again.</li>
-        <li>If Dialog <strong>couldn&#39;t reach LM Studio</strong>, check that the server is
-          running and was started
-          with CORS on, and that the address in Settings is right.</li>
-      </ul>
-      <h2>Settings</h2>
-      <ul>
-        <li>
-          <p><strong>OpenRouter API key</strong>, with <strong>Show</strong> to check what you
-            pasted.</p>
-        </li>
-        <li>
-          <p><strong>OpenRouter management key (optional)</strong>, to show your remaining credit;
-            see Getting
-            started.</p>
-        </li>
-        <li>
-          <p><strong>LM Studio server (optional)</strong>: the address of LM Studio&#39;s server on
-            this computer,
-            usually <a href="http://localhost:1234">http://localhost:1234</a>, for using its models;
-            see Models on this computer
-            (LM Studio). Leave it empty if you don&#39;t use LM Studio.</p>
-        </li>
-        <li>
-          <p><strong>Your name</strong>: what participants call you, and the name on your turns.</p>
-        </li>
-        <li>
-          <p><strong>About you</strong>: a few sentences every participant receives, on every turn,
-            after the house
-            rules (and Dialog&#39;s note on making files) and before its role.</p>
-        </li>
-        <li>
-          <p><strong>House rules</strong>: the instructions every participant receives. The defaults
-            cover:</p>
-          <ul>
-            <li>how the conversation works: who&#39;s present, how messages are labeled, not to
-              speak for
-              others, private exchanges;</li>
-            <li>how to contribute: agree briefly rather than repeat, keep contributions to a few
-              paragraphs unless asked for more, no flattery of you or of each other, confidence as a
-              percentage for claims that matter, with what would raise or lower it, and never 0% or
-              100% without hard evidence;</li>
-            <li>how to think: test ideas against particular cases, carry an idea into a new context
-              only when the situations are clearly analogous, admit confusion, search or ask when
-              information is missing, present the reasonable alternatives with evidence against your
-              favorite, keep hypotheticals exact, keep facts apart from value judgements, show each
-              step of a chain of reasoning, and prefer a qualified answer to a confident mistake.
-            </li>
-          </ul>
-          <p>Placeholders filled in for each participant: <strong>{name}</strong> its name,
-            <strong>{humanName}</strong> your
-            name, <strong>{participants}</strong> everyone present with their models,
-            <strong>{date}</strong> today&#39;s date with
-            your computer&#39;s offset from UTC (&quot;2026 Oct 27 (UTC-7)&quot;).
-            Edit freely; <strong>Restore default rules</strong> undoes your edits. A role comes
-            after the house
-            rules, so a role can override them, e.g. &quot;for this role, argue the other side as
-            strongly
-            as you honestly can.&quot;</p>
-          <p>After the house rules, Dialog adds a short note of its own that you can&#39;t edit: how
-            to
-            make a file (see Files the participants make). It is part of how Dialog works, like the
-            way messages are labeled, so editing the rules can&#39;t break it.</p>
-          <p>When the default rules change in a new version of Dialog, a copy you never edited is
-            updated to match. An edited copy is left alone, except that a default sentence that has
-            since been reworded is updated where it still appears word for word.</p>
-        </li>
-        <li>
-          <p><strong>Save settings to a file…</strong> downloads your name, About you, the house
-            rules and every
-            participant (name, model, thinking level, role, color and whether it&#39;s asleep) as
-            one small file, named like
-            &quot;Dialog settings 2026 Oct 09 1722.json&quot;. Use it as a backup, or to move Dialog
-            to another
-            browser or computer. <strong>Include my keys in the saved file</strong> adds your
-            OpenRouter keys; it
-            starts unticked each time you open Settings, because anyone who has a file with your
-            keys
-            could spend your credit.</p>
-        </li>
-        <li>
-          <p><strong>Restore from a file…</strong> reads such a file, says what it holds and asks
-            before replacing
-            your name, About you, house rules and participants. Keys in the file replace yours; if
-            it
-            has none, yours stay. The conversation isn&#39;t changed: turns by a participant that
-            the
-            restored settings don&#39;t include stay, as when you remove a seat.</p>
-        </li>
-        <li>
-          <p><strong>Done</strong> closes Settings; so do Escape and a click anywhere outside the
-            Settings window.
-            Changes are kept as you type.</p>
-        </li>
-      </ul>
-      <h2>How the participants are kept separate</h2>
-      <p><strong>Every request goes through your one OpenRouter key.</strong> OpenRouter passes it
-        on to the company
-        hosting the model using OpenRouter&#39;s own account there. Anthropic, OpenAI, Google, xAI
-        and
-        DeepSeek never see your key; to them, all of Dialog&#39;s requests look like ordinary
-        OpenRouter
-        traffic. (OpenRouter&#39;s optional &quot;bring your own key&quot; feature would change
-        that; Dialog
-        doesn&#39;t use it.)</p>
-      <p><strong>Two seats running the same model share nothing but the transcript.</strong> The
-        model APIs keep no
-        memory from one request to the next. Each time a seat speaks, Dialog sends that seat&#39;s
-        own
-        instructions (house rules, the note on making files, About you, its role) and the whole
-        conversation as that seat sees it, and the model answers from scratch. What makes
-        &quot;Claude-Skeptic&quot; different from
-        &quot;Claude-Optimist&quot; is only what Dialog sends each one: its name, its role, and its
-        private
-        exchanges with you. Each seat is told every participant&#39;s model, so both know another
-        participant runs the same model.</p>
+      <h2 id="how-it-works-and-what-it-costs">How it works, and what it costs</h2>
+      <p><strong>Each participant starts from scratch every turn.</strong> The models keep no memory
+        between
+        requests. Each time a participant speaks, Dialog sends its instructions (house rules, About
+        you, its role) and the whole conversation as that participant sees it. Two seats running
+        the same model share nothing but the transcript; each is told every participant&#39;s model.
+      </p>
       <p><strong>No hidden instructions from the makers&#39; apps.</strong> The ChatGPT, Claude and
         Gemini apps give
-        their models long hidden instructions (system prompts) about tone, formatting, safety and
-        the app&#39;s features. Through OpenRouter a model gets none of those; it gets only what
-        Dialog
-        sends: the house rules, About you and its role. So the same model can sound noticeably
-        different here than in its maker&#39;s app.</p>
-      <p><strong>The same model may be served from different places.</strong> OpenRouter may send a
-        Claude request
-        to Anthropic itself or to Amazon&#39;s or Google&#39;s cloud; it is the same model either
-        way. For
-        models whose makers publish them openly, such as DeepSeek&#39;s, the host is often a third
-        party.</p>
-      <p><strong>Re-reading discount (caching).</strong> Since every turn re-sends the whole
-        conversation, the
-        providers store recent requests and charge much less for re-reading text they&#39;ve already
-        seen. OpenAI, Grok and DeepSeek do this automatically; Claude does it only when asked, so
-        Dialog asks for its 1-hour cache. Storing text in it costs more than a normal read ($8
-        instead
-        of $4 per million tokens for Claude Opus 5.5), but each later re-read costs $0.20 instead of
-        $4. Dialog uses the 1-hour cache rather than the cheaper 5-minute one because a seat often
-        waits more than 5 minutes between turns, and a cache that has expired costs more than none.
-        Each seat&#39;s requests also carry their own label so OpenRouter keeps sending them to the
-        host
-        that already holds that seat&#39;s earlier text. Tap a reply&#39;s cost to see how much was
-        re-read at the discount and how much was stored.</p>
-      <h2>Where your data lives</h2>
-      <p>The conversation, attached files, the participants&#39; files, settings and your keys are
-        kept in your browser&#39;s storage
-        for this page, on this computer only. Each tab keeps its own conversation and files until it
-        closes; your latest settings and keys are kept for the next tab you open. The
-        participants&#39; thinking isn&#39;t kept: it goes when the page closes. Each browser keeps
-        its own: open Dialog in Chrome after
-        using it in Safari and Chrome starts empty, with no key, participants or conversation. To
-        carry your setup across, use <strong>Save settings to a file</strong> in one and
-        <strong>Restore from a file</strong>
-        in the other; to carry a conversation across, save it with <strong>Save All</strong> and
-        resume it in
-        the other. A saved conversation holds its attached files in full, but never your keys.
-        Messages go only to OpenRouter, which passes each one to the
-        model you chose. The management key, if you add one, goes only to OpenRouter&#39;s credit
-        check. A participant using a model in LM Studio is different: its messages go only to
-        LM Studio, on this computer, and never to OpenRouter. Drawing the seat cards&#39; logos asks
-        OpenRouter&#39;s site, and for a few makers Google&#39;s
-        icon service, for the logo; that request carries nothing of yours but your computer&#39;s
-        internet address and which logo it wants.</p>
-      <h2>Look and credits</h2>
-      <p>The page is set like a printed dialogue: each speaker&#39;s name hangs in the left margin,
-        private exchanges are set on parchment and marked like stage directions. Controls use Optima
-        and the conversation uses Iowan Old Style, both built into macOS; on other systems similar
-        fonts stand in. Mathematics is drawn by the browser itself, in STIX Two Math (also built
-        into
-        macOS); Temml turns the models&#39; LaTeX into the browser&#39;s math markup. Dialog follows
-        your system&#39;s light or dark appearance; in dark, the engraving is
-        shown on a paper-colored mount. In a narrow window, the participants move below the
-        conversation.</p>
-      <p>The images are all from a wood engraving of an ancient marble bust of Socrates, signed
-        W. Meyer: the large picture on the welcome screen, the medallion beside the title, and the
-        browser-tab icon. <code>src/icons/</code> holds the original and the versions made from it.
+        their models long hidden instructions about tone, formatting and safety. Here a model gets
+        only what Dialog sends, so it may sound noticeably different than in its maker&#39;s app.
       </p>
-      <p>Safari does not show the tab icon, because of two long-standing Safari (WebKit) bugs: it
-        won&#39;t load a tab icon for a page opened from a file, nor one embedded in the page itself
-        (<a href="https://bugs.webkit.org/show_bug.cgi?id=258969">WebKit 258969</a>,
-        <a href="https://bugs.webkit.org/show_bug.cgi?id=236616">WebKit 236616</a>). Chrome shows
-        it.
-      </p>
-      <h2>For changes: the source</h2>
-      <p>TypeScript sources are in <code>src/</code>:</p>
-      <table>
-        <thead>
-          <tr>
-            <th>File</th>
-            <th>What it does</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>types.ts</code></td>
-            <td>The data: seats, entries, settings</td>
-          </tr>
-          <tr>
-            <td><code>engine.ts</code></td>
-            <td>The rules: each seat&#39;s view of the conversation, house rules, files the
-              participants make, seat names and colors</td>
-          </tr>
-          <tr>
-            <td><code>export.ts</code></td>
-            <td>Saving the whole conversation, or the ticked turns, as an HTML page</td>
-          </tr>
-          <tr>
-            <td><code>pretty.ts</code></td>
-            <td>The pretty-printer every HTML file goes through</td>
-          </tr>
-          <tr>
-            <td><code>openrouter.ts</code></td>
-            <td>Talking to OpenRouter: streaming replies, costs, citations, model list, key and
-              credit</td>
-          </tr>
-          <tr>
-            <td><code>storage.ts</code></td>
-            <td>Saving to and loading from the browser&#39;s storage</td>
-          </tr>
-          <tr>
-            <td><code>attachments.ts</code></td>
-            <td>Reading dropped or picked files into attachments</td>
-          </tr>
-          <tr>
-            <td><code>makers.ts</code></td>
-            <td>Who made each model, and where its logo comes from</td>
-          </tr>
-          <tr>
-            <td><code>main.ts</code></td>
-            <td>The page: drawing everything and handling clicks</td>
-          </tr>
-          <tr>
-            <td><code>index.html</code>, <code>styles.css</code></td>
-            <td>Page skeleton and appearance</td>
-          </tr>
-          <tr>
-            <td><code>icons/</code></td>
-            <td>The Socrates engraving and the welcome picture, medallion and tab icon made from it
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <p>This guide is <code>README.md</code>; the build turns it into <code>README.html</code>, in
-        Dialog&#39;s style.</p>
-      <p>To rebuild (needs Node.js): <code>npm install</code>, then <code>npm run build</code>
-        (type-checks, then writes
-        <code>dist/index.html</code> and <code>dist/README.html</code>, both pretty-printed; the
-        build stops if the
-        pretty-printer changed what the page&#39;s script or styles do), and <code>npm test</code>
-        (unit tests,
-        a simulated run of the whole page against a fake OpenRouter, and a check that README.html
-        shows everything README.md says: Markdown would strike out text between two &quot;~&quot;
-        and drop
-        a word in angle brackets, so README.md writes them <code>\~</code> and
-        <code>\&lt;name\&gt;</code>).
-      </p>
+      <p><strong>One key, many hosts.</strong> Every request goes through your OpenRouter key;
+        OpenRouter passes it
+        to a company that runs the model (Anthropic itself, say, or Amazon&#39;s or Google&#39;s
+        cloud). The
+        model&#39;s makers never see your key.</p>
+      <p><strong>The re-reading discount.</strong> Since every turn re-sends the whole conversation,
+        the hosts
+        charge much less for text they&#39;ve seen recently: for Claude Opus 5.5, a re-read costs a
+        twentieth of a fresh read. Dialog asks Claude for its 1-hour cache, which costs extra to
+        fill
+        but soon pays for itself. Anything that changes a participant&#39;s instructions (its
+        role, the house rules, About you, the order of the cards) means its next turn reads
+        everything at full price once. Long conversations and attached files are what make a
+        conversation expensive; start a new one when the old one has served its purpose.</p>
+      <h2 id="where-your-data-lives">Where your data lives</h2>
+      <p>The conversation, files, settings and keys are kept in your browser, on this computer only.
+        Each tab keeps its own conversation until it closes; your latest settings are kept for the
+        next tab. Each browser keeps its own: Chrome doesn&#39;t see what Safari has. Use Save
+        settings
+        to a file and Save All to carry things across.</p>
+      <p>Messages go only to OpenRouter, which passes each to the model you chose, or, for an
+        LM Studio participant, only to LM Studio on this computer. The management key goes only to
+        OpenRouter&#39;s credit check. The makers&#39; logos are fetched from OpenRouter&#39;s site
+        (and for a
+        few makers from Google&#39;s icon service); those requests carry nothing of yours.</p>
+      <h2 id="credits">Credits</h2>
+      <p>The pictures all come from a wood engraving, signed W. Meyer, of an ancient marble bust of
+        Socrates. Mathematics is set with Temml. Dialog follows your system&#39;s light or dark
+        appearance; in a narrow window, the participants move below the conversation.</p>
 
     </main>
   </body>
