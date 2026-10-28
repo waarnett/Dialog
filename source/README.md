@@ -626,7 +626,8 @@ key at all.
     step of a chain of reasoning, and prefer a qualified answer to a confident mistake.
 
   Placeholders filled in for each participant: **{name}** its name, **{humanName}** your
-  name, **{participants}** everyone present with their models, **{date}** today's date.
+  name, **{participants}** everyone present with their models, **{date}** today's date with
+  your computer's offset from UTC ("2026 Oct 27 (UTC-7)").
   Edit freely; **Restore default rules** undoes your edits. A role comes after the house
   rules, so a role can override them, e.g. "for this role, argue the other side as strongly
   as you honestly can."

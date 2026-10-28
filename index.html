@@ -2258,6 +2258,12 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return `${d.getFullYear()} ${MONTHS[d.getMonth()]} ${pad2(d.getDate())}`;
         }
 
+        function formatUtcOffset(minutesAhead) {
+          const a = Math.abs(minutesAhead);
+          const minutes = a % 60 ? `:${pad2(a % 60)}` : "";
+          return `UTC${minutesAhead < 0 ? "-" : "+"}${Math.floor(a / 60)}${minutes}`;
+        }
+
         function formatTime(d) {
           return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
         }
@@ -2695,7 +2701,7 @@ ${f.data}
           ].join("\n");
           const filled = settings2.houseRules.split("{name}").join(seat.name).split("{humanName}")
             .join(settings2.humanName).split("{participants}").join(participants).split("{date}")
-            .join(formatDate(now));
+            .join(`${formatDate(now)} (${formatUtcOffset(-now.getTimezoneOffset())})`);
           let prompt = filled + "\n\n" + MAKING_FILES_NOTE.split("{humanName}").join(settings2
             .humanName);
           const about = settings2.aboutHuman.trim();
@@ -5101,7 +5107,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.8.5";
+        var VERSION = "2.8.6";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),

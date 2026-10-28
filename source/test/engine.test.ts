@@ -10,6 +10,7 @@ import {
   sortModels,
   formatCost,
   formatDate,
+  formatUtcOffset,
   stripSelfPrefix,
   systemPromptFor,
   thinkingChoices,
@@ -139,7 +140,8 @@ test("system prompt lists participants, marks 'you', appends the role, fills the
   assert.ok(p.includes("- Bill (human moderator)"));
   assert.ok(p.includes("- Claude: model anthropic/claude-opus-5.5 (this is you)"));
   assert.ok(p.includes("- Grok: model x-ai/grok-4.7\n"));
-  assert.ok(p.includes("Today's date is 2026 Oct 06."));
+  const offset = formatUtcOffset(-new Date(2026, 9, 6, 23, 5).getTimezoneOffset());
+  assert.ok(p.includes(`Today's date is 2026 Oct 06 (${offset}).`), "with this computer's UTC offset");
   assert.ok(p.endsWith("Your role in this conversation:\nBe brief."));
   assert.ok(!p.includes("{"), "no unfilled placeholders");
 });
@@ -168,6 +170,7 @@ test("copies get unique names and the same model", () => {
 
 test("formatting helpers", () => {
   assert.equal(formatDate(new Date(2026, 9, 6)), "2026 Oct 06");
+  assert.deepEqual([-420, 330, 0, -570, 345].map(formatUtcOffset), ["UTC-7", "UTC+5:30", "UTC+0", "UTC-9:30", "UTC+5:45"]);
   assert.equal(formatCost(0.0213), "$0.0213");
   assert.equal(formatCost(1.2749), "$1.27");
   assert.equal(formatCost(0), "$0.00");

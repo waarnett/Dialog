@@ -156,6 +156,13 @@ export function formatDate(d: Date): string {
   return `${d.getFullYear()} ${MONTHS[d.getMonth()]} ${pad2(d.getDate())}`;
 }
 
+/** A UTC offset, from minutes ahead of UTC: "UTC-7", "UTC+5:30", "UTC+0". */
+export function formatUtcOffset(minutesAhead: number): string {
+  const a = Math.abs(minutesAhead);
+  const minutes = a % 60 ? `:${pad2(a % 60)}` : "";
+  return `UTC${minutesAhead < 0 ? "-" : "+"}${Math.floor(a / 60)}${minutes}`;
+}
+
 /** "23:05" (local time, 24-hour). */
 export function formatTime(d: Date): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
@@ -650,7 +657,7 @@ function madeFileText(f: MadeFile, maker: string, humanName: string, replaced: R
 // ---------------------------------------------------------------------------
 // What each seat sees
 
-/** The house rules with the placeholders filled in for one seat. */
+/** The house rules with the placeholders filled in for one seat; {date} is today's, with this computer's UTC offset. */
 export function systemPromptFor(seat: Seat, settings: Settings, now = new Date()): string {
   const participants = [
     `- ${settings.humanName} (human moderator)`,
@@ -660,7 +667,7 @@ export function systemPromptFor(seat: Seat, settings: Settings, now = new Date()
     .split("{name}").join(seat.name)
     .split("{humanName}").join(settings.humanName)
     .split("{participants}").join(participants)
-    .split("{date}").join(formatDate(now));
+    .split("{date}").join(`${formatDate(now)} (${formatUtcOffset(-now.getTimezoneOffset())})`);
   let prompt = filled + "\n\n" + MAKING_FILES_NOTE.split("{humanName}").join(settings.humanName);
   const about = settings.aboutHuman.trim();
   if (about) prompt += `\n\nAbout ${settings.humanName}, in ${settings.humanName}'s own words:\n${about}`;
