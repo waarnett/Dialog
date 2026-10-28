@@ -11,8 +11,7 @@ import type { Attachment, Entry, MadeFile, Seat, Session, Settings } from "./typ
 
 const SETTINGS_KEY = "dialog.settings.v1"; // in this tab, and the latest in shared storage
 const SESSION_KEY = "dialog.session.v1"; // in this tab (in shared storage before tabs were separate)
-const SAVED_KEY = "dialog.saved.v1"; // in this tab
-const MODELS_KEY = "dialog.models.v5"; // v3 added what each model takes in; v4, whether it can use tools; v5, what a ~latest id stands for
+const MODELS_KEY = "dialog.models.v6"; // v3 added what each model takes in; v4, whether it can use tools; v5, what a ~latest id stands for; v6, cache prices
 
 /** This tab's own storage. */
 const tab = (): Storage => sessionStorage;
@@ -313,27 +312,6 @@ function removeUnusedFiles(s: Session, area = tab): void {
   } catch {
     /* storage unavailable */
   }
-}
-
-// Whether the conversation has been saved in a file since it last changed, so that closing
-// the tab can warn before losing it.
-
-/** The conversation as it is now, in short: a fingerprint of everything Save All keeps. */
-export function conversationMark(s: Session): string {
-  const json = JSON.stringify(s.entries, (key, value: unknown) => (key === "data" || key === "thinking" || key === "unsaved" ? undefined : value));
-  let hash = 0x811c9dc5; // FNV-1a
-  for (let i = 0; i < json.length; i++) hash = Math.imul(hash ^ json.charCodeAt(i), 0x01000193);
-  return `${json.length}.${(hash >>> 0).toString(16)}`;
-}
-
-/** Note that the conversation, as `mark` describes it, is saved in a file (or came from one). */
-export function markSaved(mark: string): void {
-  write(tab, SAVED_KEY, mark);
-}
-
-/** Does the conversation have turns not saved in a file? */
-export function hasUnsavedTurns(s: Session): boolean {
-  return s.entries.length > 0 && read(tab, SAVED_KEY) !== conversationMark(s);
 }
 
 // A saved conversation, to resume: Save All and Save Selected write the readable page with

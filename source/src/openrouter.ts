@@ -177,6 +177,14 @@ export function interpretPayload(payload: string, local = false): StreamPiece {
     if (typeof web.web_search_requests === "number") piece.usage.webSearches = web.web_search_requests;
     if (typeof web.tool_calls_executed === "number") piece.usage.webToolsUsed = web.tool_calls_executed;
     if (typeof u.cost === "number") piece.cost = u.cost;
+    // What reading and writing cost, when OpenRouter says (its documentation doesn't list these).
+    const cd = isObj(u.cost_details) ? u.cost_details : {};
+    const read = cd.upstream_inference_prompt_cost;
+    const write = cd.upstream_inference_completions_cost;
+    if (typeof read === "number" && typeof write === "number" && read + write > 0) {
+      piece.usage.readCost = read;
+      piece.usage.writeCost = write;
+    }
   }
   return piece;
 }
@@ -413,6 +421,9 @@ export interface ModelInfo {
   /** Dollars per million tokens. */
   inputPrice: number;
   outputPrice: number;
+  /** Dollars per million tokens re-read from the cache, and stored in it, where the model prices them. */
+  cacheReadPrice?: number;
+  cacheWritePrice?: number;
   contextLength: number;
   /** What the model takes in directly, e.g. ["text", "image", "file"]. */
   inputModalities: string[];
@@ -469,6 +480,8 @@ export async function fetchModels(): Promise<ModelInfo[]> {
       name: typeof m.name === "string" ? m.name : m.id,
       inputPrice: Number(pricing.prompt ?? 0) * 1e6,
       outputPrice: Number(pricing.completion ?? 0) * 1e6,
+      ...(pricing.input_cache_read !== undefined ? { cacheReadPrice: Number(pricing.input_cache_read) * 1e6 } : {}),
+      ...(pricing.input_cache_write !== undefined ? { cacheWritePrice: Number(pricing.input_cache_write) * 1e6 } : {}),
       contextLength: num(m.context_length),
       inputModalities: ins,
       reasoning: parseReasoning(m.reasoning),
@@ -510,16 +523,26 @@ export async function fetchKeyInfo(apiKey: string): Promise<KeyInfo> {
   };
 }
 
+/** What OpenRouter's record of a request says: the host that ran it and the pages it read. */
+export interface GenerationRecord {
+  host?: string;
+  pagesRead?: number;
+}
+
 /**
- * The host that ran a request ("gen-…"), from OpenRouter's record of it; null if OpenRouter
- * doesn't say (the record may not be ready just after the reply, or belong to another account).
+ * OpenRouter's record of a request ("gen-…"); null if it has none (the record may not be ready
+ * just after the reply, or belong to another account).
  */
-export async function fetchHost(apiKey: string, requestId: string): Promise<string | null> {
+export async function fetchGeneration(apiKey: string, requestId: string): Promise<GenerationRecord | null> {
   const res = await send(`${BASE}/generation?id=${encodeURIComponent(requestId)}`, { headers: { Authorization: `Bearer ${apiKey}` } });
   if (!res.ok) return null;
   const j: unknown = await res.json();
-  const d = isObj(j) && isObj(j.data) ? j.data : {};
-  return typeof d.provider_name === "string" && d.provider_name ? d.provider_name : null;
+  if (!isObj(j) || !isObj(j.data)) return null;
+  const d = j.data;
+  return {
+    ...(typeof d.provider_name === "string" && d.provider_name ? { host: d.provider_name } : {}),
+    ...(typeof d.num_fetches === "number" ? { pagesRead: d.num_fetches } : {}),
+  };
 }
 
 export interface CreditInfo {

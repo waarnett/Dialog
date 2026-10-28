@@ -38,6 +38,8 @@ import {
   waitingLabel,
   turnSpeed,
   turnDetails,
+  type CostRow,
+  webUseText,
   privateGroup,
   privateLabel,
   privateWithFor,
@@ -57,7 +59,7 @@ import {
   totalCost,
 } from "./engine";
 import { fetchLocalModels, isLocalModel, LOCAL_EXAMPLE } from "./lmstudio";
-import { fetchCredits, fetchHost, fetchKeyInfo, fetchModels, OpenRouterError, streamChat, type CreditInfo, type KeyInfo, type ModelInfo } from "./openrouter";
+import { fetchCredits, fetchGeneration, fetchKeyInfo, fetchModels, OpenRouterError, streamChat, type CreditInfo, type KeyInfo, type ModelInfo } from "./openrouter";
 import * as store from "./storage";
 import type { Addressee, Attachment, Entry, MadeFile, MadeKind, Seat } from "./types";
 
@@ -153,7 +155,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.7";
+const VERSION = "2.8.5";
 
 const els = {
   transcript: byId("transcript"),
@@ -486,12 +488,12 @@ function fillThinking(box: HTMLDetailsElement, e: Entry): void {
   if (thought) thought.innerHTML = box.open ? renderMarkdown(e.thinking ?? "", false, e.status === "streaming") : "";
 }
 
-/** Replies whose host is being asked of OpenRouter now (by id). */
+/** Replies whose record (host and pages read) is being asked of OpenRouter now (by id). */
 const hostLookups = new Set<string>();
 
 /**
  * Tapping a reply's cost and speed: show its full particulars below the text, or hide them
- * again. Opening them asks OpenRouter for the host, if the reply didn't bring it, and
+ * again. Opening them asks OpenRouter for the host and pages read, if not known yet, and
  * scrolls just far enough to show them (below a long reply, they would open out of sight).
  */
 function toggleDetails(e: Entry, article: HTMLElement): void {
@@ -509,18 +511,19 @@ function toggleDetails(e: Entry, article: HTMLElement): void {
 }
 
 /**
- * Ask OpenRouter which host ran a reply, and keep the answer with it. If it can't say, the
- * host is left out, and asked again the next time the particulars are opened.
+ * Ask OpenRouter which host ran a reply and, if it used the web, how many pages it read, and
+ * keep the answers with it. Whatever it can't say is left out, and asked again the next time
+ * the particulars are opened.
  */
 async function lookUpHost(e: Entry): Promise<void> {
-  if (e.host || !e.requestId || !hasKey() || hostLookups.has(e.id)) return;
+  const pagesUnknown = e.usage !== undefined && e.usage.pagesRead === undefined && webUseText(e.usage) !== "";
+  if ((e.host && !pagesUnknown) || !e.requestId || !hasKey() || hostLookups.has(e.id)) return;
   hostLookups.add(e.id);
   try {
-    const host = await fetchHost(settings.apiKey.trim(), e.requestId);
-    if (host) {
-      e.host = host;
-      persist();
-    }
+    const record = await fetchGeneration(settings.apiKey.trim(), e.requestId);
+    if (record?.host) e.host = record.host;
+    if (record?.pagesRead !== undefined && e.usage) e.usage.pagesRead = record.pagesRead;
+    if (record) persist();
   } catch {
     /* unreachable: leave it out */
   }
@@ -532,6 +535,27 @@ async function lookUpHost(e: Entry): Promise<void> {
   const fresh = renderEntry(e);
   article.replaceWith(fresh);
   if (focused) (fresh.querySelector<HTMLElement>("button.glance") ?? fresh.querySelector<HTMLElement>("button.foot"))?.focus();
+}
+
+/**
+ * A reply's cost, item by item, in a little table (of spans, as it sits inside a button).
+ * "about" has a column of its own, so that the amounts line up.
+ */
+function costTable(rows: CostRow[]): HTMLElement {
+  return h(
+    "span",
+    { class: "costs" },
+    ...rows.flatMap((r) => {
+      const cls = r.item === "Total" ? " total" : "";
+      return [
+        h("span", { class: "item" + cls }, r.item),
+        h("span", { class: "tokens" + cls }, r.tokens),
+        h("span", { class: "note" + cls }, r.note),
+        h("span", { class: "about" + cls }, r.about ? "about" : ""),
+        h("span", { class: "amount" + cls }, r.amount),
+      ];
+    }),
+  );
 }
 
 /** For pointing at a participant's name: the model that answered and the thinking level asked for. */
@@ -686,7 +710,7 @@ function renderEntry(e: Entry): HTMLElement {
       h(
         "button",
         { type: "button", class: "foot open", "aria-expanded": "true", onclick: toggle },
-        ...details.map((line) => h("span", { class: "detail" }, line)),
+        ...details.map((line) => (typeof line === "string" ? h("span", { class: "detail" }, line) : costTable(line))),
         more(),
       ),
     );
@@ -2479,10 +2503,7 @@ function saveConversation(): void {
   updateSaveButton(); // forget ticks on turns that are gone
   const opts = { ...exportOptions(), only: picked.size ? picked : undefined };
   const page = store.withConversationData(prettyHtml(conversationHtml(session, settings, opts)), session, settings, opts.only, opts.savedAt);
-  const mark = store.conversationMark(session);
-  void download(page, conversationFileName(opts.savedAt, picked.size > 0)).then((name) => {
-    if (name && !opts.only) store.markSaved(mark); // only the whole conversation counts as saved
-  });
+  void download(page, conversationFileName(opts.savedAt, picked.size > 0));
 }
 
 /**
@@ -2516,7 +2537,6 @@ function resumeConversation(file: File): void {
     picked.clear();
     opened.clear();
     persist();
-    store.markSaved(store.conversationMark(session));
     fillSettingsForm();
     updateBanner();
     renderSeats();
@@ -2765,11 +2785,7 @@ function wire(): void {
   });
   closeOnClickOutside(els.modelDialog, closeModelPicker);
 
-  // Closing the tab loses its conversation, so the browser asks first if it has unsaved turns.
-  window.addEventListener("beforeunload", (ev) => {
-    persist();
-    if (store.hasUnsavedTurns(session)) ev.preventDefault();
-  });
+  window.addEventListener("beforeunload", persist);
 }
 
 function start(): void {

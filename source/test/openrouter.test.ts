@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { citationsFrom, errorDetails, fetchHost, fetchModels, interpretPayload, requestBody, SSEParser, streamChat, thinkingFrom, OpenRouterError } from "../src/openrouter";
+import { citationsFrom, errorDetails, fetchGeneration, fetchModels, interpretPayload, requestBody, SSEParser, streamChat, thinkingFrom, OpenRouterError } from "../src/openrouter";
 
 test("SSE parser handles split lines, comments, CRLF and [DONE]", () => {
   const p = new SSEParser();
@@ -29,6 +29,14 @@ test("payload interpretation: text, usage, cost, citations, errors", () => {
   );
   assert.deepEqual(nested.usage, { promptTokens: 10, completionTokens: 5, reasoningTokens: 3, cachedTokens: 4, cacheWriteTokens: 6 });
   assert.equal(nested.cost, 0);
+
+  // What reading and writing cost, when OpenRouter says; not when it reports nothing (or zero).
+  const split = (cd: string) => interpretPayload(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"cost":0.003,"cost_details":${cd}}}`).usage;
+  const both = split('{"upstream_inference_cost":null,"upstream_inference_prompt_cost":0.001,"upstream_inference_completions_cost":0.0015}');
+  assert.equal(both?.readCost, 0.001);
+  assert.equal(both?.writeCost, 0.0015);
+  assert.ok(!("readCost" in split('{"upstream_inference_cost":null}')!));
+  assert.ok(!("readCost" in split('{"upstream_inference_prompt_cost":0,"upstream_inference_completions_cost":0}')!));
 
   const err = interpretPayload('{"error":{"code":"server_error","message":"Overloaded"}}').error ?? "";
   assert.match(err, /host failed partway through\. OpenRouter says: \u201cOverloaded\u201d \(code: server_error\)$/);
@@ -256,7 +264,7 @@ test("model list: prices per million, thinking levels, batch and non-text models
       {
         id: "anthropic/claude-opus-5.5",
         name: "Anthropic: Claude Opus 5.5",
-        pricing: { prompt: "0.000004", completion: "0.00002" },
+        pricing: { prompt: "0.000004", completion: "0.00002", input_cache_read: "0.0000004", input_cache_write: "0.000005" },
         context_length: 1000000,
         architecture: { input_modalities: ["text", "image", "file"], output_modalities: ["text"] },
         reasoning: { mandatory: true, supported_efforts: ["max", "xhigh", "high", "medium", "low"], default_effort: "high" },
@@ -278,6 +286,9 @@ test("model list: prices per million, thinking levels, batch and non-text models
     const opus = models[0]!;
     assert.equal(opus.inputPrice, 4);
     assert.equal(opus.outputPrice, 20);
+    assert.ok(Math.abs(opus.cacheReadPrice! - 0.4) < 1e-9);
+    assert.ok(Math.abs(opus.cacheWritePrice! - 5) < 1e-9);
+    assert.ok(!("cacheReadPrice" in models[3]!), "none listed");
     assert.deepEqual(opus.inputModalities, ["text", "image", "file"]);
     assert.deepEqual(opus.reasoning, { efforts: ["max", "xhigh", "high", "medium", "low"], defaultEffort: "high", mandatory: true, defaultEnabled: undefined });
     assert.equal(models[3]!.reasoning, undefined);
@@ -339,17 +350,19 @@ test("streamChat passes on the request id and host as soon as they arrive, even 
   );
 });
 
-test("fetchHost: the host from OpenRouter's record of a request; null when it has none", async () => {
+test("fetchGeneration: the host and pages read from OpenRouter's record of a request; null when it has none", async () => {
   const asked: { url: string; auth: string }[] = [];
   await withFetch(
     (async (url: string, init?: RequestInit) => {
       asked.push({ url, auth: String((init?.headers as Record<string, string>).Authorization) });
-      if (url.endsWith("gen-1")) return new Response(JSON.stringify({ data: { id: "gen-1", provider_name: "DeepInfra" } }));
+      if (url.endsWith("gen-1")) return new Response(JSON.stringify({ data: { id: "gen-1", provider_name: "DeepInfra", num_fetches: 2 } }));
+      if (url.endsWith("gen-3")) return new Response(JSON.stringify({ data: { id: "gen-3" } }));
       return new Response(JSON.stringify({ error: { message: "Generation not found" } }), { status: 404 });
     }) as typeof fetch,
     async () => {
-      assert.equal(await fetchHost("sk-test", "gen-1"), "DeepInfra");
-      assert.equal(await fetchHost("sk-test", "gen-2"), null);
+      assert.deepEqual(await fetchGeneration("sk-test", "gen-1"), { host: "DeepInfra", pagesRead: 2 });
+      assert.equal(await fetchGeneration("sk-test", "gen-2"), null);
+      assert.deepEqual(await fetchGeneration("sk-test", "gen-3"), {}, "a record that doesn't say");
     },
   );
   assert.deepEqual(asked[0], { url: "https://openrouter.ai/api/v1/generation?id=gen-1", auth: "Bearer sk-test" });

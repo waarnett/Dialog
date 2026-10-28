@@ -671,6 +671,40 @@
         display: block;
       }
 
+      /* The cost table: what for, how many tokens, more about them, whether worked out ("about"), and what it cost. */
+      .entry button.foot.open .costs {
+        display: grid;
+        grid-template-columns: auto auto auto auto auto;
+        justify-content: start;
+        margin: 0.15rem 0;
+      }
+
+      /* Spaced by padding rather than gaps, so the line above the total runs unbroken. */
+      .entry button.foot.open .costs>span {
+        padding-right: 0.8rem;
+      }
+
+      .entry button.foot.open .costs>.amount {
+        padding-right: 0;
+      }
+
+      .entry button.foot.open .costs .tokens {
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .entry button.foot.open .costs>.about {
+        padding-right: 0.3rem;
+      }
+
+      .entry button.foot.open .costs .amount {
+        white-space: nowrap;
+      }
+
+      .entry button.foot.open .costs .total {
+        border-top: 1px solid var(--line);
+      }
+
       .entry button.foot.open .more {
         display: block;
         text-align: right;
@@ -2425,23 +2459,68 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return parts.join(" ");
         }
 
-        function usageText(e) {
+        function costRows(e, model) {
+          if (e.cost === void 0) return [];
+          const amount = (dollars) => dollars === void 0 ? "" : "$" + dollars.toFixed(2);
+          const rows = [];
           const u = e.usage;
-          if (!u) return void 0;
-          const n = (x) => x.toLocaleString("en-US");
-          const parts = [];
-          if (u.cachedTokens) parts.push(`${n(u.cachedTokens)} at the re-read discount`);
-          if (u.cacheWriteTokens) parts.push(`${n(u.cacheWriteTokens)} stored for re-reading`);
-          const read2 = `${n(u.promptTokens)} tokens read` + (parts.length ?
-            ` (${parts.join(", ")})` : "");
-          const wrote = `${n(u.completionTokens)} written` + (u.reasoningTokens ?
-            ` (${n(u.reasoningTokens)} of them thinking)` : "");
-          return `${read2}; ${wrote}`;
+          if (u) {
+            const n = (x) => x.toLocaleString("en-US");
+            const exact = u.readCost !== void 0 && u.writeCost !== void 0;
+            let read2 = u.readCost;
+            let write2 = u.writeCost;
+            if (!exact && model && model.inputPrice >= 0 && model.outputPrice >= 0) {
+              const plain = Math.max(0, u.promptTokens - u.cachedTokens - u.cacheWriteTokens);
+              read2 = (plain * model.inputPrice + u.cachedTokens * (model.cacheReadPrice ?? model
+                .inputPrice) + u.cacheWriteTokens * (model.cacheWritePrice ?? model
+                .inputPrice)) / 1e6;
+              write2 = u.completionTokens * model.outputPrice / 1e6;
+            }
+            const about = !exact && read2 !== void 0;
+            const cache = [];
+            if (u.cachedTokens) cache.push(`${n(u.cachedTokens)} at the re-read discount`);
+            if (u.cacheWriteTokens) cache.push(`${n(u.cacheWriteTokens)} stored for re-reading`);
+            rows.push({
+              item: "Reading",
+              tokens: `${n(u.promptTokens)} tokens`,
+              note: cache.length ? `(${cache.join(", ")})` : "",
+              about,
+              amount: amount(read2)
+            });
+            rows.push({
+              item: "Writing",
+              tokens: `${n(u.completionTokens)} tokens`,
+              note: u.reasoningTokens ? `(${n(u.reasoningTokens)} of them thinking)` : "",
+              about,
+              amount: amount(write2)
+            });
+            const web = webUseText(u);
+            if (web) {
+              const left = read2 === void 0 || write2 === void 0 ? void 0 : Math.max(0, e.cost -
+                read2 - write2);
+              rows.push({
+                item: "Web",
+                tokens: "",
+                note: web,
+                about,
+                amount: amount(left)
+              });
+            }
+          }
+          rows.push({
+            item: "Total",
+            tokens: "",
+            note: "",
+            about: false,
+            amount: amount(e.cost)
+          });
+          return rows;
         }
 
         function webUseText(u) {
           const searches = u?.webSearches ?? 0;
-          const pages = u?.webToolsUsed === void 0 ? 0 : Math.max(0, u.webToolsUsed - searches);
+          const pages = u?.pagesRead ?? (u?.webToolsUsed === void 0 ? 0 : Math.max(0, u
+            .webToolsUsed - searches));
           const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
           return [searches ? plural(searches, "search", "searches") : "", pages ? plural(pages,
             "page read", "pages read") : ""].filter(Boolean).join(" and ");
@@ -2468,16 +2547,18 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           }
           if (e.host) lines.push(`Host: ${e.host}.`);
           else if (lookingUpHost) lines.push("Host: looking up\u2026");
-          if (e.cost !== void 0) {
-            const usage = usageText(e);
-            lines.push(`Cost: ${formatCost(e.cost)}` + (usage ? `, for ${usage}.` : "."));
-          }
-          const web = webUseText(e.usage);
-          if (web) lines.push(`Web: ${web}.`);
+          const costs = costRows(e, modelPrices(e, models2));
+          if (costs.length) lines.push(costs);
           const speed = turnSpeed(e);
           if (speed) lines.push(`Speed: ${speedDetails(e, speed)}`);
           if (e.status === "stopped") lines.push("Stopped early.");
           return lines;
+        }
+
+        function modelPrices(e, models2) {
+          const find = (id) => id ? models2?.find((m) => m.id === id.trim()) : void 0;
+          const asked = find(e.seatModel);
+          return find(e.model) ?? (asked?.aliasOf ? find(asked.aliasOf.id) : void 0) ?? asked;
         }
 
         function totalCost(entries) {
@@ -3738,11 +3819,17 @@ body {
           return lines.length ? `<span class="glance">${lines.join("")}</span>` : "";
         }
 
+        function costTableHtml(rows) {
+          const row = (r) =>
+            `<tr${r.item === "Total" ? ` class="total"` : ""}><th>${esc(r.item)}</th><td class="tokens">${esc(r.tokens)}</td><td>${esc(r.note)}</td><td class="about">${r.about ? "about" : ""}</td><td class="amount">${esc(r.amount)}</td></tr>`;
+          return `<table class="costs">${rows.map(row).join("")}</table>`;
+        }
+
         function footHtml(e, opts) {
           if (opts.details?.has(e.id)) {
             const lines = turnDetails(e, opts.models);
             if (lines.length)
-            return `<div class="foot details">${lines.map((l) => `<p>${esc(l)}</p>`).join("")}</div>`;
+            return `<div class="foot details">${lines.map((l) => typeof l === "string" ? `<p>${esc(l)}</p>` : costTableHtml(l)).join("")}</div>`;
           }
           return e.status === "stopped" ? `<div class="foot"><span>stopped early</span></div>` :
             "";
@@ -4032,6 +4119,13 @@ details.file summary { cursor: pointer; }
 .foot { display: flex; gap: 1rem; justify-content: flex-end; font-size: 0.78rem; color: var(--muted); margin-top: 0.35rem; }
 .foot.details { display: block; margin-top: 0.45rem; padding: 0.45rem 0.7rem; font-size: 0.82rem; line-height: 1.5; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
 .foot.details p { margin: 0; }
+.foot.details table.costs { border-collapse: collapse; margin: 0.15rem 0; font-variant-numeric: tabular-nums; }
+.foot.details .costs th { font-weight: normal; text-align: left; padding: 0 0.8rem 0 0; }
+.foot.details .costs td { padding: 0 0.8rem 0 0; }
+.foot.details .costs td.tokens { text-align: right; white-space: nowrap; }
+.foot.details .costs td.about { padding-right: 0.3rem; }
+.foot.details .costs td.amount { padding-right: 0; white-space: nowrap; }
+.foot.details .costs tr.total > * { border-top: 1px solid var(--line); }
 footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 @media (max-width: 640px) {
   .turn { grid-template-columns: 1fr; }
@@ -4256,6 +4350,13 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (typeof web.tool_calls_executed === "number") piece.usage.webToolsUsed = web
               .tool_calls_executed;
             if (typeof u.cost === "number") piece.cost = u.cost;
+            const cd = isObj(u.cost_details) ? u.cost_details : {};
+            const read2 = cd.upstream_inference_prompt_cost;
+            const write2 = cd.upstream_inference_completions_cost;
+            if (typeof read2 === "number" && typeof write2 === "number" && read2 + write2 > 0) {
+              piece.usage.readCost = read2;
+              piece.usage.writeCost = write2;
+            }
           }
           return piece;
         }
@@ -4481,6 +4582,12 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               name: typeof m.name === "string" ? m.name : m.id,
               inputPrice: Number(pricing.prompt ?? 0) * 1e6,
               outputPrice: Number(pricing.completion ?? 0) * 1e6,
+              ...pricing.input_cache_read !== void 0 ? {
+                cacheReadPrice: Number(pricing.input_cache_read) * 1e6
+              } : {},
+              ...pricing.input_cache_write !== void 0 ? {
+                cacheWritePrice: Number(pricing.input_cache_write) * 1e6
+              } : {},
               contextLength: num(m.context_length),
               inputModalities: ins,
               reasoning: parseReasoning(m.reasoning),
@@ -4514,7 +4621,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             limitReset: typeof d.limit_reset === "string" ? d.limit_reset : null
           };
         }
-        async function fetchHost(apiKey, requestId) {
+        async function fetchGeneration(apiKey, requestId) {
           const res = await send(`${BASE}/generation?id=${encodeURIComponent(requestId)}`, {
             headers: {
               Authorization: `Bearer ${apiKey}`
@@ -4522,9 +4629,16 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           });
           if (!res.ok) return null;
           const j = await res.json();
-          const d = isObj(j) && isObj(j.data) ? j.data : {};
-          return typeof d.provider_name === "string" && d.provider_name ? d.provider_name :
-          null;
+          if (!isObj(j) || !isObj(j.data)) return null;
+          const d = j.data;
+          return {
+            ...typeof d.provider_name === "string" && d.provider_name ? {
+              host: d.provider_name
+            } : {},
+            ...typeof d.num_fetches === "number" ? {
+              pagesRead: d.num_fetches
+            } : {}
+          };
         }
         async function fetchCredits(managementKey) {
           const res = await send(`${BASE}/credits`, {
@@ -4558,8 +4672,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         // src/storage.ts
         var SETTINGS_KEY = "dialog.settings.v1";
         var SESSION_KEY = "dialog.session.v1";
-        var SAVED_KEY = "dialog.saved.v1";
-        var MODELS_KEY = "dialog.models.v5";
+        var MODELS_KEY = "dialog.models.v6";
         var tab = () => sessionStorage;
         var shared = () => localStorage;
 
@@ -4837,23 +4950,6 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             }
           } catch {}
         }
-
-        function conversationMark(s) {
-          const json = JSON.stringify(s.entries, (key, value) => key === "data" || key ===
-            "thinking" || key === "unsaved" ? void 0 : value);
-          let hash = 2166136261;
-          for (let i = 0; i < json.length; i++) hash = Math.imul(hash ^ json.charCodeAt(i),
-            16777619);
-          return `${json.length}.${(hash >>> 0).toString(16)}`;
-        }
-
-        function markSaved(mark) {
-          write(tab, SAVED_KEY, mark);
-        }
-
-        function hasUnsavedTurns(s) {
-          return s.entries.length > 0 && read(tab, SAVED_KEY) !== conversationMark(s);
-        }
         var CONVERSATION_FORMAT = "dialog-conversation";
         var DATA_OPEN = `<script type="application/json" id="${CONVERSATION_FORMAT}">`;
 
@@ -5005,7 +5101,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.7";
+        var VERSION = "2.8.5";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -5301,14 +5397,16 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           });
         }
         async function lookUpHost(e) {
-          if (e.host || !e.requestId || !hasKey() || hostLookups.has(e.id)) return;
+          const pagesUnknown = e.usage !== void 0 && e.usage.pagesRead === void 0 && webUseText(
+            e.usage) !== "";
+          if (e.host && !pagesUnknown || !e.requestId || !hasKey() || hostLookups.has(e.id))
+            return;
           hostLookups.add(e.id);
           try {
-            const host = await fetchHost(settings.apiKey.trim(), e.requestId);
-            if (host) {
-              e.host = host;
-              persist();
-            }
+            const record = await fetchGeneration(settings.apiKey.trim(), e.requestId);
+            if (record?.host) e.host = record.host;
+            if (record?.pagesRead !== void 0 && e.usage) e.usage.pagesRead = record.pagesRead;
+            if (record) persist();
           } catch {}
           hostLookups.delete(e.id);
           const article = [...els.transcript.querySelectorAll("article.entry")].find((a) => a
@@ -5319,6 +5417,34 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           article.replaceWith(fresh);
           if (focused)(fresh.querySelector("button.glance") ?? fresh.querySelector(
             "button.foot"))?.focus();
+        }
+
+        function costTable(rows) {
+          return h(
+            "span", {
+              class: "costs"
+            },
+            ...rows.flatMap((r) => {
+              const cls = r.item === "Total" ? " total" : "";
+              return [
+                h("span", {
+                  class: "item" + cls
+                }, r.item),
+                h("span", {
+                  class: "tokens" + cls
+                }, r.tokens),
+                h("span", {
+                  class: "note" + cls
+                }, r.note),
+                h("span", {
+                  class: "about" + cls
+                }, r.about ? "about" : ""),
+                h("span", {
+                  class: "amount" + cls
+                }, r.amount)
+              ];
+            })
+          );
         }
 
         function replyModelTitle(e) {
@@ -5506,9 +5632,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                   "aria-expanded": "true",
                   onclick: toggle
                 },
-                ...details.map((line) => h("span", {
+                ...details.map((line) => typeof line === "string" ? h("span", {
                   class: "detail"
-                }, line)),
+                }, line) : costTable(line)),
                 more()
               )
             );
@@ -7307,11 +7433,7 @@ Your name (${next.humanName}), About you, the house rules and the participants (
           };
           const page2 = withConversationData(prettyHtml(conversationHtml(session, settings,
             opts)), session, settings, opts.only, opts.savedAt);
-          const mark = conversationMark(session);
-          void download(page2, conversationFileName(opts.savedAt, picked.size > 0)).then((
-          name) => {
-            if (name && !opts.only) markSaved(mark);
-          });
+          void download(page2, conversationFileName(opts.savedAt, picked.size > 0));
         }
 
         function resumeConversation(file) {
@@ -7342,7 +7464,6 @@ Your participants, house rules, name and About you will be replaced with the one
             picked.clear();
             opened.clear();
             persist();
-            markSaved(conversationMark(session));
             fillSettingsForm();
             updateBanner();
             renderSeats();
@@ -7581,10 +7702,7 @@ Your participants, house rules, name and About you will be replaced with the one
             pickerSeatId = null;
           });
           closeOnClickOutside(els.modelDialog, closeModelPicker);
-          window.addEventListener("beforeunload", (ev) => {
-            persist();
-            if (hasUnsavedTurns(session)) ev.preventDefault();
-          });
+          window.addEventListener("beforeunload", persist);
         }
 
         function start() {

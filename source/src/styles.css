@@ -346,6 +346,20 @@ button.brand { border: none; background: none; padding: 0; text-align: left; }
   font-variant-numeric: tabular-nums;
 }
 .entry button.foot.open .detail { display: block; }
+/* The cost table: what for, how many tokens, more about them, whether worked out ("about"), and what it cost. */
+.entry button.foot.open .costs {
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  justify-content: start;
+  margin: 0.15rem 0;
+}
+/* Spaced by padding rather than gaps, so the line above the total runs unbroken. */
+.entry button.foot.open .costs > span { padding-right: 0.8rem; }
+.entry button.foot.open .costs > .amount { padding-right: 0; }
+.entry button.foot.open .costs .tokens { text-align: right; white-space: nowrap; }
+.entry button.foot.open .costs > .about { padding-right: 0.3rem; }
+.entry button.foot.open .costs .amount { white-space: nowrap; }
+.entry button.foot.open .costs .total { border-top: 1px solid var(--line); }
 .entry button.foot.open .more { display: block; text-align: right; margin-top: -1.2em; }
 
 .entry .del {

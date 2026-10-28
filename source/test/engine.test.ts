@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   turnDetails,
+  costRows,
   buildMessages,
   copySeat,
   defaultSettings,
@@ -312,18 +313,48 @@ test("tokens per second: overall, and visible text once it starts", () => {
   assert.equal(turnSpeed(bot(A, "x", { usage })), undefined);
 });
 
-test("web use in the particulars: searches, and pages read where the host counts them", () => {
+test("web use in the particulars: searches, and pages read from OpenRouter's record or where the host counts them", () => {
   const usage = { promptTokens: 1, completionTokens: 1, reasoningTokens: 0, cachedTokens: 0, cacheWriteTokens: 0 };
   assert.equal(webUseText(usage), "");
   assert.equal(webUseText({ ...usage, webSearches: 2 }), "2 searches");
   assert.equal(webUseText({ ...usage, webSearches: 1, webToolsUsed: 2 }), "1 search and 1 page read");
   assert.equal(webUseText({ ...usage, webSearches: 0, webToolsUsed: 3 }), "3 pages read");
   assert.equal(webUseText({ ...usage, webSearches: 0, webToolsUsed: 0 }), "");
+  assert.equal(webUseText({ ...usage, webSearches: 1, webToolsUsed: 2, pagesRead: 3 }), "1 search and 3 pages read", "OpenRouter's record, once looked up");
   const s = setup();
   const [A] = s.seats as [Seat];
   const lines = turnDetails(bot(A, "x", { cost: 0.03, usage: { ...usage, webSearches: 1, webToolsUsed: 2 }, timing: { totalMs: 2000 } }));
-  assert.deepEqual(lines.map((l) => l.split(":")[0]), ["Model", "Cost", "Web", "Speed"]);
-  assert.equal(lines[2], "Web: 1 search and 1 page read.");
+  assert.deepEqual(lines.map((l) => (typeof l === "string" ? l.split(":")[0] : "costs")), ["Model", "costs", "Speed"]);
+});
+
+test("the cost table: reading and writing worked out from the prices (about), the web what's left of the total, all to the cent", () => {
+  const model = { id: "m/x", name: "X", inputPrice: 4, outputPrice: 20, cacheReadPrice: 0.4, cacheWritePrice: 5, contextLength: 1, inputModalities: ["text"], tools: true };
+  const usage = { promptTokens: 100000, completionTokens: 2000, reasoningTokens: 500, cachedTokens: 50000, cacheWriteTokens: 10000, webSearches: 1, webToolsUsed: 2 };
+  const s = setup();
+  const [A] = s.seats as [Seat];
+  const e = bot(A, "x", { cost: 0.3, usage });
+  assert.deepEqual(costRows(e, model), [
+    { item: "Reading", tokens: "100,000 tokens", note: "(50,000 at the re-read discount, 10,000 stored for re-reading)", about: true, amount: "$0.23" },
+    { item: "Writing", tokens: "2,000 tokens", note: "(500 of them thinking)", about: true, amount: "$0.04" },
+    { item: "Web", tokens: "", note: "1 search and 1 page read", about: true, amount: "$0.03" },
+    { item: "Total", tokens: "", note: "", about: false, amount: "$0.30" },
+  ]);
+  // OpenRouter's own split: exact, no "about".
+  const exact = costRows({ ...e, usage: { ...usage, readCost: 0.2, writeCost: 0.05 } }, model);
+  assert.deepEqual(exact.map((r) => r.amount), ["$0.20", "$0.05", "$0.05", "$0.30"]);
+  assert.ok(exact.every((r) => !r.about));
+  // No prices to go by (unlisted, or "varies"): the counts, and only the total's cost.
+  for (const m of [undefined, { ...model, inputPrice: -1, outputPrice: -1 }]) {
+    const rows = costRows(e, m);
+    assert.deepEqual(rows.map((r) => r.amount), ["", "", "", "$0.30"]);
+    assert.ok(rows.every((r) => !r.about));
+  }
+  // Under half a cent: $0.00.
+  assert.equal(costRows(bot(A, "x", { cost: 0.0042 }), model)[0]!.amount, "$0.00");
+  // No web use: no web row. No usage: just the total. No cost: no table.
+  assert.deepEqual(costRows(bot(A, "x", { cost: 0.01, usage: { ...usage, webSearches: 0, webToolsUsed: 0 } }), model).map((r) => r.item), ["Reading", "Writing", "Total"]);
+  assert.deepEqual(costRows(bot(A, "x", { cost: 0.01 }), model), [{ item: "Total", tokens: "", note: "", about: false, amount: "$0.01" }]);
+  assert.deepEqual(costRows(bot(A, "x", {}), model), []);
 });
 
 test("after a pause (back from the web), a new paragraph, but only after a finished sentence", () => {
@@ -712,7 +743,7 @@ test("a private exchange with several: only its members see the message and the 
 
 test("particulars: the host after the model, once known; a note while it is being looked up", () => {
   const e: Entry = { id: "r", speaker: "A", speakerName: "Qwen", text: "Hi.", time: "t", status: "done", model: "qwen/qwen3.8-max", cost: 0.001 };
-  assert.ok(!turnDetails(e).some((l) => l.startsWith("Host")), "unknown: left out");
+  assert.ok(!turnDetails(e).some((l) => typeof l === "string" && l.startsWith("Host")), "unknown: left out");
   assert.equal(turnDetails(e, undefined, true)[1], "Host: looking up…");
   assert.deepEqual(turnDetails({ ...e, host: "Alibaba" }).slice(0, 2), ["Model: qwen/qwen3.8-max.", "Host: Alibaba."]);
 });

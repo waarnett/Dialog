@@ -37,6 +37,11 @@ export interface Usage {
   webSearches?: number;
   /** Web tools used in all (searches and pages read), when the host reports it; some report only searches. */
   webToolsUsed?: number;
+  /** Pages read, from OpenRouter's record of the request (looked up when the particulars are opened). */
+  pagesRead?: number;
+  /** What reading and writing cost, in dollars, when OpenRouter reports it (it doesn't always). */
+  readCost?: number;
+  writeCost?: number;
 }
 
 export interface Citation {

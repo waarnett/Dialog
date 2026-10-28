@@ -10,10 +10,7 @@ import {
   loadSettings,
   MODELS_MAX_AGE_MS,
   modelsAreStale,
-  conversationMark,
   forgetTab,
-  hasUnsavedTurns,
-  markSaved,
   saveCachedModels,
   saveSession,
   saveSettings,
@@ -215,20 +212,6 @@ test("tabs: forgetting a tab's storage leaves other pages' data in it alone", ()
   assert.deepEqual([...tabMem.keys()], ["other-app"]);
 });
 
-test("unsaved turns: none in an empty conversation; saved until it changes", () => {
-  tabMem.clear();
-  const s: Session = { startedAt: "2026-10-11T20:00:00.000Z", entries: [] };
-  assert.equal(hasUnsavedTurns(s), false);
-  s.entries.push({ id: "u1", speaker: "human", speakerName: "Bill", text: "Hello", time: "t" } as Entry);
-  assert.equal(hasUnsavedTurns(s), true);
-  markSaved(conversationMark(s));
-  assert.equal(hasUnsavedTurns(s), false);
-  s.entries[0]!.thinking = "Hmm.";
-  assert.equal(hasUnsavedTurns(s), false, "thinking isn't saved in a file, so doesn't count");
-  s.entries[0]!.text = "Hello there";
-  assert.equal(hasUnsavedTurns(s), true);
-});
-
 test("the saved model list comes back with the time it was fetched, however old; over 12 hours old, it is stale", () => {
   mem.clear();
   assert.equal(loadCachedModels(), null, "none saved yet");
@@ -243,7 +226,7 @@ test("the saved model list comes back with the time it was fetched, however old;
   assert.equal(modelsAreStale(0), true, "no list at all");
   assert.equal(modelsAreStale(at, at - 60 * 1000), false, "a minute's difference between clocks doesn't matter");
   assert.equal(modelsAreStale(at, at - 2 * hour), true, "dated in the future: the clock was wrong when it was saved");
-  mem.set("dialog.models.v5", "{not json");
+  mem.set("dialog.models.v6", "{not json");
   assert.equal(loadCachedModels(), null, "a damaged copy is ignored");
 });
 

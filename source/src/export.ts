@@ -12,6 +12,7 @@ import {
   isSettled,
   privateLabel,
   turnDetails,
+  type CostRow,
   speedDetails,
   speedLabel,
   thinkingLabel,
@@ -155,11 +156,19 @@ function glanceHtml(e: Entry): string {
   return lines.length ? `<span class="glance">${lines.join("")}</span>` : "";
 }
 
+/** A reply's cost, item by item ("about" in a column of its own, so that the amounts line up). */
+function costTableHtml(rows: CostRow[]): string {
+  const row = (r: CostRow) =>
+    `<tr${r.item === "Total" ? ` class="total"` : ""}><th>${esc(r.item)}</th><td class="tokens">${esc(r.tokens)}</td><td>${esc(r.note)}</td>` +
+    `<td class="about">${r.about ? "about" : ""}</td><td class="amount">${esc(r.amount)}</td></tr>`;
+  return `<table class="costs">${rows.map(row).join("")}</table>`;
+}
+
 /** After the text: the full particulars if they were open on screen, or else whether the reply was cut short. */
 function footHtml(e: Entry, opts: ExportOptions): string {
   if (opts.details?.has(e.id)) {
     const lines = turnDetails(e, opts.models);
-    if (lines.length) return `<div class="foot details">${lines.map((l) => `<p>${esc(l)}</p>`).join("")}</div>`;
+    if (lines.length) return `<div class="foot details">${lines.map((l) => (typeof l === "string" ? `<p>${esc(l)}</p>` : costTableHtml(l))).join("")}</div>`;
   }
   return e.status === "stopped" ? `<div class="foot"><span>stopped early</span></div>` : "";
 }
@@ -472,6 +481,13 @@ details.file summary { cursor: pointer; }
 .foot { display: flex; gap: 1rem; justify-content: flex-end; font-size: 0.78rem; color: var(--muted); margin-top: 0.35rem; }
 .foot.details { display: block; margin-top: 0.45rem; padding: 0.45rem 0.7rem; font-size: 0.82rem; line-height: 1.5; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
 .foot.details p { margin: 0; }
+.foot.details table.costs { border-collapse: collapse; margin: 0.15rem 0; font-variant-numeric: tabular-nums; }
+.foot.details .costs th { font-weight: normal; text-align: left; padding: 0 0.8rem 0 0; }
+.foot.details .costs td { padding: 0 0.8rem 0 0; }
+.foot.details .costs td.tokens { text-align: right; white-space: nowrap; }
+.foot.details .costs td.about { padding-right: 0.3rem; }
+.foot.details .costs td.amount { padding-right: 0; white-space: nowrap; }
+.foot.details .costs tr.total > * { border-top: 1px solid var(--line); }
 footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 @media (max-width: 640px) {
   .turn { grid-template-columns: 1fr; }

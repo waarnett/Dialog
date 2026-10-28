@@ -300,11 +300,21 @@ asks anyone: it just adds your message (privately, if it ends with "privately" o
   exact model that answered (for a "\~" id, the model it stood for then) and the thinking
   level it was given; the **host**, the company whose servers ran the model (OpenRouter
   often has several for one model: for Qwen, say, Alibaba itself or an independent host);
-  the cost with its token counts, including how much was re-read at the discount and how
-  much was stored for re-reading; its **web use** (see Searching and reading web pages,
-  below); and the speed's breakdown. Below a long reply, the
+  a small **cost table** (below); and the speed's breakdown. Below a long reply, the
   conversation scrolls just far enough to bring them into view. Tap either again to hide
   them. Particulars that are open when you save are saved in full too.
+- **The cost table** splits a reply's cost into what it cost to read (the conversation it
+  was given, with how many tokens were re-read at the discount and how many were stored for
+  re-reading), to write (with how many of the tokens were thinking), and, if it searched or
+  read pages, the web (see Searching and reading web pages, below), with the total under
+  them. OpenRouter reports the total, and for some replies what reading and writing cost.
+  Otherwise Dialog works those out from the token counts and the model's listed prices and
+  marks them "about": the host may charge a little more or less than the listed price. All
+  the amounts are to the cent.
+  OpenRouter doesn't say what searches and pages read cost, so the web's share is what is
+  left of the total; any difference between the listed and the actual price ends up there
+  too. Without a listed price (a model whose price varies, for instance), only the total is
+  given.
 - **The host** usually arrives with the reply. If it doesn't, Dialog asks OpenRouter the
   first time you open that reply's particulars ("Host: looking up…"), then keeps the answer.
   If OpenRouter can't say yet (just after a reply, its record may not
@@ -348,9 +358,10 @@ deciding for itself when to. OpenRouter does both on its behalf.
   costs at most a tenth of a cent, plus the page's text at the model's input price: a long
   page of 30,000 tokens adds about 12 cents with Claude Opus 5.5, 30 cents with GPT-6
   Astra.
-- **Which searches and pages a reply used** appears in its particulars, as its model's host
-  reports them: "Web: 2 searches", or "Web: 1 search and 1 page read". Some hosts (Claude's,
-  for instance) count only searches, so a page read doesn't always show. Dialog can't tell
+- **Which searches and pages a reply used** appears in its cost table, as its model's host
+  reports them: "2 searches", or "1 search and 1 page read". Some hosts (Claude's, for
+  instance) count only searches, so Dialog also asks OpenRouter how many pages were read the
+  first time you open the reply's particulars, and keeps the answer. Dialog can't tell
   while it happens that a participant is searching or reading: the reply simply pauses.
   When the reply's text then goes on after a finished sentence, Dialog starts a new
   paragraph, so the two parts don't run together.
@@ -533,9 +544,8 @@ rules, under Settings).
   doesn't touch the others. A new tab starts with an empty conversation and the participants
   and settings as you last changed them, in whichever tab.
 - A tab keeps its conversation while it is open, including when you reload it. Closing the
-  tab (or quitting the browser) ends its conversation, so save it first with **Save All** to
-  keep it. If it has turns that aren't saved, the browser asks before closing (or reloading)
-  the tab. **Save Selected** saves only part of the conversation, so it doesn't count.
+  tab (or quitting the browser) ends its conversation without asking, so save it first with
+  **Save All** to keep it.
 
 ## Models on this computer (LM Studio)
 

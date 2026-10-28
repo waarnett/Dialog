@@ -382,27 +382,77 @@ export function speedDetails(e: Entry, s: Speed): string {
   return parts.join(" ");
 }
 
-/** A reply's token counts in words: "12,345 tokens read (…); 1,480 written (…)". */
-export function usageText(e: Entry): string | undefined {
+/**
+ * One row of a reply's cost table: what for ("Reading"), how many tokens ("12,345 tokens"),
+ * more about them ("(10,000 at the re-read discount)", or the web use), and the cost, to the
+ * cent ("" if unknown). `about`: the cost is worked out, not reported (shown as "about", in a
+ * column of its own so that the amounts line up).
+ */
+export interface CostRow {
+  item: string;
+  tokens: string;
+  note: string;
+  about: boolean;
+  amount: string;
+}
+
+/**
+ * A reply's cost, item by item: reading, writing, the web (if it was used), and the total.
+ * OpenRouter reports the total, and for some replies what reading and writing cost. Otherwise
+ * those are worked out from the token counts and the model's listed prices, and marked
+ * "about": the host may charge a little more or less. The web is what's left of the total,
+ * as OpenRouter doesn't say what searches and pages read cost.
+ */
+export function costRows(e: Entry, model?: ModelInfo): CostRow[] {
+  if (e.cost === undefined) return [];
+  const amount = (dollars: number | undefined) => (dollars === undefined ? "" : "$" + dollars.toFixed(2));
+  const rows: CostRow[] = [];
   const u = e.usage;
-  if (!u) return undefined;
-  const n = (x: number) => x.toLocaleString("en-US");
-  const parts: string[] = [];
-  if (u.cachedTokens) parts.push(`${n(u.cachedTokens)} at the re-read discount`);
-  if (u.cacheWriteTokens) parts.push(`${n(u.cacheWriteTokens)} stored for re-reading`);
-  const read = `${n(u.promptTokens)} tokens read` + (parts.length ? ` (${parts.join(", ")})` : "");
-  const wrote = `${n(u.completionTokens)} written` + (u.reasoningTokens ? ` (${n(u.reasoningTokens)} of them thinking)` : "");
-  return `${read}; ${wrote}`;
+  if (u) {
+    const n = (x: number) => x.toLocaleString("en-US");
+    const exact = u.readCost !== undefined && u.writeCost !== undefined;
+    let read = u.readCost;
+    let write = u.writeCost;
+    if (!exact && model && model.inputPrice >= 0 && model.outputPrice >= 0) {
+      const plain = Math.max(0, u.promptTokens - u.cachedTokens - u.cacheWriteTokens);
+      read =
+        (plain * model.inputPrice +
+          u.cachedTokens * (model.cacheReadPrice ?? model.inputPrice) +
+          u.cacheWriteTokens * (model.cacheWritePrice ?? model.inputPrice)) /
+        1e6;
+      write = (u.completionTokens * model.outputPrice) / 1e6;
+    }
+    const about = !exact && read !== undefined;
+    const cache: string[] = [];
+    if (u.cachedTokens) cache.push(`${n(u.cachedTokens)} at the re-read discount`);
+    if (u.cacheWriteTokens) cache.push(`${n(u.cacheWriteTokens)} stored for re-reading`);
+    rows.push({ item: "Reading", tokens: `${n(u.promptTokens)} tokens`, note: cache.length ? `(${cache.join(", ")})` : "", about, amount: amount(read) });
+    rows.push({
+      item: "Writing",
+      tokens: `${n(u.completionTokens)} tokens`,
+      note: u.reasoningTokens ? `(${n(u.reasoningTokens)} of them thinking)` : "",
+      about,
+      amount: amount(write),
+    });
+    const web = webUseText(u);
+    if (web) {
+      const left = read === undefined || write === undefined ? undefined : Math.max(0, e.cost - read - write);
+      rows.push({ item: "Web", tokens: "", note: web, about, amount: amount(left) });
+    }
+  }
+  rows.push({ item: "Total", tokens: "", note: "", about: false, amount: amount(e.cost) });
+  return rows;
 }
 
 /**
  * What a reply did on the web, as its host reports it: "2 searches", "1 search and 1 page
- * read". Some hosts count only searches, so pages read appear only when the host counts all
- * its web tools (searching and page reading are the only ones Dialog offers). Empty if none.
+ * read". Pages read come from OpenRouter's record of the request, once looked up; until then
+ * they appear only when the host counts all its web tools (searching and page reading are the
+ * only ones Dialog offers), since some hosts count only searches. Empty if none.
  */
 export function webUseText(u: Usage | undefined): string {
   const searches = u?.webSearches ?? 0;
-  const pages = u?.webToolsUsed === undefined ? 0 : Math.max(0, u.webToolsUsed - searches);
+  const pages = u?.pagesRead ?? (u?.webToolsUsed === undefined ? 0 : Math.max(0, u.webToolsUsed - searches));
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   return [searches ? plural(searches, "search", "searches") : "", pages ? plural(pages, "page read", "pages read") : ""].filter(Boolean).join(" and ");
 }
@@ -421,14 +471,17 @@ export function pauseBreak(text: string): string {
   return text.endsWith("\n") ? "\n" : "\n\n";
 }
 
+/** A line of a reply's particulars, or its cost table. */
+export type Detail = string | CostRow[];
+
 /**
  * The full particulars of a reply, shown in place of its cost and speed when you tap them:
- * the model that answered and the thinking level it was given, the cost with its token
- * counts, its web use, the speed with its breakdown, and whether it was stopped early.
+ * the model that answered and the thinking level it was given, a table of what it cost (with
+ * its token counts and web use), the speed with its breakdown, and whether it was stopped early.
  */
-export function turnDetails(e: Entry, models?: ModelInfo[], lookingUpHost = false): string[] {
+export function turnDetails(e: Entry, models?: ModelInfo[], lookingUpHost = false): Detail[] {
   if (e.speaker === "human") return [];
-  const lines: string[] = [];
+  const lines: Detail[] = [];
   const model = e.model ?? e.seatModel;
   if (model) {
     const asked = e.seatModel && e.model && e.seatModel !== e.model ? ` (for ${e.seatModel})` : "";
@@ -437,16 +490,22 @@ export function turnDetails(e: Entry, models?: ModelInfo[], lookingUpHost = fals
   }
   if (e.host) lines.push(`Host: ${e.host}.`);
   else if (lookingUpHost) lines.push("Host: looking up…");
-  if (e.cost !== undefined) {
-    const usage = usageText(e);
-    lines.push(`Cost: ${formatCost(e.cost)}` + (usage ? `, for ${usage}.` : "."));
-  }
-  const web = webUseText(e.usage);
-  if (web) lines.push(`Web: ${web}.`);
+  const costs = costRows(e, modelPrices(e, models));
+  if (costs.length) lines.push(costs);
   const speed = turnSpeed(e);
   if (speed) lines.push(`Speed: ${speedDetails(e, speed)}`);
   if (e.status === "stopped") lines.push("Stopped early.");
   return lines;
+}
+
+/**
+ * The listing with a reply's prices: the model that answered, or else the one asked for (or
+ * the model it stood for, if it follows a family's newest).
+ */
+function modelPrices(e: Entry, models?: ModelInfo[]): ModelInfo | undefined {
+  const find = (id: string | undefined) => (id ? models?.find((m) => m.id === id.trim()) : undefined);
+  const asked = find(e.seatModel);
+  return find(e.model) ?? (asked?.aliasOf ? find(asked.aliasOf.id) : undefined) ?? asked;
 }
 
 export function totalCost(entries: Entry[]): number {

@@ -155,7 +155,7 @@ function makeHarness({ savedModels, models = MODELS, url = "http://localhost/ind
           ],
         }),
       );
-      if (savedModels) window.localStorage.setItem("dialog.models.v5", JSON.stringify(savedModels));
+      if (savedModels) window.localStorage.setItem("dialog.models.v6", JSON.stringify(savedModels));
       for (const [k, v] of Object.entries(tab)) window.sessionStorage.setItem(k, v);
     },
   });
@@ -266,10 +266,15 @@ test("a full conversation in the page", async () => {
   assert.equal(glance().getAttribute("aria-expanded"), "true");
   assert.equal(d.activeElement, glance(), "the keyboard stays on it");
   const lines = [...foot().querySelectorAll(".detail")].map((x) => x.textContent);
-  assert.equal(lines.length, 3);
+  assert.equal(lines.length, 2);
   assert.equal(lines[0], "Model: resolved/model (for anthropic/claude-opus-5.5); thinking: high (default).");
-  assert.equal(lines[1], "Cost: $0.0100, for 50 tokens read; 10 written (4 of them thinking).");
-  assert.match(lines[2], /^Speed: 10 tokens written \(4 of them thinking\) in \d+\.\d s from pressing Speak to the last word: [\d,]+ tokens per second overall\. The first words appeared after \d+\.\d s/);
+  // The cost table, priced at the model asked for (the one that answered isn't listed).
+  assert.deepEqual(
+    [...foot().querySelectorAll(".costs > span")].map((x) => x.textContent),
+    ["Reading", "50 tokens", "", "about", "$0.00", "Writing", "10 tokens", "(4 of them thinking)", "about", "$0.00", "Total", "", "", "", "$0.01"],
+  );
+  assert.equal(foot().children[1].className, "costs", "between the model and the speed");
+  assert.match(lines[1], /^Speed: 10 tokens written \(4 of them thinking\) in \d+\.\d s from pressing Speak to the last word: [\d,]+ tokens per second overall\. The first words appeared after \d+\.\d s/);
   assert.equal(glance().querySelector(".cost").textContent, "$0.0100", "the margin keeps its two lines");
   foot().click();
   assert.equal(foot(), null, "tapping the particulars hides them");
@@ -1722,7 +1727,7 @@ test("the model list: fetched past the browser's copy; Refresh list; a list over
   assert.deepEqual(ids(), ["google/gemini-4-argon"]);
   assert.match(count(), /^1 of 3 models, from OpenRouter’s list as of \d\d:\d\d today\. Prices are dollars per million tokens, in \/ out\.$/);
   assert.ok(!$("#model-count").classList.contains("problem"));
-  const stored = JSON.parse(w.localStorage.getItem("dialog.models.v5"));
+  const stored = JSON.parse(w.localStorage.getItem("dialog.models.v6"));
   assert.equal(stored.models.length, 3, "the new list is saved");
   assert.ok(Math.abs(Date.now() - stored.at) < 5000, "with the time it was fetched");
 
@@ -1975,7 +1980,10 @@ test("a message ending with “privately” is private to whom it's for, by Retu
   assert.ok(saved.includes('<span class="direction">(privately, to Bill and Grok)</span>'));
   assert.equal((saved.match(/class="foot details"/g) ?? []).length, 1, "only the one that's open");
   const details = saved.match(/<div class="foot details">.*?<\/div>/)?.[0] ?? "";
-  assert.match(details, /<div class="foot details"><p>Model: resolved\/model \(for anthropic\/claude-opus-5\.5\); thinking: high \(default\)\. ?<\/p><p>Cost: \$0\.0020, for 50 tokens read; 10 written \(4 of them thinking\)\. ?<\/p><p>Speed: /);
+  assert.match(
+    details,
+    /<div class="foot details"><p>Model: resolved\/model \(for anthropic\/claude-opus-5\.5\); thinking: high \(default\)\. ?<\/p><table class="costs"><tr><th>Reading<\/th><td class="tokens">50 tokens<\/td><td><\/td><td class="about">about<\/td><td class="amount">\$0\.00<\/td><\/tr><tr><th>Writing<\/th><td class="tokens">10 tokens<\/td><td>\(4 of them thinking\)<\/td><td class="about">about<\/td><td class="amount">\$0\.00<\/td><\/tr><tr class="total"><th>Total<\/th><td class="tokens"><\/td><td><\/td><td class="about"><\/td><td class="amount">\$0\.00<\/td><\/tr><\/table><p>Speed: /,
+  );
 
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");
@@ -2172,8 +2180,8 @@ test("a reply that used the web: a new paragraph after each pause, and its searc
     ["Opening the release page as requested.", "<strong>Version:</strong> 26.12.1 is the latest."],
   );
   reply.querySelector("header .glance").click();
-  const lines = [...$$("#transcript .entry").at(-1).querySelectorAll(".foot .detail")].map((x) => x.textContent);
-  assert.equal(lines.find((l) => l.startsWith("Web:")), "Web: 2 searches.");
+  const cells = [...$$("#transcript .entry").at(-1).querySelectorAll(".foot .costs > span")].map((x) => x.textContent);
+  assert.equal(cells[cells.indexOf("Web") + 2], "2 searches");
   assert.deepEqual(errors, []);
 });
 
@@ -2257,25 +2265,17 @@ test("clicking the medallion or the name shows the version under the name; click
   assert.deepEqual(errors, []);
 });
 
-test("tabs: closing asks first only with unsaved turns; ⌘-click on New conversation opens an empty tab", async () => {
-  const { w, d, downloads, errors } = makeHarness();
+test("tabs: leaving or reloading never asks, and the tab's conversation is kept; ⌘-click on New conversation opens an empty tab", async () => {
+  const { w, d, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);
-  const asksFirst = () => {
-    const ev = new w.Event("beforeunload", { cancelable: true });
-    w.dispatchEvent(ev);
-    return ev.defaultPrevented;
-  };
-  assert.equal(asksFirst(), false, "nothing to lose yet");
-  $("#composer-text").value = "What is time?";
-  $("#composer-send").click();
-  assert.equal(asksFirst(), true, "an unsaved turn");
-  $("#btn-save").click();
-  await sleep(0);
-  assert.equal(downloads.length, 1);
-  assert.equal(asksFirst(), false, "saved with Save All");
-  $("#composer-text").value = "And space?";
-  $("#composer-send").click();
-  assert.equal(asksFirst(), true, "changed since");
+  for (const text of ["What is time?", "And space?"]) {
+    $("#composer-text").value = text;
+    $("#composer-send").click();
+  }
+  const ev = new w.Event("beforeunload", { cancelable: true });
+  w.dispatchEvent(ev);
+  assert.equal(ev.defaultPrevented, false, "the browser doesn't ask");
+  assert.equal(JSON.parse(w.sessionStorage.getItem("dialog.session.v1")).entries.length, 2, "kept for a reload");
 
   const opened = [];
   w.HTMLAnchorElement.prototype.click = function () {

@@ -24,7 +24,7 @@ const bot = (seat: Seat, text: string, extra: Partial<Entry> = {}): Entry => ({
   id: `b${n++}`, speaker: seat.id, speakerName: seat.name, text, time: T, status: "done", model: seat.model, seatModel: seat.model, ...extra,
 });
 const opusInfo = {
-  id: "anthropic/claude-opus-5.5", name: "Opus", inputPrice: 4, outputPrice: 20, contextLength: 1, inputModalities: ["text", "image", "file"],
+  id: "anthropic/claude-opus-5.5", name: "Opus", inputPrice: 4, outputPrice: 20, cacheReadPrice: 0.4, cacheWritePrice: 5, contextLength: 1, inputModalities: ["text", "image", "file"],
   reasoning: { efforts: ["max", "xhigh", "high", "medium", "low"], defaultEffort: "high", mandatory: true },
   tools: true,
 };
@@ -202,7 +202,9 @@ test("a reply whose particulars are open on screen is saved with them; a private
   assert.ok(
     html.includes(
       '<div class="foot details"><p>Model: anthropic/claude-opus-5.5; thinking: high (default).</p>' +
-        "<p>Cost: $0.0213, for 12,345 tokens read (10,000 at the re-read discount, 2,000 stored for re-reading); 1,480 written (1,310 of them thinking).</p>" +
+        '<table class="costs"><tr><th>Reading</th><td class="tokens">12,345 tokens</td><td>(10,000 at the re-read discount, 2,000 stored for re-reading)</td><td class="about">about</td><td class="amount">$0.02</td></tr>' +
+        '<tr><th>Writing</th><td class="tokens">1,480 tokens</td><td>(1,310 of them thinking)</td><td class="about">about</td><td class="amount">$0.03</td></tr>' +
+        '<tr class="total"><th>Total</th><td class="tokens"></td><td></td><td class="about"></td><td class="amount">$0.02</td></tr></table>' +
         "<p>Speed: 1,480 tokens written (1,310 of them thinking) in 21.3 s from pressing Speak to the last word: 69 tokens per second overall.",
     ),
   );
