@@ -7,3 +7,6 @@ source/test/.compiled/
 
 # macOS Finder clutter
 .DS_Store
+
+# Claude's local settings and tooling for this machine (e.g. the preview server config)
+.claude/
