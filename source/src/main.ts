@@ -10,6 +10,7 @@ import { conversationFileName, conversationHtml, copiedHtml, copiedText, escapeH
 import { makerOf, type Maker } from "./makers";
 import { MATH_CSS, mathExtension, mathHtml, mathSource } from "./math";
 import { prettyHtml } from "./pretty";
+import * as recent from "./recent";
 import {
   addressedSeat,
   addresseeLabel,
@@ -155,7 +156,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.9";
+const VERSION = "2.10.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -185,6 +186,10 @@ const els = {
   brandVersion: byId("brand-version"),
   btnSave: byId<HTMLButtonElement>("btn-save"),
   btnResume: byId<HTMLButtonElement>("btn-resume"),
+  btnRecent: byId<HTMLButtonElement>("btn-recent"),
+  recentDialog: byId<HTMLDialogElement>("recent-dialog"),
+  recentList: byId("recent-list"),
+  recentCancel: byId<HTMLButtonElement>("recent-cancel"),
   btnNew: byId<HTMLButtonElement>("btn-new"),
   btnSettings: byId<HTMLButtonElement>("btn-settings"),
   btnAddSeat: byId<HTMLButtonElement>("btn-add-seat"),
@@ -241,6 +246,33 @@ function persist(): void {
     warnedStorage = true;
     updateBanner();
   }
+  keepRecentSoon();
+}
+
+// The conversation is also kept among the recent ones (see recent.ts), a second after the
+// latest change, so a burst of changes is written once; and at once when the page is hidden
+// or closed, or before New conversation clears it.
+
+let recentTimer: ReturnType<typeof setTimeout> | undefined;
+/** Are any conversations kept? (Recent… is offered only then.) */
+let hasRecent = false;
+
+function keepRecentSoon(): void {
+  clearTimeout(recentTimer);
+  recentTimer = session.entries.length ? setTimeout(keepRecentNow, 1000) : undefined;
+}
+
+/** Keep the conversation now, if a change since it was last kept is waiting. */
+function keepRecentNow(): void {
+  if (recentTimer === undefined) return;
+  clearTimeout(recentTimer);
+  recentTimer = undefined;
+  void recent.keepRecent(store.recentId(), store.conversationData(session, settings)).then((kept) => {
+    if (kept && !hasRecent) {
+      hasRecent = true;
+      updateSaveButton();
+    }
+  });
 }
 
 /** Save shortly after typing stops, rather than on every keystroke. */
@@ -309,7 +341,7 @@ function renderTopbar(): void {
 /** Turns ticked for saving (by id). Kept only while the page is open. */
 const picked = new Set<string>();
 
-/** "Save All", or "Save Selected" while any turn is ticked; and Resume… only while the conversation is empty. */
+/** "Save All", or "Save Selected" while any turn is ticked; and Resume… and Recent… only while the conversation is empty. */
 function updateSaveButton(): void {
   for (const id of picked) if (!session.entries.some((e) => e.id === id)) picked.delete(id);
   const n = picked.size;
@@ -319,6 +351,7 @@ function updateSaveButton(): void {
     : "Save the whole conversation as an HTML file. Tick the box beside particular turns to save just those.";
   els.btnSave.disabled = session.entries.length === 0;
   els.btnResume.hidden = session.entries.length > 0;
+  els.btnRecent.hidden = session.entries.length > 0 || !hasRecent;
 }
 
 function updateBanner(): void {
@@ -2522,30 +2555,80 @@ function resumeConversation(file: File): void {
       alert(err instanceof Error ? err.message : String(err));
       return;
     }
-    const n = resumed.session.entries.length;
     const when = resumed.savedAt ? `, saved ${formatDate(resumed.savedAt)} at ${formatTime(resumed.savedAt)}` : "";
-    const seats = resumed.settings.seats;
-    const who = seats.length ? seats.map((s) => s.name).join(", ") : "no participants";
-    const ok = confirm(
-      `Resume the conversation in “${file.name}”${when}? It has ${n} ${n === 1 ? "turn" : "turns"}, with ${who}.\n\n` +
-        "Your participants, house rules, name and About you will be replaced with the ones saved with it. Your keys stay as they are.",
-    );
-    if (!ok) return;
-    stopAll();
-    settings = resumed.settings;
-    session = resumed.session;
-    picked.clear();
-    opened.clear();
-    persist();
-    fillSettingsForm();
-    updateBanner();
-    renderSeats();
-    renderComposerTo();
-    renderTranscript(true);
-    renderTopbar();
-    updateSeatStatus();
+    resume(resumed, `in “${file.name}”${when}`);
   };
   reader.readAsText(file);
+}
+
+/**
+ * After asking, carry on with a conversation (`which` says which, after "Resume the
+ * conversation"), kept from now on as the recent one `recentId`, or as a new one.
+ */
+function resume(resumed: store.ResumedConversation, which: string, recentId?: string): void {
+  const n = resumed.session.entries.length;
+  const seats = resumed.settings.seats;
+  const who = seats.length ? seats.map((s) => s.name).join(", ") : "no participants";
+  const ok = confirm(
+    `Resume the conversation ${which}? It has ${n} ${n === 1 ? "turn" : "turns"}, with ${who}.\n\n` +
+      "Your participants, house rules, name and About you will be replaced with the ones saved with it. Your keys stay as they are.",
+  );
+  if (!ok) return;
+  stopAll();
+  settings = resumed.settings;
+  session = resumed.session;
+  store.setRecentId(recentId);
+  picked.clear();
+  opened.clear();
+  persist();
+  fillSettingsForm();
+  updateBanner();
+  renderSeats();
+  renderComposerTo();
+  renderTranscript(true);
+  renderTopbar();
+  updateSeatStatus();
+}
+
+/** The list of recent conversations (offered only while the conversation is empty). */
+async function openRecent(): Promise<void> {
+  const list = await recent.listRecent();
+  els.recentList.replaceChildren(
+    ...(list.length
+      ? list.map((r) =>
+          h(
+            "button",
+            { type: "button", class: "recent-row", onclick: () => void resumeRecent(r) },
+            h("span", { class: "r-title" + (r.title ? "" : " untitled") }, r.title || "(nothing from you yet)"),
+            h("span", { class: "r-meta" }, recentDetails(r)),
+          ),
+        )
+      : [h("p", { class: "model-empty" }, "No conversations are kept in this browser now.")]),
+  );
+  if (typeof els.recentDialog.showModal === "function") els.recentDialog.showModal();
+  else els.recentDialog.setAttribute("open", "");
+}
+
+/** "15:28 today · Claude, Grok · 12 turns" */
+function recentDetails(r: recent.RecentSummary): string {
+  const who = r.seats.length ? r.seats.join(", ") : "no participants";
+  return `${formatAsOf(new Date(r.savedAt))} · ${who} · ${r.turns} ${r.turns === 1 ? "turn" : "turns"}`;
+}
+
+function closeRecent(): void {
+  if (els.recentDialog.open && typeof els.recentDialog.close === "function") els.recentDialog.close();
+  else els.recentDialog.removeAttribute("open");
+}
+
+async function resumeRecent(r: recent.RecentSummary): Promise<void> {
+  closeRecent();
+  const data = await recent.loadRecent(r.id);
+  if (!data) {
+    alert("That conversation is no longer kept in this browser.");
+    return;
+  }
+  const title = r.title ? `“${r.title}”` : "without a message from you";
+  resume(store.conversationFromData(data, settings), `${title}, last kept ${formatAsOf(new Date(r.savedAt))}`, r.id);
 }
 
 function newConversation(ev: MouseEvent): void {
@@ -2561,7 +2644,9 @@ function newConversation(ev: MouseEvent): void {
   }
   if (!confirm("Start a new conversation? The current one will be cleared. (Save it first if you want to keep it.)")) return;
   stopAll();
+  keepRecentNow(); // the one being cleared, before it goes
   session = newSession();
+  store.setRecentId();
   picked.clear();
   persist();
   renderTranscript();
@@ -2667,6 +2752,9 @@ function wire(): void {
   els.btnSave.addEventListener("click", saveConversation);
   els.btnNew.addEventListener("click", newConversation);
   els.btnResume.addEventListener("click", () => els.resumeInput.click());
+  els.btnRecent.addEventListener("click", () => void openRecent());
+  els.recentCancel.addEventListener("click", closeRecent);
+  closeOnClickOutside(els.recentDialog, closeRecent);
   els.resumeInput.addEventListener("change", () => {
     const file = els.resumeInput.files?.[0];
     els.resumeInput.value = ""; // so the same file can be chosen again
@@ -2786,6 +2874,12 @@ function wire(): void {
   closeOnClickOutside(els.modelDialog, closeModelPicker);
 
   window.addEventListener("beforeunload", persist);
+  // Keep the conversation among the recent ones before the page may go: hidden (another tab
+  // or app, which on an iPad may be the last chance) or closed.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") keepRecentNow();
+  });
+  window.addEventListener("pagehide", keepRecentNow);
 }
 
 function start(): void {
@@ -2797,6 +2891,10 @@ function start(): void {
   renderTranscript(true);
   loadModels();
   void refreshKeyInfo();
+  void recent.listRecent().then((list) => {
+    hasRecent = list.length > 0;
+    updateSaveButton();
+  });
 }
 
 start();

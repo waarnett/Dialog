@@ -26,6 +26,7 @@
     <button id="btn-save" type="button" title="Save the whole conversation as an HTML file">Save All</button>
     <button id="btn-resume" type="button" title="Carry on with a conversation saved with Save All or Save Selected, with the same participants">Resume…</button>
     <input id="resume-input" type="file" accept=".html,.htm,text/html" hidden>
+    <button id="btn-recent" type="button" title="Carry on with one of the last 25 conversations, kept in this browser even after their tabs were closed" hidden>Recent…</button>
     <button id="btn-new" type="button" title="Clear this conversation and start a new one. ⌘-click to start one in a new tab instead.">New conversation</button>
     <button id="btn-settings" type="button">Settings</button>
   </div>
@@ -84,6 +85,17 @@
         <button id="model-refresh" type="button" class="subtle" title="Get OpenRouter’s list of models again now, for a model that has only just appeared">Refresh list</button>
         <button id="model-cancel" type="button">Cancel</button>
       </span>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="recent-dialog" class="recent-dialog">
+  <div class="recent-picker">
+    <h2>Recent conversations</h2>
+    <p class="recent-note">The last 25, kept in this browser, with their files. Choose one to carry on with it.</p>
+    <div id="recent-list" class="recent-list"></div>
+    <div class="recent-foot">
+      <button id="recent-cancel" type="button">Cancel</button>
     </div>
   </div>
 </dialog>

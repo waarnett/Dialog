@@ -708,6 +708,40 @@ dialog::backdrop { background: rgba(20, 20, 18, 0.4); }
 .model-foot #model-count.problem { color: var(--error); }
 .model-foot-actions { display: flex; gap: 0.5rem; flex: none; }
 
+/* ---- recent conversations ---- */
+
+.recent-picker { padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.recent-picker h2 { margin: 0; font-weight: 400; font-size: 1.5rem; }
+.recent-note { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.recent-list {
+  max-height: calc(100vh - 12rem);
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.recent-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.recent-row:last-child { border-bottom: none; }
+.recent-row:hover, .recent-row:focus-visible { background: var(--accent); color: var(--accent-ink); }
+.recent-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-row .r-meta { color: var(--muted); font-size: 0.85rem; }
+.recent-row:hover .r-meta, .recent-row:focus-visible .r-meta { color: var(--accent-ink); }
+.recent-row .r-title.untitled { font-style: italic; }
+.recent-foot { display: flex; justify-content: flex-end; }
+
 /* ---- narrow windows ---- */
 
 @media (max-width: 1000px) {

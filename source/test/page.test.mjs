@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { JSDOM, VirtualConsole } from "jsdom";
+import { IDBFactory } from "fake-indexeddb";
 
 const html = readFileSync("dist/index.html", "utf8");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -33,8 +34,9 @@ const MODELS = {
  * `models`: what the fake OpenRouter lists at first (MODELS unless given).
  * `state.models` is what the fake OpenRouter lists; with `state.modelsStatus` set, it fails instead.
  * `url`: the page's address. `tab`: what the tab's own storage holds to start with (key → value).
+ * `idb`: the browser's database (a fake-indexeddb IDBFactory, shared by pages that share one); none if absent.
  */
-function makeHarness({ savedModels, models = MODELS, url = "http://localhost/index.html", tab = {} } = {}) {
+function makeHarness({ savedModels, models = MODELS, url = "http://localhost/index.html", tab = {}, idb } = {}) {
   const chatCalls = [];
   const modelCalls = []; // the options of every request for the model list
   const state = { models, modelsStatus: 0, hosts: {} }; // hosts: OpenRouter's records, request id → host
@@ -132,6 +134,7 @@ function makeHarness({ savedModels, models = MODELS, url = "http://localhost/ind
     beforeParse(window) {
       window.fetch = fakeFetch;
       window.TextDecoder = TextDecoder;
+      if (idb) window.indexedDB = idb;
       window.confirm = () => true;
       window.alert = (m) => errors.push(new Error("unexpected alert: " + m));
       window.URL.createObjectURL = (b) => {
@@ -971,6 +974,66 @@ test("a saved conversation can be resumed with Resume… (top bar, only before i
 
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");
+});
+
+test("recent conversations: kept in the browser's database after New conversation or a closed tab, and brought back with Recent…", async () => {
+  const idb = new IDBFactory();
+  const { w, d, replies, errors } = makeHarness({ idb });
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const entries = () => $$("#transcript .entry");
+  const notBusy = () => !$("#transcript .entry.streaming");
+  const confirms = [];
+  w.confirm = (m) => (confirms.push(m), true);
+  await until(() => $$(".seat").length === 2, "seats");
+  await sleep(50); // the database has been looked at
+  assert.equal($("#btn-recent").hidden, true, "nothing kept yet");
+
+  // A conversation with a PDF, then New conversation: the one cleared is kept.
+  const input = $("#attach-input");
+  Object.defineProperty(input, "files", { value: [new w.File(["%PDF-1.4 hello"], "paper.pdf", { type: "application/pdf" })], configurable: true });
+  input.dispatchEvent(new w.Event("change"));
+  await until(() => $$("#attach-tray .chip").length === 1, "the PDF in the tray");
+  $("#composer-text").value = "What is time? Discuss.";
+  $("#composer-send").click();
+  replies.push({ pieces: ["Change."], cost: 0.01 });
+  $$("#seat-list .seat")[0].querySelector("button.speak").click();
+  await until(() => entries().length === 2 && notBusy(), "Claude's reply");
+  assert.equal($("#btn-recent").hidden, true, "not while a conversation is under way");
+  $("#btn-new").click();
+  await until(() => !$("#btn-recent").hidden, "Recent… once a conversation is kept");
+
+  // Recent… lists it; choosing it brings it back, file and all.
+  $("#btn-recent").click();
+  await until(() => $$("#recent-list .recent-row").length === 1, "the list");
+  assert.equal($("#recent-dialog").open, true);
+  const row = $("#recent-list .recent-row");
+  assert.equal(row.querySelector(".r-title").textContent, "What is time?");
+  assert.match(row.querySelector(".r-meta").textContent, /^\d\d:\d\d today · Claude, Grok · 2 turns$/);
+  row.click();
+  await until(() => entries().length === 2, "brought back");
+  assert.equal($("#recent-dialog").open, false);
+  assert.match(confirms.at(-1), /^Resume the conversation “What is time\?”, last kept \d\d:\d\d today\? It has 2 turns, with Claude, Grok\./);
+  assert.ok(entries()[0].textContent.includes("paper.pdf"));
+  const stored = JSON.parse(w.sessionStorage.getItem("dialog.session.v1"));
+  assert.ok(w.sessionStorage.getItem("dialog.file." + stored.entries[0].attachments[0].id).startsWith("data:application/pdf;base64,"), "the PDF with it");
+
+  // It carries on, and the tab closes: a new tab finds it, kept once, with the latest turn.
+  replies.push({ pieces: ["Still change."], cost: 0.001 });
+  $$("#seat-list .seat")[1].querySelector("button.speak").click();
+  await until(() => entries().length === 3 && notBusy(), "Grok's reply");
+  w.dispatchEvent(new w.Event("pagehide"));
+  const second = makeHarness({ idb });
+  const $2 = (sel) => second.d.querySelector(sel);
+  await until(() => !$2("#btn-recent").hidden, "Recent… in the new tab");
+  $2("#btn-recent").click();
+  await until(() => second.d.querySelectorAll("#recent-list .recent-row").length === 1, "the new tab's list");
+  assert.match($2("#recent-list .r-meta").textContent, /· 3 turns$/, "the same conversation, not a second copy");
+  $2("#recent-cancel").click();
+  assert.equal($2("#recent-dialog").open, false);
+
+  await sleep(20);
+  assert.deepEqual([...errors, ...second.errors].map(String), [], "no script errors");
 });
 
 test("a reply's host: shown in its particulars, from the reply itself or looked up when they're first opened", async () => {

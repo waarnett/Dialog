@@ -314,6 +314,27 @@ function removeUnusedFiles(s: Session, area = tab): void {
   }
 }
 
+// Which of the recent conversations (see recent.ts) this tab's conversation is kept as.
+
+const RECENT_ID_KEY = "dialog.recentId.v1";
+let recentIdNow: string | undefined;
+
+/** The id this tab's conversation is kept under among the recent ones: made on first use, kept through reloads. */
+export function recentId(): string {
+  if (recentIdNow === undefined) {
+    const v = read(tab, RECENT_ID_KEY);
+    recentIdNow = typeof v === "string" ? v : newId();
+    write(tab, RECENT_ID_KEY, recentIdNow);
+  }
+  return recentIdNow;
+}
+
+/** Keep this tab's conversation under `id` from now on: a new one for a new conversation. */
+export function setRecentId(id = newId()): void {
+  recentIdNow = id;
+  write(tab, RECENT_ID_KEY, id);
+}
+
 // A saved conversation, to resume: Save All and Save Selected write the readable page with
 // the conversation's data inside it, in a block the browser doesn't show or run.
 
@@ -328,8 +349,33 @@ const DATA_OPEN = `<script type="application/json" id="${CONVERSATION_FORMAT}">`
  * About you. Never the keys, the LM Studio address or the participants' thinking.
  */
 export function withConversationData(html: string, session: Session, settings: Settings, only?: ReadonlySet<string>, savedAt = new Date()): string {
+  // With every "<" written as \u003c, nothing in the data can end the block early.
+  const json = JSON.stringify(conversationData(session, settings, only, savedAt)).replace(/</g, "\\u003c");
+  const block = `${DATA_OPEN}${json}</script>\n`;
+  const end = html.lastIndexOf("</body>");
+  return end === -1 ? html + block : html.slice(0, end) + block + html.slice(end);
+}
+
+/** What a saved page carries to resume the conversation (and what Recent… keeps of one). */
+export interface ConversationData {
+  format: typeof CONVERSATION_FORMAT;
+  version: 1;
+  savedAt: string;
+  humanName: string;
+  aboutHuman: string;
+  houseRules: string;
+  seats: Seat[];
+  startedAt: string;
+  entries: Entry[];
+}
+
+/**
+ * The data to resume a conversation (see withConversationData), as a copy of its own:
+ * changing the conversation afterwards doesn't change it. Thinking is never included.
+ */
+export function conversationData(session: Session, settings: Settings, only?: ReadonlySet<string>, savedAt = new Date()): ConversationData {
   const entries = only?.size ? session.entries.filter((e) => only.has(e.id) && isSettled(e)) : session.entries;
-  const data = {
+  const data: ConversationData = {
     format: CONVERSATION_FORMAT,
     version: 1,
     savedAt: savedAt.toISOString(),
@@ -340,12 +386,12 @@ export function withConversationData(html: string, session: Session, settings: S
     startedAt: session.startedAt,
     entries,
   };
-  // With every "<" written as \u003c, nothing in the data can end the block early.
-  // Thinking is never put in a saved file.
-  const json = JSON.stringify(data, (key, value: unknown) => (key === "unsaved" || key === "thinking" ? undefined : value)).replace(/</g, "\\u003c");
-  const block = `${DATA_OPEN}${json}</script>\n`;
-  const end = html.lastIndexOf("</body>");
-  return end === -1 ? html + block : html.slice(0, end) + block + html.slice(end);
+  return JSON.parse(JSON.stringify(data, (key, value: unknown) => (key === "unsaved" || key === "thinking" ? undefined : value))) as ConversationData;
+}
+
+/** Is this the data to resume a conversation (at least in outline)? */
+export function isConversationData(v: unknown): v is ConversationData {
+  return isObj(v) && v.format === CONVERSATION_FORMAT && Array.isArray(v.entries);
 }
 
 export interface ResumedConversation {
@@ -370,12 +416,17 @@ export function conversationFromFile(text: string, current: Settings): ResumedCo
       v = undefined;
     }
   }
-  if (!isObj(v) || v.format !== CONVERSATION_FORMAT || !Array.isArray(v.entries)) {
+  if (!isConversationData(v)) {
     if (start === -1 && /<header class="doc-head">/.test(text)) {
       throw new Error("That conversation was saved by an earlier version of Dialog, which didn't keep what's needed to resume it. It can still be read by a browser.");
     }
     throw new Error("That isn't a conversation saved by Dialog (with Save All or Save Selected).");
   }
+  return conversationFromData(v, current);
+}
+
+/** A conversation to resume from its data (from a saved page, or kept by Recent…). */
+export function conversationFromData(v: ConversationData, current: Settings): ResumedConversation {
   const parsed = parseSettings({ ...v, seats: Array.isArray(v.seats) ? v.seats : [] });
   const settings: Settings = { ...current, humanName: parsed.humanName, aboutHuman: parsed.aboutHuman, houseRules: parsed.houseRules, seats: parsed.seats };
   const entries = cleanEntries(v.entries, (a) => (typeof a.data === "string" ? a.data : undefined));

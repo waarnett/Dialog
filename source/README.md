@@ -54,8 +54,8 @@ guide and shows Dialog's version number.
   credit. Hover for credit bought and used; click to open OpenRouter's Credits page.
 - **This month:** what this key has spent since the 1st (months begin at midnight UTC).
   Hover for its all-time spending and its limit.
-- **Save All** or **Save Selected**, **Resume…** (only while the conversation is empty),
-  **New conversation** and **Settings**: see Saving, resuming and tabs, and Settings.
+- **Save All** or **Save Selected**, **Resume…** and **Recent…** (only while the conversation
+  is empty), **New conversation** and **Settings**: see Saving, resuming and tabs, and Settings.
 
 A **notice** under the top bar says when something needs attention: no API key yet, or the
 browser refusing to let Dialog save (the conversation would then be lost when the page
@@ -339,6 +339,13 @@ participant may offer one.
   top bar while the conversation is empty (after New conversation, say). Everything comes
   back as it was, including the participants, house rules, your name and About you. Your keys
   are never in a saved file, so yours stay.
+- **Recent…** is a safety net for conversations you didn't save. Dialog keeps the last 25,
+  with their files, in your browser, updating each one as it goes, so a conversation survives
+  closing its tab, quitting the browser or pressing New conversation. Recent… appears in the
+  top bar while the conversation is empty; choose one and carry on where it left off, with
+  the same participants. It's a net, not an archive: clearing your browser's website data removes them,
+  and Safari removes them by itself if you don't open Dialog for about a week of using Safari
+  (unless Dialog is added to the Dock or Home Screen, see below). Save anything you want to keep.
 - **Where files go:** Chrome lets you choose the folder and name. Safari saves to Downloads,
   unless you set Safari Settings › General › File download location to "Ask for each
   download".
@@ -350,7 +357,11 @@ participant may offer one.
 - **Each tab is a conversation of its own,** with its own participants and settings. A new
   tab starts empty, with the participants and settings as you last changed them in any tab.
 - A tab keeps its conversation when you reload it. **Closing the tab** (or quitting the
-  browser) ends the conversation without asking, so save it first if you want it.
+  browser) ends the conversation without asking; Recent… can still bring it back.
+- **On an iPad or iPhone**, Dialog works the same in Safari. Adding it to the Home Screen
+  (Share › Add to Home Screen), or on a Mac to the Dock (File › Add to Dock), gives it a
+  window of its own and keeps Recent… safe from Safari's one-week clean-up. It also keeps its
+  own settings: bring yours across with Save settings to a file and Restore from a file.
 
 ## Settings
 
@@ -442,8 +453,8 @@ conversation expensive; start a new one when the old one has served its purpose.
 
 The conversation, files, settings and keys are kept in your browser, on this computer only.
 Each tab keeps its own conversation until it closes; your latest settings are kept for the
-next tab. Each browser keeps its own: Chrome doesn't see what Safari has. Use Save settings
-to a file and Save All to carry things across.
+next tab, and your last 25 conversations for Recent…. Each browser keeps its own: Chrome
+doesn't see what Safari has. Use Save settings to a file and Save All to carry things across.
 
 Messages go only to OpenRouter, which passes each to the model you chose, or, for an
 LM Studio participant, only to LM Studio on this computer. The management key goes only to
