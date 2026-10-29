@@ -31,3 +31,8 @@ test("README.html: the contents list links to every top-level section", () => {
   const links = [...main.querySelectorAll('a[href^="#"]')].map((a) => a.getAttribute("href"));
   assert.deepEqual(links, sections);
 });
+
+test("README.html: the version under the name at the top, the same as the page's", () => {
+  const version = /const VERSION = "([^"]+)"/.exec(readFileSync("src/main.ts", "utf8"))[1];
+  assert.equal(window.document.querySelector("header .version").textContent, `Version ${version}`);
+});

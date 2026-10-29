@@ -863,7 +863,7 @@ test("settings can be saved to a file and restored from one", async () => {
   assert.deepEqual(errors.map(String), [], "no script errors");
 });
 
-test("a saved conversation can be resumed with Resume… (top bar, only before it starts), whole or just the ticked turns", async () => {
+test("a saved conversation can be resumed with Restore… and Add from… (top bar, only before it starts), whole or just the ticked turns", async () => {
   const { w, d, blobs, replies, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);
   const $$ = (sel) => [...d.querySelectorAll(sel)];
@@ -872,15 +872,27 @@ test("a saved conversation can be resumed with Resume… (top bar, only before i
   await until(() => $$(".seat").length === 2, "seats");
   const confirms = [];
   w.confirm = (m) => (confirms.push(m), true);
-  const alerts = [];
-  w.alert = (m) => alerts.push(m);
-  const resume = (file) => {
-    const input = $("#resume-input");
+  // Safari's chooser for Add from…, with a single file chosen.
+  const addFile = (file) => {
+    const input = $("#folder-input");
     Object.defineProperty(input, "files", { value: [file], configurable: true });
     input.dispatchEvent(new w.Event("change"));
   };
-  const resumeButton = () => $("#btn-resume");
-  assert.equal(resumeButton().textContent, "Resume…");
+  const resumeButton = () => $("#btn-restore");
+  assert.equal(resumeButton().textContent, "Restore…");
+  assert.equal($("#btn-resume"), null, "no Resume… of its own");
+  assert.equal($("#btn-recent"), null, "no Recent… of its own");
+  // Restore…, then Add from… at the foot of its list with the file, then the file's row.
+  const viaAdd = async (file) => {
+    resumeButton().click();
+    await until(() => $("#restore-dialog").open, "Restore… open");
+    assert.equal($("#restore-other"), null, "no Other…");
+    $("#restore-add").click();
+    addFile(file);
+    await until(() => $("#restore-status").textContent === `Added “${file.name}”`, "the file added");
+    $$("#restore-list .restore-row").find((row) => row.title === `Saved as “${file.name}”`).click();
+    assert.equal($("#restore-dialog").open, false, "closed by choosing it");
+  };
   assert.equal(resumeButton().hidden, false, "in the top bar while the conversation is empty");
   assert.ok(!$("#transcript .empty").textContent.includes("Resume a saved"), "not on the welcome screen itself");
 
@@ -919,8 +931,7 @@ test("a saved conversation can be resumed with Resume… (top bar, only before i
   assert.equal($$("#seat-list .seat").length, 1);
 
   // Resume it: the same turns, participants and name; the key stays.
-  resumeButton().click();
-  resume(new w.File([all], "Dialog 2026 Oct 23 1405.html", { type: "text/html" }));
+  await viaAdd(new w.File([all], "Dialog 2026 Oct 23 1405.html", { type: "text/html" }));
   await until(() => entries().length === 4, "resumed turns");
   assert.equal(resumeButton().hidden, true);
   assert.match(confirms.at(-1), /^Resume the conversation in “Dialog 2026 Oct 23 1405\.html”, saved \d{4} \w{3} \d\d at \d\d:\d\d\? It has 4 turns, with Claude, Grok\./);
@@ -955,28 +966,29 @@ test("a saved conversation can be resumed with Resume… (top bar, only before i
   assert.equal(resumeButton().hidden, true, "hidden while the first reply arrives");
   await until(() => notBusy(), "the first reply");
   $("#btn-new").click();
-  resumeButton().click();
-  resume(new w.File([one], "Dialog selected.html", { type: "text/html" }));
+  await viaAdd(new w.File([one], "Dialog selected.html", { type: "text/html" }));
   await until(() => entries().length === 1, "resumed selection");
   assert.match(confirms.at(-1), /It has 1 turn, with Claude, Grok\./);
   assert.equal(entries()[0].querySelector(".body").textContent.trim(), "Change.");
   assert.equal($$("#seat-list .seat").length, 2);
 
-  // A page saved before conversations could be resumed, and something else entirely: refused.
+  // A page saved before conversations could be resumed, and something else entirely: not added.
   $("#btn-new").click();
-  resume(new w.File([readable(one)], "Dialog old.html", { type: "text/html" }));
-  await until(() => alerts.length === 1, "refusal of an old file");
-  assert.match(alerts[0], /saved by an earlier version of Dialog.*It can still be read by a browser\./);
-  resume(new w.File(["<p>hello</p>"], "notes.html", { type: "text/html" }));
-  await until(() => alerts.length === 2, "refusal of another file");
-  assert.match(alerts[1], /isn't a conversation saved by Dialog/);
+  resumeButton().click();
+  await until(() => $$("#restore-list .restore-row").length === 2, "the two added before, read again");
+  addFile(new w.File([readable(one)], "Dialog old.html", { type: "text/html" }));
+  await until(() => $("#restore-status").textContent === "“Dialog old.html” isn't a conversation saved by Dialog", "an old file not added");
+  addFile(new w.File(["<p>hello</p>"], "notes.html", { type: "text/html" }));
+  await until(() => $("#restore-status").textContent === "“notes.html” isn't a conversation saved by Dialog", "another file not added");
+  assert.equal($$("#restore-list .restore-row").length, 2);
+  $("#restore-cancel").click();
   assert.equal(entries().length, 0, "nothing changed");
 
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");
 });
 
-test("recent conversations: kept in the browser's database after New conversation or a closed tab, and brought back with Recent…", async () => {
+test("recent conversations: kept in the browser's database after New conversation or a closed tab, brought back or deleted with Restore…", async () => {
   const idb = new IDBFactory();
   const { w, d, replies, errors } = makeHarness({ idb });
   const $ = (sel) => d.querySelector(sel);
@@ -986,8 +998,11 @@ test("recent conversations: kept in the browser's database after New conversatio
   const confirms = [];
   w.confirm = (m) => (confirms.push(m), true);
   await until(() => $$(".seat").length === 2, "seats");
-  await sleep(50); // the database has been looked at
-  assert.equal($("#btn-recent").hidden, true, "nothing kept yet");
+  assert.equal($("#btn-restore").hidden, false, "Restore… while the conversation is empty");
+  $("#btn-restore").click();
+  await until(() => $("#restore-dialog").open, "Restore… open");
+  assert.match($("#restore-list").textContent, /No conversations are kept in this browser now/);
+  $("#restore-cancel").click();
 
   // A conversation with a PDF, then New conversation: the one cleared is kept.
   const input = $("#attach-input");
@@ -999,20 +1014,23 @@ test("recent conversations: kept in the browser's database after New conversatio
   replies.push({ pieces: ["Change."], cost: 0.01 });
   $$("#seat-list .seat")[0].querySelector("button.speak").click();
   await until(() => entries().length === 2 && notBusy(), "Claude's reply");
-  assert.equal($("#btn-recent").hidden, true, "not while a conversation is under way");
+  assert.equal($("#btn-restore").hidden, true, "not while a conversation is under way");
   $("#btn-new").click();
-  await until(() => !$("#btn-recent").hidden, "Recent… once a conversation is kept");
+  assert.equal($("#btn-restore").hidden, false);
 
-  // Recent… lists it; choosing it brings it back, file and all.
-  $("#btn-recent").click();
-  await until(() => $$("#recent-list .recent-row").length === 1, "the list");
-  assert.equal($("#recent-dialog").open, true);
-  const row = $("#recent-list .recent-row");
+  // Restore… lists it on one line, when and then its first sentence; choosing it brings it back, file and all.
+  await sleep(50); // kept in the database
+  $("#btn-restore").click();
+  await until(() => $$("#restore-list .restore-row").length === 1, "the list");
+  assert.equal($("#restore-dialog").open, true);
+  const row = $("#restore-list .restore-row");
   assert.equal(row.querySelector(".r-title").textContent, "What is time?");
-  assert.match(row.querySelector(".r-meta").textContent, /^\d\d:\d\d today · Claude, Grok · 2 turns$/);
+  assert.match(row.querySelector(".r-when").textContent, /^\d\d:\d\d today$/);
+  assert.ok(!row.textContent.includes("Claude"), "no participants");
+  assert.ok(row.parentElement.querySelector(".r-del"), "an × to delete it");
   row.click();
   await until(() => entries().length === 2, "brought back");
-  assert.equal($("#recent-dialog").open, false);
+  assert.equal($("#restore-dialog").open, false);
   assert.match(confirms.at(-1), /^Resume the conversation “What is time\?”, last kept \d\d:\d\d today\? It has 2 turns, with Claude, Grok\./);
   assert.ok(entries()[0].textContent.includes("paper.pdf"));
   const stored = JSON.parse(w.sessionStorage.getItem("dialog.session.v1"));
@@ -1025,15 +1043,185 @@ test("recent conversations: kept in the browser's database after New conversatio
   w.dispatchEvent(new w.Event("pagehide"));
   const second = makeHarness({ idb });
   const $2 = (sel) => second.d.querySelector(sel);
-  await until(() => !$2("#btn-recent").hidden, "Recent… in the new tab");
-  $2("#btn-recent").click();
-  await until(() => second.d.querySelectorAll("#recent-list .recent-row").length === 1, "the new tab's list");
-  assert.match($2("#recent-list .r-meta").textContent, /· 3 turns$/, "the same conversation, not a second copy");
-  $2("#recent-cancel").click();
-  assert.equal($2("#recent-dialog").open, false);
+  await until(() => $2("#btn-restore"), "the new tab");
+  await sleep(50);
+  $2("#btn-restore").click();
+  await until(() => second.d.querySelectorAll("#restore-list .restore-row").length === 1, "the new tab's list");
+  $2("#restore-cancel").click();
+  assert.equal($2("#restore-dialog").open, false);
+  // Once, with the latest turn: the same conversation, not a second copy.
+  $2("#btn-restore").click();
+  await until(() => $2("#restore-dialog").open, "open again");
+  $2("#restore-list .restore-row").click();
+  await until(() => second.d.querySelectorAll("#transcript .entry").length === 3, "brought back in the new tab");
+
+  // × deletes it from the browser, after asking.
+  const confirms2 = [];
+  let answer = true;
+  second.w.confirm = (m) => (confirms2.push(m), answer);
+  second.d.querySelector("#btn-new").click(); // asks first (confirms2[0])
+  await sleep(50);
+  $2("#btn-restore").click();
+  await until(() => second.d.querySelectorAll("#restore-list .restore-row").length === 1, "the list once more");
+  answer = false;
+  $2("#restore-list .r-del").click();
+  await until(() => confirms2.length === 2, "asked");
+  assert.match(confirms2[1], /^Delete “What is time\?”, last kept \d\d:\d\d today, from this browser\? This can't be undone\.$/);
+  await sleep(20);
+  assert.equal(second.d.querySelectorAll("#restore-list .restore-row").length, 1, "kept when you say no");
+  answer = true;
+  $2("#restore-list .r-del").click();
+  await until(() => !$2("#restore-list .restore-row"), "deleted");
+  assert.match($2("#restore-list").textContent, /No conversations are kept in this browser now/);
+  assert.equal($2("#restore-dialog").open, true, "still open");
 
   await sleep(20);
   assert.deepEqual([...errors, ...second.errors].map(String), [], "no script errors");
+});
+
+test("Restore… also lists the conversations in the files and folders you add with Add from…, read again each time it opens; ↑ and ↓ move through the list", async () => {
+  const idb = new IDBFactory();
+  const { w, d, blobs, replies, errors } = makeHarness({ idb });
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const entries = () => $$("#transcript .entry");
+  const notBusy = () => !$("#transcript .entry.streaming");
+  const rows = () => $$("#restore-list .restore-row");
+  const titles = () => rows().map((r) => r.title);
+  const confirms = [];
+  w.confirm = (m) => (confirms.push(m), true);
+  await until(() => $$(".seat").length === 2, "seats");
+
+  // A conversation, saved with Save All, then cleared (and so kept in the browser too).
+  $("#composer-text").value = "Is virtue taught? Say.";
+  $("#composer-send").click();
+  replies.push({ pieces: ["Perhaps."], cost: 0.01 });
+  $$("#seat-list .seat")[0].querySelector("button.speak").click();
+  await until(() => entries().length === 2 && notBusy(), "Claude's reply");
+  $("#btn-save").click();
+  await until(() => blobs.length === 1, "saved");
+  const saved = await blobs[0].text();
+  await sleep(5);
+  $("#btn-new").click();
+  await sleep(50);
+
+  // Safari: Add from… opens its chooser. A folder brings every file in it and in the folders
+  // inside it; only the web pages in the folder itself are read.
+  const file = (text, path, type = "text/html") => {
+    const f = new w.File([text], path.split("/").at(-1), { type });
+    Object.defineProperty(f, "webkitRelativePath", { value: path });
+    return f;
+  };
+  const choose = (...files) => {
+    const input = $("#folder-input");
+    Object.defineProperty(input, "files", { value: files, configurable: true });
+    input.dispatchEvent(new w.Event("change"));
+  };
+  $("#btn-restore").click();
+  await until(() => rows().length === 1, "the one kept in the browser");
+  assert.equal($("#restore-add").textContent.replace(/\s+/g, " "), "Add from…");
+  $("#restore-add").click();
+  assert.equal($("#folder-input").hasAttribute("webkitdirectory"), true);
+  choose(
+    file(saved, "Downloads/Dialog 2026 Oct 29 1000.html"),
+    file("<p>hello</p>", "Downloads/notes.html"),
+    file(saved, "Downloads/old/Dialog copy.html"),
+    file("png", "Downloads/picture.png", "image/png"),
+  );
+  await until(() => rows().length === 2, "the saved one added");
+  assert.equal($("#restore-status").textContent, "Added 1 saved conversation from “Downloads”");
+  assert.deepEqual(rows().map((r) => r.querySelector(".r-title").textContent), ["Is virtue taught?", "Is virtue taught?"]);
+  assert.deepEqual(titles(), ["Kept in this browser", "Saved as “Dialog 2026 Oct 29 1000.html”"], "newest first: kept after it was saved");
+  assert.equal(rows()[1].parentElement.querySelector(".r-del"), null, "no × on a saved file");
+
+  // Another folder, and then a single file: added to those already listed.
+  choose(file("<p>nothing</p>", "Elsewhere/index.html"));
+  await until(() => $("#restore-status").textContent === "No saved conversations in “Elsewhere”", "an empty folder");
+  choose(file(saved, "Archive/Dialog 2026 Oct 1 0900.html"));
+  await until(() => rows().length === 3, "the second folder's");
+  choose(new w.File([saved], "Dialog single.html", { type: "text/html" }));
+  await until(() => rows().length === 4, "the single file");
+  assert.equal($("#restore-status").textContent, "Added “Dialog single.html”");
+  choose(new w.File([saved], "Dialog single.html", { type: "text/html" }));
+  await until(() => $("#restore-status").textContent === "Added “Dialog single.html”", "the same file again");
+  assert.equal(rows().length, 4, "listed once");
+
+  // ↑ and ↓ move through the list, stopping at its ends; from outside it, to its first or last row.
+  const key = (k) => d.activeElement.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
+  $("#restore-add").focus();
+  key("ArrowDown");
+  assert.equal(d.activeElement, rows()[0]);
+  key("ArrowDown");
+  key("ArrowDown");
+  assert.equal(d.activeElement, rows()[2]);
+  key("ArrowUp");
+  assert.equal(d.activeElement, rows()[1]);
+  rows()[0].parentElement.querySelector(".r-del").focus();
+  key("ArrowDown");
+  assert.equal(d.activeElement, rows()[1], "from a row's ×, to the next row");
+  for (let i = 0; i < 6; i++) key("ArrowDown");
+  assert.equal(d.activeElement, rows()[3], "stops at the last");
+  $("#restore-add").focus();
+  key("ArrowUp");
+  assert.equal(d.activeElement, rows()[3]);
+  // The mouse moves the highlight too, so the keys carry on from the row under it.
+  rows()[1].querySelector(".r-title").dispatchEvent(new w.MouseEvent("mousemove", { bubbles: true }));
+  assert.equal(d.activeElement, rows()[1], "the row under the mouse");
+  key("ArrowDown");
+  assert.equal(d.activeElement, rows()[2]);
+
+  rows()[1].click();
+  await until(() => entries().length === 2, "resumed from a file");
+  assert.match(confirms.at(-1), /^Resume the conversation in “Dialog /);
+
+  // Chrome: Save All and Add from… share the place the browser remembers, so the folder
+  // chooser opens where you last saved. The folder is read again each time Restore… opens.
+  const pickers = [];
+  w.showSaveFilePicker = async (opts) => {
+    pickers.push(["save", opts.id]);
+    return { name: opts.suggestedName, createWritable: async () => ({ write: async (b) => folder.files.push({ name: opts.suggestedName, text: await b.text() }), close: async () => {} }) };
+  };
+  const folder = {
+    name: "Conversations",
+    files: [{ name: "notes.html", text: "<p>hi</p>" }],
+    async *values() {
+      yield { kind: "directory", name: "old" };
+      for (const f of this.files) yield { kind: "file", name: f.name, getFile: async () => new w.File([f.text], f.name, { type: "text/html" }) };
+    },
+    isSameEntry: async (other) => other === folder,
+    queryPermission: async () => "granted",
+    requestPermission: async () => "granted",
+  };
+  w.showDirectoryPicker = async (opts) => {
+    pickers.push(["folder", opts.id]);
+    return folder;
+  };
+  $("#btn-save").click();
+  await until(() => folder.files.length === 2, "saved into the folder");
+  $("#btn-new").click();
+  $("#btn-restore").click();
+  await until(() => $("#restore-dialog").open, "Restore… open");
+  await sleep(50); // read again
+  const n = rows().length; // the files added in Safari's way, and two kept (the one resumed above, kept anew)
+  assert.equal(n, 5);
+  $("#restore-add").click();
+  await until(() => $("#restore-status").textContent === "Added 1 saved conversation from “Conversations”", "the folder read");
+  assert.equal(rows().length, n + 1);
+  assert.deepEqual(pickers, [["save", "saves"], ["folder", "saves"]]);
+  $("#restore-add").click();
+  await until(() => pickers.length === 3, "the same folder chosen again");
+  await sleep(20);
+  assert.equal(rows().length, n + 1, "listed once");
+  $("#restore-cancel").click();
+  // Something saved there since: found when Restore… next opens.
+  folder.files.push({ name: "Dialog later.html", text: saved });
+  $("#btn-restore").click();
+  await until(() => titles().includes("Saved as “Dialog later.html”"), "read again on opening");
+  assert.equal(rows().length, n + 2);
+  $("#restore-cancel").click();
+
+  await sleep(20);
+  assert.deepEqual(errors.map(String), [], "no script errors");
 });
 
 test("a reply's host: shown in its particulars, from the reply itself or looked up when they're first opened", async () => {
@@ -2311,20 +2499,28 @@ test("copying turns: just the turns as on screen, with the model and no cost; a 
   assert.deepEqual(errors, []);
 });
 
-test("clicking the medallion or the name shows the version under the name; clicking again hides it", async () => {
+test("clicking the medallion or the name shows the version under the name, then a link to the README, then neither", async () => {
   const { d, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);
   await until(() => $("#brand"), "the top bar");
   const version = $("#brand-version");
-  assert.equal(version.hidden, true, "hidden at first");
+  const readme = $("#brand-readme");
+  const shown = () => [!version.hidden, !readme.hidden];
+  assert.deepEqual(shown(), [false, false], "neither at first");
   assert.match(version.textContent, /^Version \d+\.\d+(\.\d+)?$/);
   assert.equal(version.textContent, $("#set-version").textContent, "the same as in Settings");
+  assert.equal(readme.getAttribute("href"), "README.html");
+  assert.equal(readme.getAttribute("target"), "_blank");
   $(".topbar .medallion").click();
-  assert.equal(version.hidden, false, "shown by the medallion");
-  assert.equal($("#brand").getAttribute("aria-expanded"), "true");
+  assert.deepEqual(shown(), [true, false], "the version, by the medallion");
+  assert.equal($(".topbar .wordmark").getAttribute("aria-expanded"), "true");
   $(".topbar .wordmark").click();
-  assert.equal(version.hidden, true, "hidden again by the name");
-  assert.equal($("#brand").getAttribute("aria-expanded"), "false");
+  assert.deepEqual(shown(), [false, true], "the README link in its place, by the name");
+  assert.equal($(".topbar .wordmark").title, "Hide the link to the README");
+  $(".topbar .medallion").click();
+  assert.deepEqual(shown(), [false, false], "neither again");
+  assert.equal($(".topbar .brand-medallion").getAttribute("aria-expanded"), "false");
+  assert.equal($(".topbar .brand-medallion").title, "Show Dialog's version");
   assert.deepEqual(errors, []);
 });
 

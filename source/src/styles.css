@@ -99,10 +99,11 @@ textarea { resize: vertical; }
   flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: 0.7rem; }
-/* The medallion and name are a button: clicking shows the version under the name, or hides it again. */
-button.brand { border: none; background: none; padding: 0; text-align: left; }
-.brand-name { display: flex; flex-direction: column; }
+/* The medallion and the name are buttons: clicking either shows the version under the name, then a link to the README, then neither. */
+.brand button { border: none; background: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.brand-name { display: flex; flex-direction: column; align-items: flex-start; }
 .brand-version { font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+a.brand-version { color: var(--accent); text-underline-offset: 2px; }
 .medallion {
   width: 44px;
   height: 44px;
@@ -110,7 +111,7 @@ button.brand { border: none; background: none; padding: 0; text-align: left; }
   box-shadow: 0 0 0 1px var(--line);
   display: block;
 }
-.wordmark { font-size: 1.6rem; letter-spacing: 0.02em; line-height: 1; }
+.brand .wordmark { font-size: 1.6rem; letter-spacing: 0.02em; line-height: 1; }
 .stats { display: flex; gap: 1.25rem; color: var(--muted); font-size: 0.9rem; flex: 1; font-variant-numeric: tabular-nums; }
 .stats a, .settings small a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
 .stats a:hover, .settings small a:hover { color: var(--ink); text-decoration-color: currentColor; }
@@ -708,39 +709,55 @@ dialog::backdrop { background: rgba(20, 20, 18, 0.4); }
 .model-foot #model-count.problem { color: var(--error); }
 .model-foot-actions { display: flex; gap: 0.5rem; flex: none; }
 
-/* ---- recent conversations ---- */
+/* ---- Restore… ---- */
 
-.recent-picker { padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: 0.6rem; }
-.recent-picker h2 { margin: 0; font-weight: 400; font-size: 1.5rem; }
-.recent-note { margin: 0; color: var(--muted); font-size: 0.9rem; }
-.recent-list {
+.restore-picker { padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.restore-picker h2 { margin: 0; font-weight: 400; font-size: 1.5rem; }
+.restore-note { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.restore-list {
   max-height: calc(100vh - 12rem);
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper);
 }
-.recent-row {
+.restore-item { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); }
+.restore-item:last-child { border-bottom: none; }
+/* One line: when, then the first sentence of your first message. */
+.restore-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  width: 100%;
+  align-items: baseline;
+  gap: 0.8rem;
+  flex: 1;
+  min-width: 0;
   padding: 0.45rem 0.7rem;
   border: none;
-  border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: none;
   color: var(--ink);
   text-align: left;
   cursor: pointer;
 }
-.recent-row:last-child { border-bottom: none; }
-.recent-row:hover, .recent-row:focus-visible { background: var(--accent); color: var(--accent-ink); }
-.recent-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recent-row .r-meta { color: var(--muted); font-size: 0.85rem; }
-.recent-row:hover .r-meta, .recent-row:focus-visible .r-meta { color: var(--accent-ink); }
-.recent-row .r-title.untitled { font-style: italic; }
-.recent-foot { display: flex; justify-content: flex-end; }
+/* One row is highlighted: the one Return opens. The mouse moves it too (see main.ts), so there is no hover highlight of its own. */
+.restore-row:focus { background: var(--accent); color: var(--accent-ink); }
+.restore-row .r-when { flex: none; min-width: 8.6rem; color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.restore-row:focus .r-when { color: var(--accent-ink); }
+.restore-row .r-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.restore-row .r-title.untitled { font-style: italic; }
+.restore-item .r-del {
+  flex: none;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  padding: 0 0.7rem;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.restore-item .r-del:hover, .restore-item .r-del:focus-visible { color: var(--error); }
+.restore-foot { display: flex; align-items: center; gap: 0.5rem; }
+.restore-status { flex: 1; color: var(--muted); font-size: 0.85rem; }
 
 /* ---- narrow windows ---- */
 

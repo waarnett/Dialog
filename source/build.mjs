@@ -128,7 +128,9 @@ const readmeCss = `
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-text); font-size: 1.0625rem; line-height: 1.6; }
 header { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 1.25rem; border-bottom: 1px solid var(--line); background: var(--panel); font-family: var(--font-ui); }
 header img { width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 0 0 1px var(--line); }
-header .wordmark { font-size: 1.5rem; letter-spacing: 0.02em; }
+header .wordmark { font-size: 1.5rem; letter-spacing: 0.02em; line-height: 1; }
+header .brand-name { display: flex; flex-direction: column; }
+header .version { font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
 header .back { margin-left: auto; color: var(--accent); }
 main { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.5rem 4rem; }
 h1, h2, h3, h4 { font-family: var(--font-ui); font-weight: 600; line-height: 1.25; }
@@ -154,6 +156,9 @@ marked.use({
     },
   },
 });
+// The version, as the page shows it under its name.
+const version = /const VERSION = "([^"]+)"/.exec(await readFile("src/main.ts", "utf8"))?.[1];
+if (!version) throw new Error("build: no VERSION in src/main.ts");
 const readmeBody = marked.parse(await readFile("README.md", "utf8"), { gfm: true });
 const readme = `<!doctype html>
 <html lang="en">
@@ -165,7 +170,7 @@ const readme = `<!doctype html>
 <style>${readmeCss}</style>
 </head>
 <body>
-<header><img src="${images.__MEDALLION_SRC__}" alt=""><span class="wordmark">Dialog</span><a class="back" href="index.html">Open Dialog</a></header>
+<header><img src="${images.__MEDALLION_SRC__}" alt=""><span class="brand-name"><span class="wordmark">Dialog</span><span class="version">Version ${version}</span></span><a class="back" href="index.html">Open Dialog</a></header>
 <main>
 ${readmeBody}
 </main>

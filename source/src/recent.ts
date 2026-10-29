@@ -2,7 +2,9 @@
 // unlike a tab's own storage, outlives the tab and has room for the files as well. A safety
 // net for a conversation whose tab was closed, or that was cleared with New conversation,
 // before it was saved; not an archive (the browser deletes it with the site's data). Every
-// access is guarded: if the database is unavailable, Dialog works as before, without Recent….
+// access is guarded: if the database is unavailable, Restore… lists only saved files.
+// The database also remembers the folders you add to Restore…, where the browser lets a page
+// keep a folder (Chrome and Edge; not Safari).
 
 import { firstSentence } from "./export";
 import { isConversationData, type ConversationData } from "./storage";
@@ -40,11 +42,14 @@ export function beyondKept(list: RecentSummary[], keep = KEEP_RECENT): string[] 
     .map((s) => s.id);
 }
 
-// The database: the summaries in one store and the conversations in another, both by id.
+// The database: the summaries in one store and the conversations in another, both by id;
+// and (since version 2) the folders you've added in a third.
 
 const DB_NAME = "dialog";
 const SUMMARIES = "recentSummaries";
 const CONVERSATIONS = "recentConversations";
+const FOLDERS = "folders";
+const SAVES_FOLDERS = "added";
 
 let opening: Promise<IDBDatabase | null> | undefined;
 
@@ -52,10 +57,13 @@ let opening: Promise<IDBDatabase | null> | undefined;
 function database(): Promise<IDBDatabase | null> {
   opening ??= new Promise((resolve) => {
     try {
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        req.result.createObjectStore(SUMMARIES, { keyPath: "id" });
-        req.result.createObjectStore(CONVERSATIONS);
+      const req = indexedDB.open(DB_NAME, 2);
+      req.onupgradeneeded = (ev) => {
+        if (ev.oldVersion < 1) {
+          req.result.createObjectStore(SUMMARIES, { keyPath: "id" });
+          req.result.createObjectStore(CONVERSATIONS);
+        }
+        if (ev.oldVersion < 2) req.result.createObjectStore(FOLDERS);
       };
       req.onsuccess = () => {
         req.result.onclose = () => (opening = undefined);
@@ -129,5 +137,56 @@ export async function loadRecent(id: string): Promise<ConversationData | null> {
   } catch {
     opening = undefined;
     return null;
+  }
+}
+
+/** Forget a kept conversation. True if it's gone. */
+export async function deleteRecent(id: string): Promise<boolean> {
+  const db = await database();
+  if (!db) return false;
+  try {
+    const tx = db.transaction([SUMMARIES, CONVERSATIONS], "readwrite");
+    tx.objectStore(SUMMARIES).delete(id);
+    tx.objectStore(CONVERSATIONS).delete(id);
+    return await new Promise((resolve) => {
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = tx.onabort = () => resolve(false);
+    });
+  } catch {
+    opening = undefined;
+    return false;
+  }
+}
+
+/** The parts of a folder the browser lets a page keep (Chrome and Edge) that Dialog uses. */
+export interface SavesFolder {
+  name: string;
+  values(): AsyncIterable<{ kind: string; name: string; getFile?(): Promise<File> }>;
+  isSameEntry(other: SavesFolder): Promise<boolean>;
+  queryPermission(options: { mode: "read" }): Promise<PermissionState>;
+  requestPermission(options: { mode: "read" }): Promise<PermissionState>;
+}
+
+/** Remember the folders you've added. */
+export async function rememberFolders(folders: SavesFolder[]): Promise<void> {
+  const db = await database();
+  if (!db) return;
+  try {
+    db.transaction(FOLDERS, "readwrite").objectStore(FOLDERS).put(folders, SAVES_FOLDERS);
+  } catch {
+    opening = undefined;
+  }
+}
+
+/** The folders you've added, as remembered. */
+export async function rememberedFolders(): Promise<SavesFolder[]> {
+  const db = await database();
+  if (!db) return [];
+  try {
+    const folders = await result(db.transaction(FOLDERS).objectStore(FOLDERS).get(SAVES_FOLDERS));
+    return Array.isArray(folders) ? (folders as SavesFolder[]) : [];
+  } catch {
+    opening = undefined;
+    return [];
   }
 }

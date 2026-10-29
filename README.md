@@ -36,7 +36,7 @@ TypeScript sources are in `source/src/`:
 | `lmstudio.ts`              | Talking to LM Studio: models running on this computer                                                            |
 | `math.ts`                  | LaTeX in messages shown as mathematics (MathML, via Temml)                                                       |
 | `storage.ts`               | Saving to and loading from the browser's storage                                                                 |
-| `recent.ts`                | The last 25 conversations, kept in the browser's database for Recent…                                            |
+| `recent.ts`                | The last 25 conversations, kept in the browser's database for Restore…                                           |
 | `attachments.ts`           | Reading dropped or picked files into attachments                                                                 |
 | `makers.ts`                | Who made each model, and where its logo comes from                                                               |
 | `main.ts`                  | The page: drawing everything and handling clicks                                                                 |

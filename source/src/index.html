@@ -10,13 +10,16 @@
 </head>
 <body>
 <header class="topbar">
-  <button id="brand" class="brand" type="button" title="Show Dialog's version" aria-expanded="false">
-    <img class="medallion" src="__MEDALLION_SRC__" alt="" width="44" height="44">
+  <div id="brand" class="brand">
+    <button type="button" class="brand-medallion" title="Show Dialog's version" aria-expanded="false">
+      <img class="medallion" src="__MEDALLION_SRC__" alt="Dialog" width="44" height="44">
+    </button>
     <span class="brand-name">
-      <span class="wordmark">Dialog</span>
+      <button type="button" class="wordmark" title="Show Dialog's version" aria-expanded="false">Dialog</button>
       <span id="brand-version" class="brand-version" hidden></span>
+      <a id="brand-readme" class="brand-version" href="README.html" target="_blank" rel="noopener" hidden>README</a>
     </span>
-  </button>
+  </div>
   <div class="stats">
     <span id="session-cost" title="Total for this conversation, as reported by OpenRouter. Its fee on credit purchases is extra."></span>
     <span id="credit-info"></span>
@@ -24,9 +27,8 @@
   </div>
   <div class="actions">
     <button id="btn-save" type="button" title="Save the whole conversation as an HTML file">Save All</button>
-    <button id="btn-resume" type="button" title="Carry on with a conversation saved with Save All or Save Selected, with the same participants">Resume…</button>
-    <input id="resume-input" type="file" accept=".html,.htm,text/html" hidden>
-    <button id="btn-recent" type="button" title="Carry on with one of the last 25 conversations, kept in this browser even after their tabs were closed" hidden>Recent…</button>
+    <button id="btn-restore" type="button" title="Carry on with a conversation: one of the last 25 kept in this browser, or one saved with Save All or Save Selected">Restore…</button>
+    <input id="folder-input" type="file" webkitdirectory hidden>
     <button id="btn-new" type="button" title="Clear this conversation and start a new one. ⌘-click to start one in a new tab instead.">New conversation</button>
     <button id="btn-settings" type="button">Settings</button>
   </div>
@@ -89,13 +91,16 @@
   </div>
 </dialog>
 
-<dialog id="recent-dialog" class="recent-dialog">
-  <div class="recent-picker">
-    <h2>Recent conversations</h2>
-    <p class="recent-note">The last 25, kept in this browser, with their files. Choose one to carry on with it.</p>
-    <div id="recent-list" class="recent-list"></div>
-    <div class="recent-foot">
-      <button id="recent-cancel" type="button">Cancel</button>
+<dialog id="restore-dialog" class="restore-dialog">
+  <div class="restore-picker">
+    <h2>Restore a conversation</h2>
+    <p class="restore-note">The last 25 kept in this browser (with their files), and those in the files and folders you add,
+      newest first. Choose one to carry on with it.</p>
+    <div id="restore-list" class="restore-list"></div>
+    <div class="restore-foot">
+      <button id="restore-add" type="button" class="subtle" title="Add the conversations saved in a folder (or one saved file) to the list">Add from…</button>
+      <span id="restore-status" class="restore-status" role="status"></span>
+      <button id="restore-cancel" type="button">Cancel</button>
     </div>
   </div>
 </dialog>

@@ -156,7 +156,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.10";
+const VERSION = "2.11.3";
 
 const els = {
   transcript: byId("transcript"),
@@ -182,14 +182,16 @@ const els = {
   modelCount: byId("model-count"),
   modelRefresh: byId<HTMLButtonElement>("model-refresh"),
   modelCancel: byId<HTMLButtonElement>("model-cancel"),
-  brand: byId<HTMLButtonElement>("brand"),
+  brand: byId("brand"),
   brandVersion: byId("brand-version"),
+  brandReadme: byId<HTMLAnchorElement>("brand-readme"),
   btnSave: byId<HTMLButtonElement>("btn-save"),
-  btnResume: byId<HTMLButtonElement>("btn-resume"),
-  btnRecent: byId<HTMLButtonElement>("btn-recent"),
-  recentDialog: byId<HTMLDialogElement>("recent-dialog"),
-  recentList: byId("recent-list"),
-  recentCancel: byId<HTMLButtonElement>("recent-cancel"),
+  btnRestore: byId<HTMLButtonElement>("btn-restore"),
+  restoreDialog: byId<HTMLDialogElement>("restore-dialog"),
+  restoreList: byId("restore-list"),
+  restoreAdd: byId<HTMLButtonElement>("restore-add"),
+  restoreStatus: byId("restore-status"),
+  restoreCancel: byId<HTMLButtonElement>("restore-cancel"),
   btnNew: byId<HTMLButtonElement>("btn-new"),
   btnSettings: byId<HTMLButtonElement>("btn-settings"),
   btnAddSeat: byId<HTMLButtonElement>("btn-add-seat"),
@@ -210,7 +212,7 @@ const els = {
   setRestoreInput: byId<HTMLInputElement>("set-restore-input"),
   setIncludeKeys: byId<HTMLInputElement>("set-include-keys"),
   setFileStatus: byId("set-file-status"),
-  resumeInput: byId<HTMLInputElement>("resume-input"),
+  folderInput: byId<HTMLInputElement>("folder-input"),
 };
 
 // ---------------------------------------------------------------------------
@@ -254,8 +256,6 @@ function persist(): void {
 // or closed, or before New conversation clears it.
 
 let recentTimer: ReturnType<typeof setTimeout> | undefined;
-/** Are any conversations kept? (Recent… is offered only then.) */
-let hasRecent = false;
 
 function keepRecentSoon(): void {
   clearTimeout(recentTimer);
@@ -267,12 +267,7 @@ function keepRecentNow(): void {
   if (recentTimer === undefined) return;
   clearTimeout(recentTimer);
   recentTimer = undefined;
-  void recent.keepRecent(store.recentId(), store.conversationData(session, settings)).then((kept) => {
-    if (kept && !hasRecent) {
-      hasRecent = true;
-      updateSaveButton();
-    }
-  });
+  void recent.keepRecent(store.recentId(), store.conversationData(session, settings));
 }
 
 /** Save shortly after typing stops, rather than on every keystroke. */
@@ -341,7 +336,7 @@ function renderTopbar(): void {
 /** Turns ticked for saving (by id). Kept only while the page is open. */
 const picked = new Set<string>();
 
-/** "Save All", or "Save Selected" while any turn is ticked; and Resume… and Recent… only while the conversation is empty. */
+/** "Save All", or "Save Selected" while any turn is ticked; and Restore… only while the conversation is empty. */
 function updateSaveButton(): void {
   for (const id of picked) if (!session.entries.some((e) => e.id === id)) picked.delete(id);
   const n = picked.size;
@@ -350,8 +345,7 @@ function updateSaveButton(): void {
     ? `Save the ${n === 1 ? "ticked turn" : `${n} ticked turns`} as an HTML file. Untick them all to save everything.`
     : "Save the whole conversation as an HTML file. Tick the box beside particular turns to save just those.";
   els.btnSave.disabled = session.entries.length === 0;
-  els.btnResume.hidden = session.entries.length > 0;
-  els.btnRecent.hidden = session.entries.length > 0 || !hasRecent;
+  els.btnRestore.hidden = session.entries.length > 0;
 }
 
 function updateBanner(): void {
@@ -462,7 +456,7 @@ function emptyState(): HTMLElement {
           {},
           "Save All saves the whole conversation as a web page, private exchanges included and marked. " +
             "To save only some turns, tick the box beside each one; the button then reads Save Selected. " +
-            "Either file can be resumed later, with the same participants: press Resume… at the top, before the conversation starts.",
+            "Either file can be resumed later, with the same participants: press Restore… at the top, before the conversation starts.",
         ),
       ),
       h(
@@ -1099,7 +1093,7 @@ async function speak(
   busy.set(seat.id, { entryId: entry.id, controller });
   tickWaiting();
   renderTranscript(); // to the new reply only if you haven't scrolled back
-  updateSaveButton(); // a reply has begun: no more Resume…
+  updateSaveButton(); // a reply has begun: no more Restore…
   updateSeatStatus();
   updateComposerState();
 
@@ -2485,7 +2479,7 @@ function onSettingsClosed(): void {
 
 /** The parts of the browser's file-saving interface Dialog uses (Chrome and Edge have it; Safari doesn't). */
 interface SaveFilePicker {
-  (options: { suggestedName?: string; types?: { description: string; accept: Record<string, string[]> }[] }): Promise<{
+  (options: { id?: string; suggestedName?: string; types?: { description: string; accept: Record<string, string[]> }[] }): Promise<{
     name: string;
     createWritable(): Promise<{ write(data: Blob): Promise<void>; close(): Promise<void> }>;
   }>;
@@ -2495,15 +2489,17 @@ interface SaveFilePicker {
  * Save a file. Where the browser lets a page open the system's Save dialog (Chrome, Edge),
  * you choose the folder and name there. Elsewhere it's an ordinary download: Safari puts it
  * in Downloads or, with "Ask for each download" set, shows the same Save dialog itself.
- * Resolves to the name the file was saved under, or null if you cancelled.
+ * Resolves to the name the file was saved under, or null if you cancelled. `pickerId`: the
+ * browser's Save dialog opens in the folder last used by a dialog with the same id.
  */
-async function download(content: string, fileName: string, type = "text/html;charset=utf-8", description = "Web page"): Promise<string | null> {
+async function download(content: string, fileName: string, type = "text/html;charset=utf-8", description = "Web page", pickerId?: string): Promise<string | null> {
   const blob = new Blob([content], { type });
   const picker = (window as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
   if (typeof picker === "function") {
     const ext = fileName.slice(fileName.lastIndexOf("."));
     try {
       const handle = await picker.call(window, {
+        id: pickerId,
         suggestedName: fileName,
         types: [{ description, accept: { [type.split(";")[0]!]: [ext] } }],
       });
@@ -2536,7 +2532,7 @@ function saveConversation(): void {
   updateSaveButton(); // forget ticks on turns that are gone
   const opts = { ...exportOptions(), only: picked.size ? picked : undefined };
   const page = store.withConversationData(prettyHtml(conversationHtml(session, settings, opts)), session, settings, opts.only, opts.savedAt);
-  void download(page, conversationFileName(opts.savedAt, picked.size > 0));
+  void download(page, conversationFileName(opts.savedAt, picked.size > 0), undefined, undefined, SAVES_PICKER);
 }
 
 /**
@@ -2590,38 +2586,86 @@ function resume(resumed: store.ResumedConversation, which: string, recentId?: st
   updateSeatStatus();
 }
 
-/** The list of recent conversations (offered only while the conversation is empty). */
-async function openRecent(): Promise<void> {
-  const list = await recent.listRecent();
-  els.recentList.replaceChildren(
-    ...(list.length
-      ? list.map((r) =>
-          h(
-            "button",
-            { type: "button", class: "recent-row", onclick: () => void resumeRecent(r) },
-            h("span", { class: "r-title" + (r.title ? "" : " untitled") }, r.title || "(nothing from you yet)"),
-            h("span", { class: "r-meta" }, recentDetails(r)),
-          ),
-        )
-      : [h("p", { class: "model-empty" }, "No conversations are kept in this browser now.")]),
+// Restore… (offered only while the conversation is empty): the conversations kept in this
+// browser (see recent.ts) and those in the files and folders you add, in one list, newest first.
+
+/** A conversation Restore… lists: kept in this browser (by id), or saved in a file. `key` tells rows apart. */
+type Restorable = { key: string; title: string; savedAt: string } & ({ id: string } | { file: File });
+
+/** Safari: the files you've added (the web pages directly in a folder, or a single file), by path. Kept while the page is open. */
+const addedFiles = new Map<string, File>();
+/** Chrome and Edge: the folders you've added, remembered in the browser's database (read from it when first needed). */
+let addedFolders: recent.SavesFolder[] | undefined;
+/** The saved conversations last found in what you've added. */
+let found: Restorable[] = [];
+
+/** Save All and Add from… share this, so the folder chooser opens where you last saved (Chrome, Edge). */
+const SAVES_PICKER = "saves";
+
+/** Chrome and Edge let a page pick a folder and keep it; Safari has only the folder input, each time. */
+type DirectoryPicker = (options: { id?: string; mode?: "read" }) => Promise<recent.SavesFolder>;
+const directoryPicker = () => (window as unknown as { showDirectoryPicker?: DirectoryPicker }).showDirectoryPicker;
+
+async function openRestore(): Promise<void> {
+  els.restoreStatus.textContent = "";
+  await showRestoreList();
+  if (typeof els.restoreDialog.showModal === "function") els.restoreDialog.showModal();
+  else els.restoreDialog.setAttribute("open", "");
+  // Read what you've added again, in case something has changed since.
+  await findAdded();
+  await showRestoreList();
+}
+
+async function showRestoreList(): Promise<void> {
+  const kept: Restorable[] = (await recent.listRecent()).map((r) => ({ key: `kept:${r.id}`, id: r.id, title: r.title, savedAt: r.savedAt }));
+  const all = [...kept, ...found].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+  // The row you're on stays the one you're on, wherever it moves to.
+  const focused = document.activeElement?.closest<HTMLElement>(".restore-item")?.dataset.key;
+  els.restoreList.replaceChildren(
+    ...(all.length
+      ? all.map(restoreRow)
+      : [h("p", { class: "model-empty" }, "No conversations are kept in this browser now, and none are listed from files or folders you've added.")]),
   );
-  if (typeof els.recentDialog.showModal === "function") els.recentDialog.showModal();
-  else els.recentDialog.setAttribute("open", "");
+  if (focused) [...els.restoreList.querySelectorAll<HTMLElement>(".restore-item")].find((el) => el.dataset.key === focused)?.querySelector<HTMLElement>(".restore-row")?.focus();
 }
 
-/** "15:28 today · Claude, Grok · 12 turns" */
-function recentDetails(r: recent.RecentSummary): string {
-  const who = r.seats.length ? r.seats.join(", ") : "no participants";
-  return `${formatAsOf(new Date(r.savedAt))} · ${who} · ${r.turns} ${r.turns === 1 ? "turn" : "turns"}`;
+/** "15:28 today  What is time?", with an × to delete one kept in this browser. */
+function restoreRow(item: Restorable): HTMLElement {
+  const row = h(
+    "button",
+    { type: "button", class: "restore-row", title: "file" in item ? `Saved as “${item.file.name}”` : "Kept in this browser", onclick: () => restoreOne(item) },
+    h("span", { class: "r-when" }, formatAsOf(new Date(item.savedAt))),
+    h("span", { class: "r-title" + (item.title ? "" : " untitled") }, item.title || "(nothing from you yet)"),
+  );
+  if (!("id" in item)) return h("div", { class: "restore-item", "data-key": item.key }, row);
+  const del = h("button", { type: "button", class: "r-del", title: "Delete it from this browser", "aria-label": "Delete", onclick: () => void deleteKept(item) }, "×");
+  return h("div", { class: "restore-item", "data-key": item.key }, row, del);
 }
 
-function closeRecent(): void {
-  if (els.recentDialog.open && typeof els.recentDialog.close === "function") els.recentDialog.close();
-  else els.recentDialog.removeAttribute("open");
+/** ↑ and ↓ move through the list (from outside it, to its first or last row). */
+function moveInRestoreList(ev: KeyboardEvent): void {
+  if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
+  const rows = [...els.restoreList.querySelectorAll<HTMLElement>(".restore-row")];
+  if (!rows.length) return;
+  ev.preventDefault();
+  const down = ev.key === "ArrowDown";
+  const at = rows.findIndex((row) => row.parentElement?.contains(document.activeElement));
+  const next = at === -1 ? (down ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, at + (down ? 1 : -1)));
+  rows[next]!.focus();
 }
 
-async function resumeRecent(r: recent.RecentSummary): Promise<void> {
-  closeRecent();
+function closeRestore(): void {
+  if (els.restoreDialog.open && typeof els.restoreDialog.close === "function") els.restoreDialog.close();
+  else els.restoreDialog.removeAttribute("open");
+}
+
+function restoreOne(item: Restorable): void {
+  closeRestore();
+  if ("file" in item) resumeConversation(item.file);
+  else void resumeRecent(item);
+}
+
+async function resumeRecent(r: { id: string; title: string; savedAt: string }): Promise<void> {
   const data = await recent.loadRecent(r.id);
   if (!data) {
     alert("That conversation is no longer kept in this browser.");
@@ -2629,6 +2673,97 @@ async function resumeRecent(r: recent.RecentSummary): Promise<void> {
   }
   const title = r.title ? `“${r.title}”` : "without a message from you";
   resume(store.conversationFromData(data, settings), `${title}, last kept ${formatAsOf(new Date(r.savedAt))}`, r.id);
+}
+
+async function deleteKept(r: { id: string; title: string; savedAt: string }): Promise<void> {
+  const title = r.title ? `“${r.title}”` : "the conversation without a message from you";
+  if (!confirm(`Delete ${title}, last kept ${formatAsOf(new Date(r.savedAt))}, from this browser? This can't be undone.`)) return;
+  await recent.deleteRecent(r.id);
+  await showRestoreList();
+}
+
+/**
+ * Add from…: Chrome and Edge open their folder chooser where you last saved, and remember the
+ * folder you choose. Safari's chooser takes a folder or a single file (see the folder input's change event).
+ */
+async function addFrom(): Promise<void> {
+  const pick = directoryPicker();
+  if (!pick) {
+    els.folderInput.click();
+    return;
+  }
+  let folder: recent.SavesFolder;
+  try {
+    folder = await pick.call(window, { id: SAVES_PICKER, mode: "read" });
+  } catch {
+    return; // you pressed Cancel
+  }
+  addedFolders ??= await recent.rememberedFolders();
+  const same = await Promise.all(addedFolders.map((f) => f.isSameEntry(folder).catch(() => false)));
+  let at = same.indexOf(true);
+  if (at === -1) {
+    at = addedFolders.push(folder) - 1;
+    void recent.rememberFolders(addedFolders);
+  }
+  await showAdded(folder.name, await folderFiles(folder, at));
+}
+
+/** Read the files and folders you've added again, for the saved conversations in them now. */
+async function findAdded(): Promise<void> {
+  const files = new Map(addedFiles);
+  if (directoryPicker()) {
+    addedFolders ??= await recent.rememberedFolders();
+    for (const [at, folder] of addedFolders.entries()) if (await mayRead(folder)) for (const [key, file] of await folderFiles(folder, at)) files.set(key, file);
+  }
+  found = await conversationsIn(files);
+}
+
+/** May Dialog read a remembered folder? If not yet on this visit, the browser asks you. */
+async function mayRead(folder: recent.SavesFolder): Promise<boolean> {
+  try {
+    if ((await folder.queryPermission({ mode: "read" })) === "granted") return true;
+    return (await folder.requestPermission({ mode: "read" })) === "granted";
+  } catch {
+    return false;
+  }
+}
+
+/** The web pages directly in a folder (the `at`-th you've added), by a key of their own. */
+async function folderFiles(folder: recent.SavesFolder, at: number): Promise<Map<string, File>> {
+  const files = new Map<string, File>();
+  try {
+    for await (const item of folder.values()) if (item.kind === "file" && isPageName(item.name) && item.getFile) files.set(`${at}/${item.name}`, await item.getFile());
+  } catch {
+    // The folder has gone, or can't be read now: what was found.
+  }
+  return files;
+}
+
+const isPageName = (name: string) => /\.html?$/i.test(name);
+
+/** The saved conversations in these files; the others (and any that can no longer be read) are left out. */
+async function conversationsIn(files: Map<string, File>): Promise<Restorable[]> {
+  const all = await Promise.all(
+    [...files].map(async ([key, file]): Promise<Restorable | null> => {
+      const data = store.savedConversationData(await file.text().catch(() => ""));
+      return data ? { key: `file:${key}`, title: recent.recentSummary(file.name, data).title, savedAt: data.savedAt, file } : null;
+    }),
+  );
+  return all.filter((f) => f !== null);
+}
+
+/** Add to the list what Add from… brought: the web pages in the folder `name`, or the single file `name`. */
+async function showAdded(name: string, files: Map<string, File>, single = false): Promise<void> {
+  els.restoreStatus.textContent = `Reading “${name}”…`;
+  const now = await conversationsIn(files);
+  found = [...found.filter((f) => !now.some((n) => n.key === f.key)), ...now];
+  const n = now.length;
+  els.restoreStatus.textContent = n
+    ? `Added ${single ? `“${name}”` : `${n} saved ${n === 1 ? "conversation" : "conversations"} from “${name}”`}`
+    : single
+      ? `“${name}” isn't a conversation saved by Dialog`
+      : `No saved conversations in “${name}”`;
+  await showRestoreList();
 }
 
 function newConversation(ev: MouseEvent): void {
@@ -2741,24 +2876,46 @@ function wire(): void {
     else void sendAndAsk(); // Return: add, and a participant replies
   });
 
-  // Clicking the medallion or the name shows the version under the name; clicking again hides it.
+  // Clicking the medallion or the name shows the version under the name, then a link to the
+  // README in its place, then neither again.
   els.brandVersion.textContent = `Version ${VERSION}`;
-  els.brand.addEventListener("click", () => {
-    const show = els.brandVersion.hidden;
-    els.brandVersion.hidden = !show;
-    els.brand.setAttribute("aria-expanded", String(show));
-    els.brand.title = show ? "Hide Dialog's version" : "Show Dialog's version";
-  });
+  let brandStep = 0;
+  const brandTitles = ["Show Dialog's version", "Show a link to the README", "Hide the link to the README"];
+  for (const button of els.brand.querySelectorAll("button")) {
+    button.addEventListener("click", () => {
+      brandStep = (brandStep + 1) % 3;
+      els.brandVersion.hidden = brandStep !== 1;
+      els.brandReadme.hidden = brandStep !== 2;
+      for (const b of els.brand.querySelectorAll("button")) {
+        b.title = brandTitles[brandStep]!;
+        b.setAttribute("aria-expanded", String(brandStep > 0));
+      }
+    });
+  }
   els.btnSave.addEventListener("click", saveConversation);
   els.btnNew.addEventListener("click", newConversation);
-  els.btnResume.addEventListener("click", () => els.resumeInput.click());
-  els.btnRecent.addEventListener("click", () => void openRecent());
-  els.recentCancel.addEventListener("click", closeRecent);
-  closeOnClickOutside(els.recentDialog, closeRecent);
-  els.resumeInput.addEventListener("change", () => {
-    const file = els.resumeInput.files?.[0];
-    els.resumeInput.value = ""; // so the same file can be chosen again
-    if (file) resumeConversation(file);
+  els.btnRestore.addEventListener("click", () => void openRestore());
+  els.restoreCancel.addEventListener("click", closeRestore);
+  closeOnClickOutside(els.restoreDialog, closeRestore);
+  els.restoreAdd.addEventListener("click", () => void addFrom());
+  els.restoreDialog.addEventListener("keydown", moveInRestoreList);
+  // The row under the mouse becomes the one ↑ and ↓ move from, so only one row is ever highlighted.
+  els.restoreList.addEventListener("mousemove", (ev) => {
+    const row = ev.target instanceof Element ? ev.target.closest<HTMLElement>(".restore-row") : null;
+    if (row && row !== document.activeElement) row.focus({ preventScroll: true });
+  });
+  // Safari's chooser for Add from…: a folder brings every file in it and in the folders inside
+  // it, each with its path (only the web pages in the folder itself are read); a file, just that one.
+  els.folderInput.addEventListener("change", () => {
+    const files = [...(els.folderInput.files ?? [])];
+    els.folderInput.value = ""; // so the same one can be chosen again
+    const first = files[0];
+    if (!first) return; // cancelled, or an empty folder
+    const path = (f: File) => f.webkitRelativePath || f.name;
+    const pages = new Map(files.filter((f) => path(f).split("/").length <= 2 && isPageName(f.name)).map((f) => [path(f), f]));
+    for (const [key, file] of pages) addedFiles.set(key, file);
+    const single = files.length === 1 && !path(first).includes("/");
+    void showAdded(single ? first.name : path(first).split("/")[0]!, pages, single);
   });
   els.btnSettings.addEventListener("click", openSettings);
   els.btnAddSeat.addEventListener("click", addSeat);
@@ -2891,10 +3048,6 @@ function start(): void {
   renderTranscript(true);
   loadModels();
   void refreshKeyInfo();
-  void recent.listRecent().then((list) => {
-    hasRecent = list.length > 0;
-    updateSaveButton();
-  });
 }
 
 start();

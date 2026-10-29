@@ -16,7 +16,7 @@ Safari and Chrome both work.
 - [Reading replies](#reading-replies)
 - [Web search and reading pages](#web-search-and-reading-pages)
 - [Files](#files)
-- [Saving, resuming and tabs](#saving-resuming-and-tabs)
+- [Saving, restoring and tabs](#saving-restoring-and-tabs)
 - [Settings](#settings)
 - [Models on this computer (LM Studio)](#models-on-this-computer-lm-studio)
 - [How it works, and what it costs](#how-it-works-and-what-it-costs)
@@ -47,15 +47,17 @@ guide and shows Dialog's version number.
 
 ## The top bar
 
-- **Dialog** and the Socrates medallion: click either to show the version number.
+- **Dialog** and the Socrates medallion: click either once to show the version number, a
+  second time for a link to this guide in its place, and a third time to hide it again. This
+  guide shows the version number under its own Dialog at the top.
 - **This conversation:** what its replies have cost, as OpenRouter reports it. OpenRouter's
   5.5% fee on credit purchases comes on top.
 - **Credit left** (only with a management key; see Settings): your account's remaining
   credit. Hover for credit bought and used; click to open OpenRouter's Credits page.
 - **This month:** what this key has spent since the 1st (months begin at midnight UTC).
   Hover for its all-time spending and its limit.
-- **Save All** or **Save Selected**, **Resume…** and **Recent…** (only while the conversation
-  is empty), **New conversation** and **Settings**: see Saving, resuming and tabs, and Settings.
+- **Save All** or **Save Selected**, **Restore…** (only while the conversation is empty),
+  **New conversation** and **Settings**: see Saving, restoring and tabs, and Settings.
 
 A **notice** under the top bar says when something needs attention: no API key yet, or the
 browser refusing to let Dialog save (the conversation would then be lost when the page
@@ -327,7 +329,7 @@ participant may offer one.
   such wall: open it by double-clicking only if you've read it or trust it as you would any
   download.
 
-## Saving, resuming and tabs
+## Saving, restoring and tabs
 
 - **Save All** saves the whole conversation as one web page, readable in any browser:
   the participants with their models, thinking levels and roles; every turn, private
@@ -335,17 +337,31 @@ participant may offer one.
   sources; and each reply's cost and speed. Failed replies and thinking are left out.
 - **Save Selected:** tick the box beside some turns (it shows when you point at a turn) and
   the button becomes Save Selected, which saves just those turns.
-- **Resume…** brings a saved conversation back, in this browser or another. It appears in the
-  top bar while the conversation is empty (after New conversation, say). Everything comes
-  back as it was, including the participants, house rules, your name and About you. Your keys
-  are never in a saved file, so yours stay.
-- **Recent…** is a safety net for conversations you didn't save. Dialog keeps the last 25,
-  with their files, in your browser, updating each one as it goes, so a conversation survives
-  closing its tab, quitting the browser or pressing New conversation. Recent… appears in the
-  top bar while the conversation is empty; choose one and carry on where it left off, with
-  the same participants. It's a net, not an archive: clearing your browser's website data removes them,
-  and Safari removes them by itself if you don't open Dialog for about a week of using Safari
-  (unless Dialog is added to the Dock or Home Screen, see below). Save anything you want to keep.
+- **Restore…** brings a conversation back. It appears in the top bar while the conversation
+  is empty (after New conversation, say) and lists, newest first, one line each with when it
+  was saved and the first sentence of your first message:
+  - **the last 25 conversations, kept in this browser**, a safety net for the ones you didn't
+    save. Dialog keeps them with their files, updating each one as it goes, so a conversation
+    survives closing its tab, quitting the browser or pressing New conversation. The **×** at
+    the end of one deletes it from the browser, after asking. It's a net, not an archive:
+    clearing your browser's website data removes them, and Safari removes them by itself if
+    you don't open Dialog for about a week of using Safari (unless Dialog is added to the Dock
+    or Home Screen, see below). Save anything you want to keep.
+  - **the conversations in the files and folders you add** with **Add from…** at the foot of
+    the list: a conversation saved with Save All or Save Selected, or a folder of them (in a
+    folder, only the conversations in the folder itself are listed, not in folders inside it).
+    Each folder or file you add joins those already listed, and they are all read again each
+    time Restore… opens. In Safari you can add a folder or a single file; Safari forgets them
+    when the page closes, and when it reads a folder again it sees only the files that were
+    there when you added it, not conversations saved into it since (add the folder again for
+    those). In Chrome you add folders, not single files; its folder chooser opens
+    where you last saved, and Chrome remembers the folders you add: from then on they are
+    read every time, new conversations included, after Chrome asks once a visit whether
+    Dialog may look in them.
+
+  The **↑** and **↓** keys move through the list; **Return** chooses. Choose one and carry on
+  where it left off. Everything comes back as it was, including the participants, house
+  rules, your name and About you. Your keys are never in a saved conversation, so yours stay.
 - **Where files go:** Chrome lets you choose the folder and name. Safari saves to Downloads,
   unless you set Safari Settings › General › File download location to "Ask for each
   download".
@@ -357,10 +373,10 @@ participant may offer one.
 - **Each tab is a conversation of its own,** with its own participants and settings. A new
   tab starts empty, with the participants and settings as you last changed them in any tab.
 - A tab keeps its conversation when you reload it. **Closing the tab** (or quitting the
-  browser) ends the conversation without asking; Recent… can still bring it back.
+  browser) ends the conversation without asking; Restore… can still bring it back.
 - **On an iPad or iPhone**, Dialog works the same in Safari. Adding it to the Home Screen
   (Share › Add to Home Screen), or on a Mac to the Dock (File › Add to Dock), gives it a
-  window of its own and keeps Recent… safe from Safari's one-week clean-up. It also keeps its
+  window of its own and keeps the conversations kept for Restore… safe from Safari's one-week clean-up. It also keeps its
   own settings: bring yours across with Save settings to a file and Restore from a file.
 
 ## Settings
@@ -453,7 +469,7 @@ conversation expensive; start a new one when the old one has served its purpose.
 
 The conversation, files, settings and keys are kept in your browser, on this computer only.
 Each tab keeps its own conversation until it closes; your latest settings are kept for the
-next tab, and your last 25 conversations for Recent…. Each browser keeps its own: Chrome
+next tab, and your last 25 conversations for Restore…. Each browser keeps its own: Chrome
 doesn't see what Safari has. Use Save settings to a file and Save All to carry things across.
 
 Messages go only to OpenRouter, which passes each to the model you chose, or, for an

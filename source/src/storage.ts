@@ -356,7 +356,7 @@ export function withConversationData(html: string, session: Session, settings: S
   return end === -1 ? html + block : html.slice(0, end) + block + html.slice(end);
 }
 
-/** What a saved page carries to resume the conversation (and what Recent… keeps of one). */
+/** What a saved page carries to resume the conversation (and what Restore… keeps of one). */
 export interface ConversationData {
   format: typeof CONVERSATION_FORMAT;
   version: 1;
@@ -406,18 +406,9 @@ export interface ResumedConversation {
  * isn't one, or was saved before conversations could be resumed.
  */
 export function conversationFromFile(text: string, current: Settings): ResumedConversation {
-  const start = text.indexOf(DATA_OPEN);
-  const end = start === -1 ? -1 : text.indexOf("</script>", start);
-  let v: unknown;
-  if (end !== -1) {
-    try {
-      v = JSON.parse(text.slice(start + DATA_OPEN.length, end));
-    } catch {
-      v = undefined;
-    }
-  }
-  if (!isConversationData(v)) {
-    if (start === -1 && /<header class="doc-head">/.test(text)) {
+  const v = savedConversationData(text);
+  if (!v) {
+    if (!text.includes(DATA_OPEN) && /<header class="doc-head">/.test(text)) {
       throw new Error("That conversation was saved by an earlier version of Dialog, which didn't keep what's needed to resume it. It can still be read by a browser.");
     }
     throw new Error("That isn't a conversation saved by Dialog (with Save All or Save Selected).");
@@ -425,7 +416,20 @@ export function conversationFromFile(text: string, current: Settings): ResumedCo
   return conversationFromData(v, current);
 }
 
-/** A conversation to resume from its data (from a saved page, or kept by Recent…). */
+/** The data in a page saved with Save All or Save Selected; null if it has none. */
+export function savedConversationData(text: string): ConversationData | null {
+  const start = text.indexOf(DATA_OPEN);
+  const end = start === -1 ? -1 : text.indexOf("</script>", start);
+  if (end === -1) return null;
+  try {
+    const v: unknown = JSON.parse(text.slice(start + DATA_OPEN.length, end));
+    return isConversationData(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A conversation to resume from its data (from a saved page, or kept in the browser for Restore…). */
 export function conversationFromData(v: ConversationData, current: Settings): ResumedConversation {
   const parsed = parseSettings({ ...v, seats: Array.isArray(v.seats) ? v.seats : [] });
   const settings: Settings = { ...current, humanName: parsed.humanName, aboutHuman: parsed.aboutHuman, houseRules: parsed.houseRules, seats: parsed.seats };

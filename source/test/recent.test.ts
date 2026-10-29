@@ -2,7 +2,7 @@ import "fake-indexeddb/auto"; // a stand-in for the browser's database
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { defaultSettings } from "../src/engine";
-import { beyondKept, keepRecent, KEEP_RECENT, listRecent, loadRecent, recentSummary, type RecentSummary } from "../src/recent";
+import { beyondKept, deleteRecent, keepRecent, KEEP_RECENT, listRecent, loadRecent, recentSummary, type RecentSummary } from "../src/recent";
 import { conversationData, conversationFromData } from "../src/storage";
 import type { Entry, Session, Settings } from "../src/types";
 
@@ -72,4 +72,13 @@ test("conversations are kept in the database with their files, never the thinkin
   assert.ok(!list.some((s) => s.id === "first" || s.id === "c0"));
   assert.equal(await loadRecent("first"), null);
   assert.equal(await loadRecent("missing"), null);
+});
+
+test("a kept conversation can be deleted, its data with it", async () => {
+  const session: Session = { startedAt: "2026-10-29T10:00:00Z", entries: [entry("human", "Delete me.")] };
+  await keepRecent("doomed", conversationData(session, settings, undefined, at(59)));
+  assert.ok((await listRecent()).some((s) => s.id === "doomed"));
+  assert.equal(await deleteRecent("doomed"), true);
+  assert.ok(!(await listRecent()).some((s) => s.id === "doomed"));
+  assert.equal(await loadRecent("doomed"), null);
 });
