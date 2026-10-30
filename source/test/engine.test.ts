@@ -45,6 +45,8 @@ import {
   MAKING_FILES_NOTE,
   replacedFiles,
   isSettled,
+  formatTime,
+  turnStamp,
 } from "../src/engine";
 import type { Entry, MadeFile, Seat, Settings } from "../src/types";
 
@@ -61,6 +63,9 @@ function setup() {
 
 let n = 0;
 const T = "2026-10-06T23:00:00.000Z";
+// Each turn's label begins with its time; the first one's with the date too.
+const t = formatTime(new Date(T));
+const D = turnStamp({ time: T });
 const human = (text: string, privateWith?: string): Entry => ({ id: `e${n++}`, speaker: "human", speakerName: "Bill", text, time: T, privateWith });
 const bot = (seat: Seat, text: string, extra: Partial<Entry> = {}): Entry => ({
   id: `e${n++}`, speaker: seat.id, speakerName: seat.name, text, time: T, status: "done", model: seat.model, ...extra,
@@ -76,9 +81,25 @@ test("each seat sees others as labeled user messages and itself as assistant", (
     m.slice(1).map((x) => x.role),
     ["user", "assistant", "user"],
   );
-  assert.equal(m[1]?.content, "Bill says:\nWhat is time?");
-  assert.equal(m[2]?.content, "A view.");
-  assert.equal(m[3]?.content, "Grok says:\nB view.\n\nGemini says:\nC view."); // merged into one user turn
+  assert.equal(m[1]?.content, `${D} Bill says:\nWhat is time?`);
+  assert.equal(m[2]?.content, `${t}\nA view.`); // its own reply: just the time
+  assert.equal(m[3]?.content, `${t} Grok says:\nB view.\n\n${t} Gemini says:\nC view.`); // merged into one user turn
+});
+
+test("each turn's label begins with its time; the date too on the first turn and on a new day", () => {
+  const s = setup();
+  const [A, B] = s.seats as [Seat, Seat];
+  const later = "2026-10-06T23:12:00.000Z";
+  const nextDay = new Date(Date.parse(T) + 24 * 3600 * 1000).toISOString();
+  const entries = [human("Q"), { ...bot(A, "A1."), time: later }, { ...bot(B, "B1."), time: later }, { ...human("Next day."), time: nextDay }];
+  const forA = buildMessages(A, s, entries).map((m) => m.content);
+  const at = (iso: string) => formatTime(new Date(iso));
+  assert.deepEqual(forA.slice(1), [
+    `${formatDate(new Date(T))} ${t} Bill says:\nQ`,
+    `${at(later)}\nA1.`,
+    `${at(later)} Grok says:\nB1.\n\n${formatDate(new Date(nextDay))} ${at(nextDay)} Bill says:\nNext day.`,
+  ]);
+  assert.equal(turnStamp({ time: later }, { time: T }), at(later), "the same day: the time alone");
 });
 
 test("private exchanges are visible only to their seat", () => {
@@ -98,7 +119,7 @@ test("private exchanges are visible only to their seat", () => {
   const forB = buildMessages(B, s, entries);
   assert.ok(forB[1]?.content.includes("Bill says (privately, only you can see this):\nGrok, be contrarian."));
   assert.equal(forB[2]?.role, "assistant");
-  assert.equal(forB[2]?.content, "Understood.\n\nI disagree with everything."); // consecutive own turns merged
+  assert.equal(forB[2]?.content, `${t}\nUnderstood.\n\n${t}\nI disagree with everything.`); // consecutive own turns merged
   assert.equal(forB.at(-1)?.role, "user"); // nudge added because it last spoke itself
   assert.match(forB.at(-1)?.content ?? "", /asks you to continue/);
 });
@@ -115,7 +136,7 @@ test("empty conversation gets an opener; a seat opening first gets one prepended
 
   const m2 = buildMessages(B, s, [bot(A, "I'll start.")]);
   assert.deepEqual(m2.slice(1).map((x) => x.role), ["user"]);
-  assert.equal(m2[1]?.content, "Claude says:\nI'll start.");
+  assert.equal(m2[1]?.content, `${D} Claude says:\nI'll start.`);
 });
 
 test("failed and still-arriving replies are never shown; stopped ones are", () => {
@@ -154,6 +175,13 @@ test("stripSelfPrefix removes only the seat's own label", () => {
   assert.equal(stripSelfPrefix("Grok says: Hi", "Claude"), "Grok says: Hi");
   assert.equal(stripSelfPrefix("C++ (bot) says: x", "C++ (bot)"), "x");
   assert.equal(stripSelfPrefix("I think Claude says: yes", "Claude"), "I think Claude says: yes");
+  // A time a model writes itself, on a line of its own or before its name.
+  assert.equal(stripSelfPrefix("17:20\nHi", "Claude"), "Hi");
+  assert.equal(stripSelfPrefix("2026 Oct 25 09:03\nHi", "Claude"), "Hi");
+  assert.equal(stripSelfPrefix("17:20 Claude says: Hi", "Claude"), "Hi");
+  assert.equal(stripSelfPrefix("**17:20**\nHi", "Claude"), "Hi");
+  assert.equal(stripSelfPrefix("10:30 is when it starts.", "Claude"), "10:30 is when it starts.", "a time that begins a sentence stays");
+  assert.equal(stripSelfPrefix("17:20 Grok says: Hi", "Claude"), "17:20 Grok says: Hi");
 });
 
 test("copies get unique names and the same model", () => {
@@ -251,7 +279,7 @@ test("attachments: text inline, images and PDFs as parts, merged into one user t
   assert.ok(Array.isArray(parts));
   assert.deepEqual(parts.map((p) => p.type), ["text", "image_url", "text", "file"]);
   const first = parts[0] as { text: string };
-  assert.ok(first.text.startsWith("Bill says:\nPlease read these.\n\nBill says:\nSee attached."));
+  assert.ok(first.text.startsWith(`${D} Bill says:\nPlease read these.\n\n${t} Bill says:\nSee attached.`));
   assert.ok(first.text.includes('<file name="notes.md">\n# Notes\nTime is a river.\n</file>'));
   assert.ok(first.text.endsWith("(Attached image: orbit.png)"));
   assert.deepEqual(parts[1], { type: "image_url", image_url: { url: image.data } });
@@ -266,7 +294,7 @@ test("attachments: text-only models are told about images; missing files are not
   const m = buildMessages(A, s, entries, new Date(), { images: false });
   assert.equal(typeof m[1]?.content, "string", "no image part: plain text message");
   const text = m[1]?.content as string;
-  assert.ok(text.startsWith("Bill shares these files:"));
+  assert.ok(text.startsWith(`${D} Bill shares these files:`));
   assert.ok(text.includes("(Bill attached an image, orbit.png, but your model can't view images.)"));
   assert.ok(text.includes("(Bill attached notes.md, but the file is no longer available.)"));
   assert.equal(hasFileParts(m), false);
@@ -384,19 +412,29 @@ test("waiting for a reply: the time waited from the first second on, in minutes 
 test("default house rules: Bill's guidance included; untouched old copies upgraded, edited ones kept", () => {
   assert.ok(DEFAULT_HOUSE_RULES.includes("Avoid even a hint of sycophancy, toward {humanName} or toward the other participants."));
   assert.ok(DEFAULT_HOUSE_RULES.endsWith("No answer, or a qualified one, is better than a confident mistake."));
-  const old = DEFAULT_HOUSE_RULES.slice(0, DEFAULT_HOUSE_RULES.indexOf("\n\nHow to contribute:"));
+  // The label rule as revised on 2026 Oct 29: messages labeled with their time.
+  const newLabel = 'labeled with the time they began and "Name says:", e.g. "17:12 Name says:"';
+  const oldLabel = 'labeled "Name says:". Your own earlier contributions appear without a label.';
+  const newLabelRule = DEFAULT_HOUSE_RULES.slice(DEFAULT_HOUSE_RULES.indexOf("- Messages from others"), DEFAULT_HOUSE_RULES.indexOf("never write one yourself.") + "never write one yourself.".length);
+  const oldLabelRule = `- Messages from others reach you ${oldLabel}`;
+  assert.ok(DEFAULT_HOUSE_RULES.includes(newLabel) && !DEFAULT_HOUSE_RULES.includes(oldLabel));
+  const before = DEFAULT_HOUSE_RULES.replace(newLabelRule, oldLabelRule);
+  assert.equal(upgradeHouseRules(before), DEFAULT_HOUSE_RULES, "the untouched Oct 09 default is upgraded");
+  const editedBefore = upgradeHouseRules(before.replace("Keep each contribution focused", "Keep each contribution short"));
+  assert.ok(editedBefore.includes(newLabel) && editedBefore.includes("Keep each contribution short"), "an edited copy gets just the new label rule");
+  const old = before.slice(0, before.indexOf("\n\nHow to contribute:"));
   assert.ok(old.endsWith("- Today's date is {date}."));
   assert.equal(upgradeHouseRules(old), DEFAULT_HOUSE_RULES);
   assert.equal(upgradeHouseRules(old + "\n"), DEFAULT_HOUSE_RULES, "trailing whitespace doesn't matter");
   const edited = old + "\n- Always answer in Latin.";
-  assert.equal(upgradeHouseRules(edited), edited);
+  assert.equal(upgradeHouseRules(edited), edited.replace(oldLabelRule, newLabelRule), "edits kept; only the label rule updated");
   assert.equal(upgradeHouseRules(DEFAULT_HOUSE_RULES), DEFAULT_HOUSE_RULES);
   // The confidence rule as revised on 2026 Oct 09.
   const newRule = 'say what would raise or lower it. Don\'t say 100% or 0% without clear, hard evidence.';
   const oldRule = "say what would raise it. Don't say 100% without clear, hard evidence.";
   assert.ok(DEFAULT_HOUSE_RULES.includes(newRule));
   assert.ok(!DEFAULT_HOUSE_RULES.includes(oldRule));
-  const oct07 = DEFAULT_HOUSE_RULES.replace(newRule, oldRule);
+  const oct07 = before.replace(newRule, oldRule);
   assert.equal(upgradeHouseRules(oct07), DEFAULT_HOUSE_RULES, "the untouched Oct 07 default is upgraded");
   const editedOct07 = oct07.replace("Keep each contribution focused", "Keep each contribution short");
   const upgraded = upgradeHouseRules(editedOct07);
@@ -652,9 +690,9 @@ test("files reach the others after the reply's text; the maker sees its own; lat
   assert.equal(forA[2]?.role, "assistant");
   assert.equal(
     forA[2]?.content,
-    "Here it is.\n\n(Claude's file plan.md was here; a later version of it comes further on.)\n\n(Claude's file draft.txt was here; Bill has since removed it.)",
+    `${t}\nHere it is.\n\n(Claude's file plan.md was here; a later version of it comes further on.)\n\n(Claude's file draft.txt was here; Bill has since removed it.)`,
   );
-  assert.equal(forA[4]?.content, 'Revised.\n\n<file name="Plan.md">\nv2\n</file>');
+  assert.equal(forA[4]?.content, `${t}\nRevised.\n\n<file name="Plan.md">\nv2\n</file>`);
 
   // Grok, who can see its private file.
   assert.ok(JSON.stringify(buildMessages(B, s, entries)).includes("hush"));
@@ -729,7 +767,7 @@ test("a private exchange with several: only its members see the message and the 
   const forA = buildMessages(A, s, entries);
   assert.ok(String(forA.at(-1)?.content).includes("Grok says (privately; only Bill and you can see this):\nB's private reply."));
   assert.equal(forA[2]?.role, "assistant");
-  assert.equal(forA[2]?.content, "A's private reply.", "its own reply, as it wrote it");
+  assert.equal(forA[2]?.content, `${t}\nA's private reply.`, "its own reply, as it wrote it, after its time");
   // The stage directions on screen and in saved files.
   assert.equal(privateLabel(entries[1]!, s.seats, "Bill"), "privately, to Claude and Grok, in turn");
   assert.equal(privateLabel(entries[2]!, s.seats, "Bill"), "privately, to Bill and Grok");

@@ -949,6 +949,33 @@
         text-decoration: line-through;
       }
 
+      /* An attached text file: its name opens it, across the whole width, in a box that scrolls. */
+      .entry details.file {
+        display: block;
+      }
+
+      .entry details.file[open] {
+        flex-basis: 100%;
+      }
+
+      .entry details.file summary {
+        cursor: pointer;
+        width: fit-content;
+      }
+
+      .entry .file-text {
+        max-height: 24rem;
+        overflow: auto;
+        margin: 0.3rem 0 0;
+        padding: 0.6rem 0.8rem;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        color: var(--ink);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
       .entry .file-note {
         color: var(--error);
       }
@@ -2285,8 +2312,12 @@ How the conversation works:
 - Write only your own contribution. Don't begin with your name or "{name} says:", and never write lines for other participants.
 - A message from {humanName} marked "privately" is seen only by you, and your reply to it is private too. The others never see private exchanges, so don't refer to them as if they had.
 - Today's date is {date}.`;
+        var LABEL_RULE_OCT07 =
+          `- Messages from others reach you labeled "Name says:". Your own earlier contributions appear without a label.`;
+        var LABEL_RULE =
+          `- Messages from others reach you labeled with the time they began and "Name says:", e.g. "17:12 Name says:"; the first message of a day has the date in front of the time. Your own earlier contributions begin with just their time. Dialog adds these times: never write one yourself.`;
         var DEFAULT_HOUSE_RULES =
-          `${PREVIOUS_HOUSE_RULES}
+          `${PREVIOUS_HOUSE_RULES.replace(LABEL_RULE_OCT07, LABEL_RULE)}
 
 How to contribute:
 - If you agree with something already said, say so briefly; don't repeat it. If you have something to add, correct or qualify, do that without repeating what's been said.
@@ -2311,12 +2342,13 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
         var CONFIDENCE_RULE =
           `- When you're unsure, say so. Give your confidence as a percentage for claims and conclusions that matter (e.g. "my confidence: 25%"), and say what would raise or lower it. Don't say 100% or 0% without clear, hard evidence.`;
         var HOUSE_RULES_OCT07 = DEFAULT_HOUSE_RULES.replace(CONFIDENCE_RULE,
-          CONFIDENCE_RULE_OCT07);
+          CONFIDENCE_RULE_OCT07).replace(LABEL_RULE, LABEL_RULE_OCT07);
 
         function upgradeHouseRules(saved) {
           const t = saved.trim();
           if (t === PREVIOUS_HOUSE_RULES || t === HOUSE_RULES_OCT07) return DEFAULT_HOUSE_RULES;
-          return saved.replace(CONFIDENCE_RULE_OCT07, CONFIDENCE_RULE);
+          return saved.replace(CONFIDENCE_RULE_OCT07, CONFIDENCE_RULE).replace(LABEL_RULE_OCT07,
+            LABEL_RULE);
         }
         var SEAT_COLORS = {
           Claude: "#c96442",
@@ -2408,6 +2440,12 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
 
         function formatTime(d) {
           return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+        }
+
+        function turnStamp(e, previous) {
+          const d = new Date(e.time);
+          const newDay = !previous || formatDate(new Date(previous.time)) !== formatDate(d);
+          return newDay ? `${formatDate(d)} ${formatTime(d)}` : formatTime(d);
         }
 
         function formatAsOf(d, now = /* @__PURE__ */ new Date()) {
@@ -2859,7 +2897,7 @@ ${role}`;
           return prompt;
         }
 
-        function entryParts(e, humanName, abilities, seats, replaced, viewerId) {
+        function entryParts(e, humanName, abilities, seats, replaced, viewerId, stamp) {
           const files = e.attachments ?? [];
           const group = privateGroup(e);
           const name = (id) => seats.find((s) => s.id === id)?.name ?? "a removed seat";
@@ -2884,6 +2922,7 @@ ${role}`;
           } else {
             label = `${e.speakerName} says:`;
           }
+          label = `${stamp} ${label}`;
           const parts = [{
             type: "text",
             text: e.text.trim() ? `${label}
@@ -2974,16 +3013,18 @@ ${a.data}
           }];
           const seen = entries.filter((e) => isSettled(e) && canSee(seat.id, e));
           const replaced = replacedFiles(seen);
-          for (const e of seen) {
+          seen.forEach((e, i) => {
+            const stamp = turnStamp(e, seen[i - 1]);
             if (e.speaker === seat.id) {
               const own = [e.text, ...(e.made ?? []).map((f) => madeFileText(f, e.speakerName,
                 settings2.humanName, replaced))];
-              push("assistant", text(own.filter((t) => t.trim()).join("\n\n")));
+              push("assistant", text(`${stamp}
+${own.filter((t) => t.trim()).join("\n\n")}`));
             } else {
               push("user", entryParts(e, settings2.humanName, abilities, settings2.seats,
-                replaced, seat.id));
+                replaced, seat.id, stamp));
             }
-          }
+          });
           const opener = `(${settings2.humanName} has asked you to open the conversation.)`;
           if (turns.length === 0) turns.push({
             role: "user",
@@ -3235,153 +3276,12 @@ ${a.data}
 
         function stripSelfPrefix(text, name) {
           const esc2 = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          const re = new RegExp(
-            `^\\s*(?:\\*\\*|__)?${esc2}(?:\\s+says)?\\s*:\\s*(?:\\*\\*|__)?[ \\t]*\\n?`, "i");
-          return text.replace(re, "");
-        }
-        // src/attachments.ts
-        var LARGE_TEXT_TOKENS = 5e4;
-        var MAX_TEXT_BYTES = 2 * 1024 * 1024;
-        var MAX_PDF_BYTES = 20 * 1024 * 1024;
-        var MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-        var IMAGE_MAX_SIDE = 2e3;
-        var IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-        var TEXT_EXTENSIONS = new Set(
-          "txt md markdown text csv tsv json jsonl xml yaml yml toml ini cfg conf log html htm css js mjs ts tsx jsx py swift c h cpp hpp m mm java kt go rs rb php pl sh zsh bash sql r tex bib rtf srt vtt"
-          .split(" ")
-        );
-        var OFFICE_EXTENSIONS = new Set("doc docx pages odt xls xlsx numbers ods ppt pptx key odp"
-          .split(" "));
-        var AttachError = class extends Error {};
-        var extOf = (name) => (/\.([^.]+)$/.exec(name)?.[1] ?? "").toLowerCase();
-
-        function estimateTokens(text) {
-          return Math.max(1, Math.round(text.length / 4));
-        }
-
-        function readAs(file, how) {
-          return new Promise((resolve, reject) => {
-            const r = new FileReader();
-            r.onload = () => resolve(r.result);
-            r.onerror = () => reject(new AttachError(
-              `Couldn't read ${file.name ?? "the file"}.`));
-            if (how === "text") r.readAsText(file);
-            else if (how === "dataURL") r.readAsDataURL(file);
-            else r.readAsArrayBuffer(file);
-          });
-        }
-        async function asText(file) {
-          const ext = extOf(file.name);
-          const typed = file.type.startsWith("text/") ||
-            /json|xml|javascript|yaml|x-sh|x-python/.test(file.type);
-          if (!typed && !TEXT_EXTENSIONS.has(ext) && file.type !== "") return null;
-          const bytes = new Uint8Array(await readAs(file, "buffer"));
-          try {
-            const text = new TextDecoder("utf-8", {
-              fatal: true
-            }).decode(bytes);
-            return text.includes("\0") ? null : text;
-          } catch {
-            return null;
-          }
-        }
-        async function prepareImage(file) {
-          const original = async () => ({
-            data: await readAs(file, "dataURL"),
-            mime: file.type,
-            size: file.size
-          });
-          if (file.type === "image/gif") return original();
-          try {
-            const bitmap = await createImageBitmap(file);
-            const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-            if (scale === 1 && file.size <= 1.5 * 1024 * 1024) return original();
-            const canvas = document.createElement("canvas");
-            canvas.width = Math.round(bitmap.width * scale);
-            canvas.height = Math.round(bitmap.height * scale);
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return original();
-            const keepPng = file.type === "image/png";
-            if (!keepPng) {
-              ctx.fillStyle = "#ffffff";
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
-            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-            const mime = keepPng ? "image/png" : "image/jpeg";
-            const data = canvas.toDataURL(mime, 0.85);
-            const size = Math.round((data.length - data.indexOf(",") - 1) * 3 / 4);
-            return size < file.size || scale < 1 ? {
-              data,
-              mime,
-              size
-            } : original();
-          } catch {
-            return original();
-          }
-        }
-        async function readAttachment(file, confirmLarge) {
-          const ext = extOf(file.name);
-          const base = {
-            id: newId(),
-            name: file.name || "unnamed"
-          };
-          if (IMAGE_TYPES.includes(file.type)) {
-            if (file.size > MAX_IMAGE_BYTES) throw new AttachError(
-              `${file.name} is too large (${formatBytes(file.size)}).`);
-            const img = await prepareImage(file);
-            return {
-              ...base,
-              kind: "image",
-              mime: img.mime,
-              size: img.size,
-              data: img.data
-            };
-          }
-          if (file.type === "application/pdf" || ext === "pdf") {
-            if (file.size > MAX_PDF_BYTES) throw new AttachError(
-              `${file.name} is too large (${formatBytes(file.size)}); the limit for PDFs is ${formatBytes(MAX_PDF_BYTES)}.`
-              );
-            const raw = await readAs(file, "dataURL");
-            const data = raw.replace(/^data:[^;,]*/, "data:application/pdf");
-            return {
-              ...base,
-              kind: "pdf",
-              mime: "application/pdf",
-              size: file.size,
-              data
-            };
-          }
-          if (OFFICE_EXTENSIONS.has(ext)) {
-            throw new AttachError(
-              `Dialog can't read .${ext} files. Export ${file.name} as a PDF and attach that instead.`
-              );
-          }
-          if (file.size <= MAX_TEXT_BYTES) {
-            const text = await asText(file);
-            if (text !== null) {
-              const tokens = estimateTokens(text);
-              if (tokens > LARGE_TEXT_TOKENS && !confirmLarge(
-                  `${file.name} is about ${tokens.toLocaleString("en-US")} tokens. Every participant re-reads attached files each time it speaks, so a file this size adds noticeably to the cost of every turn. Attach it anyway?`
-                )) {
-                throw new AttachError("");
-              }
-              return {
-                ...base,
-                kind: "text",
-                mime: file.type || "text/plain",
-                size: file.size,
-                tokens,
-                data: text
-              };
-            }
-          } else if (TEXT_EXTENSIONS.has(ext) || file.type.startsWith("text/")) {
-            throw new AttachError(
-              `${file.name} is too large (${formatBytes(file.size)}); the limit for text files is ${formatBytes(MAX_TEXT_BYTES)}.`
-              );
-          }
-          throw new AttachError(
-            `Dialog can attach text files, PDFs and images (PNG, JPEG, WebP, GIF), but not ${file.name}.`
-          );
+          const label = `(?:\\*\\*|__)?${esc2}(?:\\s+says)?\\s*:`;
+          const time = new RegExp(
+            `^\\s*(?:\\*\\*|__)?(?:\\d{4} [A-Z][a-z]{2} \\d{2} )?\\d{1,2}:\\d{2}(?:\\*\\*|__)?(?:[ \\t]*(?:\\n|$)|[ \\t]+(?=${label}))`,
+            "i");
+          const re = new RegExp(`^\\s*${label}\\s*(?:\\*\\*|__)?[ \\t]*\\n?`, "i");
+          return text.replace(time, "").replace(re, "");
         }
         // libraries-from-page:temml
         var temml_default = dialogLibraries.temml;
@@ -3983,7 +3883,7 @@ body {
             "";
         }
 
-        function turnHtml(e, settings2, opts, showTime) {
+        function turnHtml(e, settings2, opts, stamp) {
           const isHuman = e.speaker === "human";
           const color = seatColor(e, settings2);
           const cls = ["turn", isHuman ? "human" : "bot", e.privateWith ? "private" : "", e
@@ -3996,7 +3896,7 @@ body {
           return [
             `<article class="${cls}"${color ? ` style="--seat-color: ${esc(color)}"` : ""}>`,
             `<div class="who">`,
-            showTime ? `<span class="time">${formatTime(new Date(e.time))}</span>` : "",
+            `<span class="time">${esc(stamp)}</span>`,
             `<span class="name">${esc(e.speakerName)}</span>`,
             dir ? `<span class="direction">${esc(dir)}</span>` : "",
             model ? `<span class="model">${esc(model)}</span>` : "",
@@ -4072,7 +3972,8 @@ body {
           }
           if (seats.some((s) => s.role.trim())) notes.push(
             "Quoted under a participant: its role.");
-          const turns = entries.map((e) => turnHtml(e, settings2, opts, false));
+          const turns = entries.map((e, i) => turnHtml(e, settings2, opts, turnStamp(e, entries[
+            i - 1])));
           const n = entries.length;
           const dates = only ?
             `${n} ${n === 1 ? "turn" : "turns"} chosen from a conversation started ${when(started)}. Saved ${when(savedAt)}.` :
@@ -4194,13 +4095,26 @@ body {
         }
 
         function copiedText(turns, settings2) {
-          return turns.map((t) => {
-            const e = t.entry;
-            const model = e.speaker === "human" ? "" : e.model ?? e.seatModel ?? "";
-            const head = [formatTime(new Date(e.time)), e.speakerName, direction(e,
-              settings2)].filter(Boolean).join(" ");
-            return [head, model, t.text.trim().replace(/\n{3,}/g, "\n\n")].filter(Boolean)
-              .join("\n");
+          return turns.map((t) => plainTurn(t.entry, t.text, settings2, formatTime(new Date(t
+            .entry.time)))).join("\n\n");
+        }
+
+        function plainTurn(e, text, settings2, stamp) {
+          const model = e.speaker === "human" ? "" : e.model ?? e.seatModel ?? "";
+          const head = [stamp, e.speakerName, direction(e, settings2)].filter(Boolean).join(" ");
+          return [head, model, text.trim().replace(/\n{3,}/g, "\n\n")].filter(Boolean).join("\n");
+        }
+
+        function savedConversationText(data) {
+          return data.entries.filter(isSettled).map((e, i, settled) => {
+            const attached = (e.attachments ?? []).map((a) => a.name);
+            const made = (e.made ?? []).filter((f) => !f.removed).map((f) => f.name);
+            const files = [
+              attached.length ? `(attached: ${attached.join(", ")})` : "",
+              made.length ? `(made: ${made.join(", ")})` : ""
+            ];
+            return plainTurn(e, [e.text, ...files].filter(Boolean).join("\n\n"), data,
+              turnStamp(e, settled[i - 1]));
           }).join("\n\n");
         }
         var EXPORT_CSS = `
@@ -4286,79 +4200,6 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
   details.file[open] summary, details.file summary { list-style: none; }
 }
 `.trim();
-        // src/makers.ts
-        var OPENROUTER_ICON = (file) => `https://openrouter.ai/images/icons/${file}`;
-        var SITE_ICON = (site) =>
-          `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${site}&size=64`;
-        var MAKER_LOGOS = {
-          anthropic: OPENROUTER_ICON("Anthropic.svg"),
-          openai: OPENROUTER_ICON("OpenAI.svg"),
-          google: OPENROUTER_ICON("GoogleGemini.svg"),
-          "x-ai": SITE_ICON("https://x.ai/"),
-          deepseek: OPENROUTER_ICON("DeepSeek.png"),
-          qwen: OPENROUTER_ICON("Qwen.png"),
-          mistralai: OPENROUTER_ICON("Mistral.png"),
-          meta: OPENROUTER_ICON("Meta.png"),
-          "meta-llama": OPENROUTER_ICON("Meta.png"),
-          moonshotai: OPENROUTER_ICON("MoonshotAI.png"),
-          "z-ai": SITE_ICON("https://z.ai/"),
-          xiaomi: SITE_ICON("https://www.mi.com"),
-          cohere: OPENROUTER_ICON("Cohere.png"),
-          perplexity: OPENROUTER_ICON("Perplexity.png"),
-          microsoft: OPENROUTER_ICON("Microsoft.svg"),
-          nvidia: SITE_ICON("https://nvidia.com/"),
-          amazon: SITE_ICON("https://nova.amazon.com/"),
-          minimax: SITE_ICON("https://minimaxi.com/"),
-          stepfun: SITE_ICON("https://platform.stepfun.ai/")
-        };
-
-        function makerOf(modelId, modelName) {
-          const id = isLocalModel(modelId) ? localId(modelId) : modelId.trim();
-          const slug = (/^~?([^/]+)\//.exec(id)?.[1] ?? "").toLowerCase();
-          const fromName = modelName && modelName.includes(":") ? modelName.slice(0, modelName
-            .indexOf(":")).trim() : "";
-          const name = fromName || slug;
-          const initial = (/[\p{L}\p{N}]/u.exec(name)?.[0] ?? "?").toUpperCase();
-          return {
-            slug,
-            name,
-            logo: MAKER_LOGOS[slug],
-            initial
-          };
-        }
-        // libraries-from-page:js-beautify
-        var js_beautify_default = dialogLibraries.beautify;
-        // src/pretty.ts
-        var PRETTY_OPTIONS = {
-          indent_size: 2,
-          indent_inner_html: true,
-          // indent <head> and <body> inside <html>
-          wrap_line_length: 100,
-          // long lines are broken at spaces, never inside a word
-          max_preserve_newlines: 1,
-          // at most one blank line in a row
-          end_with_newline: true,
-          templating: ["none"],
-          // text like {{name}} is ordinary text, not a template language
-          // Scripts and styles inside a page: laid out the same way, without a blank line at the end.
-          js: {
-            end_with_newline: false
-          },
-          css: {
-            end_with_newline: false
-          }
-        };
-
-        function prettyHtml(html) {
-          try {
-            return js_beautify_default.html(html, {
-              ...PRETTY_OPTIONS,
-              templating: [...PRETTY_OPTIONS.templating]
-            });
-          } catch {
-            return html;
-          }
-        }
         // src/storage.ts
         var SETTINGS_KEY = "dialog.settings.v1";
         var SESSION_KEY = "dialog.session.v1";
@@ -4774,6 +4615,245 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
 
         function saveModelSort(sort) {
           write(shared, MODEL_SORT_KEY, sort);
+        }
+        // src/attachments.ts
+        var LARGE_TEXT_TOKENS = 5e4;
+        var MAX_TEXT_BYTES = 2 * 1024 * 1024;
+        var MAX_PDF_BYTES = 20 * 1024 * 1024;
+        var MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+        var MAX_SAVED_BYTES = 100 * 1024 * 1024;
+        var IMAGE_MAX_SIDE = 2e3;
+        var IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+        var TEXT_EXTENSIONS = new Set(
+          "txt md markdown text csv tsv json jsonl xml yaml yml toml ini cfg conf log html htm css js mjs ts tsx jsx py swift c h cpp hpp m mm java kt go rs rb php pl sh zsh bash sql r tex bib rtf srt vtt"
+          .split(" ")
+        );
+        var OFFICE_EXTENSIONS = new Set("doc docx pages odt xls xlsx numbers ods ppt pptx key odp"
+          .split(" "));
+        var AttachError = class extends Error {};
+        var extOf = (name) => (/\.([^.]+)$/.exec(name)?.[1] ?? "").toLowerCase();
+
+        function estimateTokens(text) {
+          return Math.max(1, Math.round(text.length / 4));
+        }
+
+        function readAs(file, how) {
+          return new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result);
+            r.onerror = () => reject(new AttachError(
+              `Couldn't read ${file.name ?? "the file"}.`));
+            if (how === "text") r.readAsText(file);
+            else if (how === "dataURL") r.readAsDataURL(file);
+            else r.readAsArrayBuffer(file);
+          });
+        }
+        async function asText(file) {
+          const ext = extOf(file.name);
+          const typed = file.type.startsWith("text/") ||
+            /json|xml|javascript|yaml|x-sh|x-python/.test(file.type);
+          if (!typed && !TEXT_EXTENSIONS.has(ext) && file.type !== "") return null;
+          const bytes = new Uint8Array(await readAs(file, "buffer"));
+          try {
+            const text = new TextDecoder("utf-8", {
+              fatal: true
+            }).decode(bytes);
+            return text.includes("\0") ? null : text;
+          } catch {
+            return null;
+          }
+        }
+        async function prepareImage(file) {
+          const original = async () => ({
+            data: await readAs(file, "dataURL"),
+            mime: file.type,
+            size: file.size
+          });
+          if (file.type === "image/gif") return original();
+          try {
+            const bitmap = await createImageBitmap(file);
+            const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+            if (scale === 1 && file.size <= 1.5 * 1024 * 1024) return original();
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(bitmap.width * scale);
+            canvas.height = Math.round(bitmap.height * scale);
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return original();
+            const keepPng = file.type === "image/png";
+            if (!keepPng) {
+              ctx.fillStyle = "#ffffff";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            const mime = keepPng ? "image/png" : "image/jpeg";
+            const data = canvas.toDataURL(mime, 0.85);
+            const size = Math.round((data.length - data.indexOf(",") - 1) * 3 / 4);
+            return size < file.size || scale < 1 ? {
+              data,
+              mime,
+              size
+            } : original();
+          } catch {
+            return original();
+          }
+        }
+
+        function textFile(name, text, confirmLarge) {
+          const tokens = estimateTokens(text);
+          if (tokens > LARGE_TEXT_TOKENS && !confirmLarge(
+              `${name} is about ${tokens.toLocaleString("en-US")} tokens. Every participant re-reads attached files each time it speaks, so a file this size adds noticeably to the cost of every turn. Attach it anyway?`
+            )) {
+            throw new AttachError("");
+          }
+          return {
+            name,
+            kind: "text",
+            tokens,
+            data: text
+          };
+        }
+        async function readAttachment(file, confirmLarge) {
+          const ext = extOf(file.name);
+          const base = {
+            id: newId(),
+            name: file.name || "unnamed"
+          };
+          if (IMAGE_TYPES.includes(file.type)) {
+            if (file.size > MAX_IMAGE_BYTES) throw new AttachError(
+              `${file.name} is too large (${formatBytes(file.size)}).`);
+            const img = await prepareImage(file);
+            return {
+              ...base,
+              kind: "image",
+              mime: img.mime,
+              size: img.size,
+              data: img.data
+            };
+          }
+          if (file.type === "application/pdf" || ext === "pdf") {
+            if (file.size > MAX_PDF_BYTES) throw new AttachError(
+              `${file.name} is too large (${formatBytes(file.size)}); the limit for PDFs is ${formatBytes(MAX_PDF_BYTES)}.`
+              );
+            const raw = await readAs(file, "dataURL");
+            const data = raw.replace(/^data:[^;,]*/, "data:application/pdf");
+            return {
+              ...base,
+              kind: "pdf",
+              mime: "application/pdf",
+              size: file.size,
+              data
+            };
+          }
+          if (OFFICE_EXTENSIONS.has(ext)) {
+            throw new AttachError(
+              `Dialog can't read .${ext} files. Export ${file.name} as a PDF and attach that instead.`
+              );
+          }
+          const mayBeSaved = (ext === "html" || ext === "htm") && file.size <= MAX_SAVED_BYTES;
+          if (file.size <= MAX_TEXT_BYTES || mayBeSaved) {
+            const text = await asText(file);
+            const saved = text === null || !mayBeSaved ? null : savedConversationData(text);
+            if (saved) {
+              const transcript = savedConversationText(saved);
+              const name = `${file.name.replace(/\.html?$/i, "")} (transcript).txt`;
+              return {
+                ...base,
+                ...textFile(name, transcript, confirmLarge),
+                mime: "text/plain",
+                size: new TextEncoder().encode(transcript).length
+              };
+            }
+            if (text !== null && file.size <= MAX_TEXT_BYTES) {
+              return {
+                ...base,
+                ...textFile(file.name, text, confirmLarge),
+                mime: file.type || "text/plain",
+                size: file.size
+              };
+            }
+          }
+          if (file.size > MAX_TEXT_BYTES && (TEXT_EXTENSIONS.has(ext) || file.type.startsWith(
+              "text/"))) {
+            throw new AttachError(
+              `${file.name} is too large (${formatBytes(file.size)}); the limit for text files is ${formatBytes(MAX_TEXT_BYTES)}.`
+              );
+          }
+          throw new AttachError(
+            `Dialog can attach text files, PDFs and images (PNG, JPEG, WebP, GIF), but not ${file.name}.`
+          );
+        }
+        // src/makers.ts
+        var OPENROUTER_ICON = (file) => `https://openrouter.ai/images/icons/${file}`;
+        var SITE_ICON = (site) =>
+          `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${site}&size=64`;
+        var MAKER_LOGOS = {
+          anthropic: OPENROUTER_ICON("Anthropic.svg"),
+          openai: OPENROUTER_ICON("OpenAI.svg"),
+          google: OPENROUTER_ICON("GoogleGemini.svg"),
+          "x-ai": SITE_ICON("https://x.ai/"),
+          deepseek: OPENROUTER_ICON("DeepSeek.png"),
+          qwen: OPENROUTER_ICON("Qwen.png"),
+          mistralai: OPENROUTER_ICON("Mistral.png"),
+          meta: OPENROUTER_ICON("Meta.png"),
+          "meta-llama": OPENROUTER_ICON("Meta.png"),
+          moonshotai: OPENROUTER_ICON("MoonshotAI.png"),
+          "z-ai": SITE_ICON("https://z.ai/"),
+          xiaomi: SITE_ICON("https://www.mi.com"),
+          cohere: OPENROUTER_ICON("Cohere.png"),
+          perplexity: OPENROUTER_ICON("Perplexity.png"),
+          microsoft: OPENROUTER_ICON("Microsoft.svg"),
+          nvidia: SITE_ICON("https://nvidia.com/"),
+          amazon: SITE_ICON("https://nova.amazon.com/"),
+          minimax: SITE_ICON("https://minimaxi.com/"),
+          stepfun: SITE_ICON("https://platform.stepfun.ai/")
+        };
+
+        function makerOf(modelId, modelName) {
+          const id = isLocalModel(modelId) ? localId(modelId) : modelId.trim();
+          const slug = (/^~?([^/]+)\//.exec(id)?.[1] ?? "").toLowerCase();
+          const fromName = modelName && modelName.includes(":") ? modelName.slice(0, modelName
+            .indexOf(":")).trim() : "";
+          const name = fromName || slug;
+          const initial = (/[\p{L}\p{N}]/u.exec(name)?.[0] ?? "?").toUpperCase();
+          return {
+            slug,
+            name,
+            logo: MAKER_LOGOS[slug],
+            initial
+          };
+        }
+        // libraries-from-page:js-beautify
+        var js_beautify_default = dialogLibraries.beautify;
+        // src/pretty.ts
+        var PRETTY_OPTIONS = {
+          indent_size: 2,
+          indent_inner_html: true,
+          // indent <head> and <body> inside <html>
+          wrap_line_length: 100,
+          // long lines are broken at spaces, never inside a word
+          max_preserve_newlines: 1,
+          // at most one blank line in a row
+          end_with_newline: true,
+          templating: ["none"],
+          // text like {{name}} is ordinary text, not a template language
+          // Scripts and styles inside a page: laid out the same way, without a blank line at the end.
+          js: {
+            end_with_newline: false
+          },
+          css: {
+            end_with_newline: false
+          }
+        };
+
+        function prettyHtml(html) {
+          try {
+            return js_beautify_default.html(html, {
+              ...PRETTY_OPTIONS,
+              templating: [...PRETTY_OPTIONS.templating]
+            });
+          } catch {
+            return html;
+          }
         }
         // src/recent.ts
         var KEEP_RECENT = 25;
@@ -5433,7 +5513,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.11";
+        var VERSION = "2.12.4";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -5702,6 +5782,35 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         }
         var opened = /* @__PURE__ */ new Set();
         var thinkingOpen = /* @__PURE__ */ new Set();
+        var textFileOpen = /* @__PURE__ */ new Set();
+
+        function textFileBox(a, note) {
+          const text = h("pre", {
+            class: "file-text"
+          });
+          const fill = () => {
+            text.textContent = box.open ? a.data ?? "" : "";
+          };
+          const box = h(
+            "details", {
+              class: "file",
+              open: textFileOpen.has(a.id),
+              ontoggle: () => {
+                if (box.open) textFileOpen.add(a.id);
+                else textFileOpen.delete(a.id);
+                fill();
+              }
+            },
+            h("summary", {}, h("span", {
+              class: "file-name"
+            }, describeAttachment(a)), note ? h("span", {
+              class: "file-note"
+            }, ` ${note}`) : null),
+            text
+          );
+          fill();
+          return box;
+        }
 
         function thinkingBox(e) {
           const box = h(
@@ -5938,6 +6047,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                 ...e.attachments.map((a) => {
                   const note = !a.data ? "No longer available." : a.unsaved ?
                     "Not saved; lost when this page closes." : "";
+                  if (a.kind === "text" && a.data) return textFileBox(a, note);
                   return h(
                     "div", {
                       class: "file" + (a.data ? "" : " missing")
@@ -7789,23 +7899,24 @@ Your name (${next.humanName}), About you, the house rules and the participants (
           void download(page2, conversationFileName(opts.savedAt, picked.size > 0), void 0,
             void 0, SAVES_PICKER);
         }
-
-        function resumeConversation(file) {
-          const reader = new FileReader();
-          reader.onerror = () => alert(`Couldn't read \u201C${file.name}\u201D.`);
-          reader.onload = () => {
-            let resumed;
-            try {
-              resumed = conversationFromFile(String(reader.result), settings);
-            } catch (err) {
-              alert(err instanceof Error ? err.message : String(err));
-              return;
-            }
-            const when2 = resumed.savedAt ?
-              `, saved ${formatDate(resumed.savedAt)} at ${formatTime(resumed.savedAt)}` : "";
-            resume(resumed, `in \u201C${file.name}\u201D${when2}`);
-          };
-          reader.readAsText(file);
+        async function resumeConversation(file) {
+          let text;
+          try {
+            text = await file.text();
+          } catch {
+            alert(`Couldn't read \u201C${file.name}\u201D.`);
+            return false;
+          }
+          let resumed;
+          try {
+            resumed = conversationFromFile(text, settings);
+          } catch (err) {
+            alert(err instanceof Error ? err.message : String(err));
+            return false;
+          }
+          const when2 = resumed.savedAt ?
+            `, saved ${formatDate(resumed.savedAt)} at ${formatTime(resumed.savedAt)}` : "";
+          return resume(resumed, `in \u201C${file.name}\u201D${when2}`);
         }
 
         function resume(resumed, which, recentId2) {
@@ -7817,7 +7928,7 @@ Your name (${next.humanName}), About you, the house rules and the participants (
 
 Your participants, house rules, name and About you will be replaced with the ones saved with it. Your keys stay as they are.`
           );
-          if (!ok) return;
+          if (!ok) return false;
           stopAll();
           settings = resumed.settings;
           session = resumed.session;
@@ -7832,6 +7943,7 @@ Your participants, house rules, name and About you will be replaced with the one
           renderTranscript(true);
           renderTopbar();
           updateSeatStatus();
+          return true;
         }
         var addedFiles = /* @__PURE__ */ new Map();
         var addedFolders;
@@ -7873,7 +7985,7 @@ Your participants, house rules, name and About you will be replaced with the one
               class: "restore-row",
               title: "file" in item ? `Saved as \u201C${item.file.name}\u201D` :
                 "Kept in this browser",
-              onclick: () => restoreOne(item)
+              onclick: () => void restoreOne(item)
             },
             h("span", {
               class: "r-when"
@@ -7916,20 +8028,19 @@ Your participants, house rules, name and About you will be replaced with the one
             .restoreDialog.close();
           else els.restoreDialog.removeAttribute("open");
         }
-
-        function restoreOne(item) {
-          closeRestore();
-          if ("file" in item) resumeConversation(item.file);
-          else void resumeRecent(item);
+        async function restoreOne(item) {
+          const resumed = "file" in item ? await resumeConversation(item.file) :
+            await resumeRecent(item);
+          if (resumed) closeRestore();
         }
         async function resumeRecent(r) {
           const data = await loadRecent(r.id);
           if (!data) {
             alert("That conversation is no longer kept in this browser.");
-            return;
+            return false;
           }
           const title = r.title ? `\u201C${r.title}\u201D` : "without a message from you";
-          resume(conversationFromData(data, settings),
+          return resume(conversationFromData(data, settings),
             `${title}, last kept ${formatAsOf(new Date(r.savedAt))}`, r.id);
         }
         async function deleteKept(r) {

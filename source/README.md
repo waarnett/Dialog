@@ -251,6 +251,9 @@ keypress never pays for a reply.
 - **The margin** of each turn shows a tick box for saving, the time, the speaker's name and,
   for a reply, its **cost** and **speed**. After the text come any **sources** used, and
   "stopped early" if you stopped it.
+- **Participants see the times too:** every turn reaches them with the time it began (the
+  date as well on the first turn of each day), their own earlier replies included, so you
+  can point one to a turn by its time ("what you said at 17:12").
 - **Click a reply's cost or speed** for its particulars: the exact model that answered and
   its thinking level, the **host** (the company whose servers ran it), the cost table and the
   speed's breakdown. Click again to hide them.
@@ -298,6 +301,14 @@ Drag files onto the conversation, or click **Attach…**. They wait above the in
 drops one) and go out with your next message, privately if the message is private.
 
 - **Text files** (Markdown, plain text, CSV, code and the like) go to every model as text.
+  In the conversation, click the triangle by a text file's name to see what's in it (and
+  again to fold it away), as in a saved conversation.
+- **A conversation saved by Dialog** (Save All or Save Selected) goes in as just its turns,
+  as plain text, named "… (transcript).txt": each turn's time (with the date on the first
+  turn of each day), speaker and model, private exchanges marked as private, and the names
+  of any files that were attached or made, but not the files themselves. That is far smaller than the saved page, which also holds its
+  appearance and the data Restore… uses. To carry on with the conversation itself, use
+  Restore… instead.
 - **Images** (PNG, JPEG, WebP, GIF) are scaled down if large. A model that can't view images
   is told one was shared. A model can misread an image: to check, ask about a detail only
   the picture shows.
@@ -332,8 +343,8 @@ participant may offer one.
 ## Saving, restoring and tabs
 
 - **Save All** saves the whole conversation as one web page, readable in any browser:
-  the participants with their models, thinking levels and roles; every turn, private
-  exchanges included and marked; attached images and files; the participants' files;
+  the participants with their models, thinking levels and roles; every turn with its time
+  (the date as well on the first turn of each day), private exchanges included and marked; attached images and files; the participants' files;
   sources; and each reply's cost and speed. Failed replies and thinking are left out.
 - **Save Selected:** tick the box beside some turns (it shows when you point at a turn) and
   the button becomes Save Selected, which saves just those turns.
@@ -359,8 +370,9 @@ participant may offer one.
     read every time, new conversations included, after Chrome asks once a visit whether
     Dialog may look in them.
 
-  The **↑** and **↓** keys move through the list; **Return** chooses. Choose one and carry on
-  where it left off. Everything comes back as it was, including the participants, house
+  The **↑** and **↓** keys move through the list; **Return** chooses. Dialog asks before
+  resuming one; **Cancel** takes you back to the list. Choose one and carry on where it left
+  off. Everything comes back as it was, including the participants, house
   rules, your name and About you. Your keys are never in a saved conversation, so yours stay.
 - **Where files go:** Chrome lets you choose the folder and name. Safari saves to Downloads,
   unless you set Safari Settings › General › File download location to "Ask for each

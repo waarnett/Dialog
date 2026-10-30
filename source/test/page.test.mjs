@@ -230,7 +230,7 @@ test("a full conversation in the page", async () => {
   const c1 = chatCalls[0];
   assert.equal(c1.model, "anthropic/claude-opus-5.5");
   assert.deepEqual(c1.messages.map((m) => m.role), ["system", "user"]);
-  assert.equal(c1.messages[1].content, "Bill says:\nWhat is time?");
+  assert.match(c1.messages[1].content, /^\d{4} [A-Z][a-z]{2} \d{2} \d{2}:\d{2} Bill says:\nWhat is time\?$/, "the first turn: the date and time, then the label");
   assert.match(c1.messages[0].content, /Your role in this conversation:\nBe brief\./);
   assert.equal(c1.tools.length, 2, "Claude can search the web and read pages");
   assert.deepEqual(c1.cache_control, { type: "ephemeral", ttl: "1h" }, "Claude asked to cache");
@@ -588,6 +588,15 @@ test("About you, and attaching files by drag and drop", async () => {
   assert.equal($("#attach-tray").hidden, true, "tray emptied once sent");
   assert.equal(entries().length, 1);
   assert.equal(entries()[0].querySelectorAll(".files .file").length, 2);
+  // The text file's contents fold up under its name until opened, and stay open when the turn is redrawn.
+  const notesBox = entries()[0].querySelector(".files details.file");
+  assert.match(notesBox.querySelector("summary").textContent, /^orbits\.md \(text/);
+  assert.equal(notesBox.open, false);
+  assert.equal(notesBox.querySelector(".file-text").textContent, "", "not in the page until opened");
+  notesBox.open = true;
+  notesBox.dispatchEvent(new w.Event("toggle"));
+  assert.equal(notesBox.querySelector(".file-text").textContent, "# Orbits\nKepler was right.");
+  assert.equal(entries()[0].querySelectorAll(".files details.file").length, 1, "only the text file, not the PDF");
 
   // Storage: file contents in their own slots, not in the saved conversation.
   const saved = w.sessionStorage.getItem("dialog.session.v1");
@@ -599,6 +608,7 @@ test("About you, and attaching files by drag and drop", async () => {
   replies.push({ pieces: ["Read them."], cost: 0.01 });
   speakBtn(0).click();
   await until(() => entries().length === 2 && notBusy(), "Claude's reply");
+  assert.equal(entries()[0].querySelector(".files details.file").open, true, "still open after the reply redrew the conversation");
   const c1 = chatCalls[0];
   assert.match(c1.messages[0].content, /About Bill, in Bill's own words:\nRetired engineer; fond of astronomy\./);
   const parts = c1.messages[1].content;
@@ -891,7 +901,7 @@ test("a saved conversation can be resumed with Restore… and Add from… (top b
     addFile(file);
     await until(() => $("#restore-status").textContent === `Added “${file.name}”`, "the file added");
     $$("#restore-list .restore-row").find((row) => row.title === `Saved as “${file.name}”`).click();
-    assert.equal($("#restore-dialog").open, false, "closed by choosing it");
+    await until(() => !$("#restore-dialog").open, "closed once it's resumed");
   };
   assert.equal(resumeButton().hidden, false, "in the top bar while the conversation is empty");
   assert.ok(!$("#transcript .empty").textContent.includes("Resume a saved"), "not on the welcome screen itself");
@@ -1028,6 +1038,15 @@ test("recent conversations: kept in the browser's database after New conversatio
   assert.match(row.querySelector(".r-when").textContent, /^\d\d:\d\d today$/);
   assert.ok(!row.textContent.includes("Claude"), "no participants");
   assert.ok(row.parentElement.querySelector(".r-del"), "an × to delete it");
+  // Cancel in the question goes back to the list, nothing restored.
+  const asked = confirms.length;
+  w.confirm = (m) => (confirms.push(m), false);
+  row.click();
+  await until(() => confirms.length === asked + 1, "asked");
+  await sleep(20);
+  assert.equal($("#restore-dialog").open, true, "Cancel: back to the list");
+  assert.equal(entries().length, 0);
+  w.confirm = (m) => (confirms.push(m), true);
   row.click();
   await until(() => entries().length === 2, "brought back");
   assert.equal($("#restore-dialog").open, false);
@@ -1888,7 +1907,8 @@ test("participants make files: cards to open, save or remove; the others see the
   speak(1);
   await until(() => notBusy() && entries().length === 2, "Grok");
   const grokSaw = chatCalls.at(-1).messages.at(-1).content;
-  assert.ok(grokSaw.startsWith(`Claude says:\nHere you go.\n\nEnjoy.\n\n<file name="orbit.svg">\n${svg}\n</file>\n\n<file name="calc.html">\n${page}\n</file>`));
+  assert.match(grokSaw, /^\d{4} [A-Z][a-z]{2} \d{2} \d{2}:\d{2} Claude says:\n/, "the first turn: the date and time");
+  assert.ok(grokSaw.replace(/^\d{4} [A-Z][a-z]{2} \d{2} \d{2}:\d{2} /, "").startsWith(`Claude says:\nHere you go.\n\nEnjoy.\n\n<file name="orbit.svg">\n${svg}\n</file>\n\n<file name="calc.html">\n${page}\n</file>`));
 
   // Remove the web page: it stays listed, struck out, and no one sees it from now on.
   cards()[1].querySelector("button.danger").click();

@@ -18,9 +18,11 @@ import {
   thinkingLabel,
   totalCost,
   turnSpeed,
+  turnStamp,
 } from "./engine";
 import { MATH_CSS } from "./math";
 import type { ModelInfo } from "./openrouter";
+import type { ConversationData } from "./storage";
 import type { Attachment, Entry, Session, Settings } from "./types";
 
 export interface ExportOptions {
@@ -86,7 +88,7 @@ function seatColor(e: Entry, settings: Settings): string | undefined {
  * "(privately, to Grok)" for a private exchange; "(to Grok)" or "(to everyone, in turn)" for
  * a message addressed by its last words; "(answering independently)" in an independent round.
  */
-function direction(e: Entry, settings: Settings): string {
+function direction(e: Entry, settings: Pick<Settings, "seats" | "humanName">): string {
   const privately = privateLabel(e, settings.seats, settings.humanName);
   if (privately) return `(${privately})`;
   if (e.addressedTo) return `(${addresseeLabel(e.addressedTo, settings.seats)})`;
@@ -173,8 +175,8 @@ function footHtml(e: Entry, opts: ExportOptions): string {
   return e.status === "stopped" ? `<div class="foot"><span>stopped early</span></div>` : "";
 }
 
-/** One turn, set like the page: name in the margin, speech beside it. */
-function turnHtml(e: Entry, settings: Settings, opts: ExportOptions, showTime: boolean): string {
+/** One turn, set like the page: its time (see turnStamp) and name in the margin, speech beside it. */
+function turnHtml(e: Entry, settings: Settings, opts: ExportOptions, stamp: string): string {
   const isHuman = e.speaker === "human";
   const color = seatColor(e, settings);
   const cls = ["turn", isHuman ? "human" : "bot", e.privateWith ? "private" : "", e.status === "stopped" ? "stopped" : ""]
@@ -186,7 +188,7 @@ function turnHtml(e: Entry, settings: Settings, opts: ExportOptions, showTime: b
   return [
     `<article class="${cls}"${color ? ` style="--seat-color: ${esc(color)}"` : ""}>`,
     `<div class="who">`,
-    showTime ? `<span class="time">${formatTime(new Date(e.time))}</span>` : "",
+    `<span class="time">${esc(stamp)}</span>`,
     `<span class="name">${esc(e.speakerName)}</span>`,
     dir ? `<span class="direction">${esc(dir)}</span>` : "",
     model ? `<span class="model">${esc(model)}</span>` : "",
@@ -267,7 +269,7 @@ export function conversationHtml(session: Session, settings: Settings, opts: Exp
   }
   if (seats.some((s) => s.role.trim())) notes.push("Quoted under a participant: its role.");
 
-  const turns = entries.map((e) => turnHtml(e, settings, opts, false));
+  const turns = entries.map((e, i) => turnHtml(e, settings, opts, turnStamp(e, entries[i - 1])));
   const n = entries.length;
   const dates = only
     ? `${n} ${n === 1 ? "turn" : "turns"} chosen from a conversation started ${when(started)}. Saved ${when(savedAt)}.`
@@ -404,12 +406,32 @@ export function copiedHtml(turns: CopiedTurn[], settings: Settings): string {
 
 /** The copied turns as plain text, for places that don't take HTML: a heading line for each turn, then its text. */
 export function copiedText(turns: CopiedTurn[], settings: Settings): string {
-  return turns
-    .map((t) => {
-      const e = t.entry;
-      const model = e.speaker === "human" ? "" : (e.model ?? e.seatModel ?? "");
-      const head = [formatTime(new Date(e.time)), e.speakerName, direction(e, settings)].filter(Boolean).join(" ");
-      return [head, model, t.text.trim().replace(/\n{3,}/g, "\n\n")].filter(Boolean).join("\n");
+  return turns.map((t) => plainTurn(t.entry, t.text, settings, formatTime(new Date(t.entry.time)))).join("\n\n");
+}
+
+/** One turn as plain text: a heading line (`stamp`, name, direction), its model, then `text`. */
+function plainTurn(e: Entry, text: string, settings: Pick<Settings, "seats" | "humanName">, stamp: string): string {
+  const model = e.speaker === "human" ? "" : (e.model ?? e.seatModel ?? "");
+  const head = [stamp, e.speakerName, direction(e, settings)].filter(Boolean).join(" ");
+  return [head, model, text.trim().replace(/\n{3,}/g, "\n\n")].filter(Boolean).join("\n");
+}
+
+/**
+ * A saved conversation's turns as plain text, as copiedText writes them but with the date on a
+ * new day (see turnStamp), for attaching to another conversation: private turns are marked,
+ * failed replies left out, and files attached or made are named but not included.
+ */
+export function savedConversationText(data: ConversationData): string {
+  return data.entries
+    .filter(isSettled)
+    .map((e, i, settled) => {
+      const attached = (e.attachments ?? []).map((a) => a.name);
+      const made = (e.made ?? []).filter((f) => !f.removed).map((f) => f.name);
+      const files = [
+        attached.length ? `(attached: ${attached.join(", ")})` : "",
+        made.length ? `(made: ${made.join(", ")})` : "",
+      ];
+      return plainTurn(e, [e.text, ...files].filter(Boolean).join("\n\n"), data, turnStamp(e, settled[i - 1]));
     })
     .join("\n\n");
 }

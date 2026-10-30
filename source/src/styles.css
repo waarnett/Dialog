@@ -461,6 +461,22 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
 .entry .file { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; }
 .entry .file img { max-width: min(100%, 16rem); max-height: 12rem; border-radius: 4px; border: 1px solid var(--line); }
 .entry .file.missing .file-name { text-decoration: line-through; }
+/* An attached text file: its name opens it, across the whole width, in a box that scrolls. */
+.entry details.file { display: block; }
+.entry details.file[open] { flex-basis: 100%; }
+.entry details.file summary { cursor: pointer; width: fit-content; }
+.entry .file-text {
+  max-height: 24rem;
+  overflow: auto;
+  margin: 0.3rem 0 0;
+  padding: 0.6rem 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .entry .file-note { color: var(--error); }
 
 /* Files a participant made: a card for each, with Open, Save… and × (remove). */

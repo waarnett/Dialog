@@ -27,7 +27,11 @@ How the conversation works:
 - A message from {humanName} marked "privately" is seen only by you, and your reply to it is private too. The others never see private exchanges, so don't refer to them as if they had.
 - Today's date is {date}.`;
 
-export const DEFAULT_HOUSE_RULES = `${PREVIOUS_HOUSE_RULES}
+// How the labels on messages were described until 2026 Oct 29, and how they are now.
+const LABEL_RULE_OCT07 = `- Messages from others reach you labeled "Name says:". Your own earlier contributions appear without a label.`;
+const LABEL_RULE = `- Messages from others reach you labeled with the time they began and "Name says:", e.g. "17:12 Name says:"; the first message of a day has the date in front of the time. Your own earlier contributions begin with just their time. Dialog adds these times: never write one yourself.`;
+
+export const DEFAULT_HOUSE_RULES = `${PREVIOUS_HOUSE_RULES.replace(LABEL_RULE_OCT07, LABEL_RULE)}
 
 How to contribute:
 - If you agree with something already said, say so briefly; don't repeat it. If you have something to add, correct or qualify, do that without repeating what's been said.
@@ -53,17 +57,17 @@ const CONFIDENCE_RULE_OCT07 = `- When you're unsure, say so. Give your confidenc
 const CONFIDENCE_RULE = `- When you're unsure, say so. Give your confidence as a percentage for claims and conclusions that matter (e.g. "my confidence: 25%"), and say what would raise or lower it. Don't say 100% or 0% without clear, hard evidence.`;
 
 /** The default house rules from 2026 Oct 07 to Oct 09. */
-const HOUSE_RULES_OCT07 = DEFAULT_HOUSE_RULES.replace(CONFIDENCE_RULE, CONFIDENCE_RULE_OCT07);
+const HOUSE_RULES_OCT07 = DEFAULT_HOUSE_RULES.replace(CONFIDENCE_RULE, CONFIDENCE_RULE_OCT07).replace(LABEL_RULE, LABEL_RULE_OCT07);
 
 /**
  * Saved house rules, brought up to date: an untouched old default becomes the current
- * default; edited rules that still contain the old confidence rule word for word get just
- * that rule updated, and are otherwise left exactly as they are.
+ * default; edited rules that still contain the old confidence rule or the old label rule
+ * word for word get just that rule updated, and are otherwise left exactly as they are.
  */
 export function upgradeHouseRules(saved: string): string {
   const t = saved.trim();
   if (t === PREVIOUS_HOUSE_RULES || t === HOUSE_RULES_OCT07) return DEFAULT_HOUSE_RULES;
-  return saved.replace(CONFIDENCE_RULE_OCT07, CONFIDENCE_RULE);
+  return saved.replace(CONFIDENCE_RULE_OCT07, CONFIDENCE_RULE).replace(LABEL_RULE_OCT07, LABEL_RULE);
 }
 
 /** Colors for the familiar families; other seats get one from OTHER_SEAT_COLORS. */
@@ -166,6 +170,17 @@ export function formatUtcOffset(minutesAhead: number): string {
 /** "23:05" (local time, 24-hour). */
 export function formatTime(d: Date): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/**
+ * When a turn began, as participants, saved pages and transcripts show it: "17:12", with the
+ * date in front ("2026 Oct 25 09:03") on the first turn and on one whose day differs from the
+ * turn before it (`previous`). It never depends on today's date, so a turn's stamp never changes.
+ */
+export function turnStamp(e: Pick<Entry, "time">, previous?: Pick<Entry, "time">): string {
+  const d = new Date(e.time);
+  const newDay = !previous || formatDate(new Date(previous.time)) !== formatDate(d);
+  return newDay ? `${formatDate(d)} ${formatTime(d)}` : formatTime(d);
 }
 
 /** When something happened, briefly: "15:28 today", or "2026 Oct 14 at 09:01" on another day. */
@@ -684,7 +699,7 @@ export interface ModelAbilities {
   pdfs?: boolean;
 }
 
-/** The parts that carry one entry to a seat that didn't write it. */
+/** The parts that carry one entry to a seat that didn't write it; its label begins with `stamp` (see turnStamp). */
 function entryParts(
   e: Entry,
   humanName: string,
@@ -692,6 +707,7 @@ function entryParts(
   seats: Seat[],
   replaced: ReadonlySet<string>,
   viewerId: string,
+  stamp: string,
 ): ContentPart[] {
   const files = e.attachments ?? [];
   const group = privateGroup(e);
@@ -715,6 +731,7 @@ function entryParts(
   } else {
     label = `${e.speakerName} says:`;
   }
+  label = `${stamp} ${label}`;
   const parts: ContentPart[] = [{ type: "text", text: e.text.trim() ? `${label}\n${e.text}` : label }];
   for (const f of e.made ?? []) parts.push({ type: "text", text: madeFileText(f, e.speakerName, humanName, replaced) });
 
@@ -772,15 +789,17 @@ export function buildMessages(
   // What this seat can see; among its files, the ones replaced by a later version.
   const seen = entries.filter((e) => isSettled(e) && canSee(seat.id, e));
   const replaced = replacedFiles(seen);
-  for (const e of seen) {
+  seen.forEach((e, i) => {
+    // Every turn begins with when it began, the date too on a new day (as of the turn before it here).
+    const stamp = turnStamp(e, seen[i - 1]);
     if (e.speaker === seat.id) {
-      // Its own reply, with its own files as it wrote them (or a note where they're gone).
+      // Its own reply, after just its time, with its own files as it wrote them (or a note where they're gone).
       const own = [e.text, ...(e.made ?? []).map((f) => madeFileText(f, e.speakerName, settings.humanName, replaced))];
-      push("assistant", text(own.filter((t) => t.trim()).join("\n\n")));
+      push("assistant", text(`${stamp}\n${own.filter((t) => t.trim()).join("\n\n")}`));
     } else {
-      push("user", entryParts(e, settings.humanName, abilities, settings.seats, replaced, seat.id));
+      push("user", entryParts(e, settings.humanName, abilities, settings.seats, replaced, seat.id, stamp));
     }
-  }
+  });
 
   const opener = `(${settings.humanName} has asked you to open the conversation.)`;
   if (turns.length === 0) turns.push({ role: "user", parts: text(opener) });
@@ -1063,9 +1082,14 @@ export function addresseeLabel(a: Addressee, seats: Seat[], forModels = false): 
   return forModels ? `to ${who}, each replying without seeing the others' replies` : `to ${who}, independently`;
 }
 
-/** Remove a leading "Name says:" if a model adds one despite the house rules. */
+/**
+ * Remove a leading time ("17:20" or "2026 Oct 25 09:03", on a line of its own or before the
+ * name) and a leading "Name says:", if a model adds them despite the house rules.
+ */
 export function stripSelfPrefix(text: string, name: string): string {
   const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^\\s*(?:\\*\\*|__)?${esc}(?:\\s+says)?\\s*:\\s*(?:\\*\\*|__)?[ \\t]*\\n?`, "i");
-  return text.replace(re, "");
+  const label = `(?:\\*\\*|__)?${esc}(?:\\s+says)?\\s*:`;
+  const time = new RegExp(`^\\s*(?:\\*\\*|__)?(?:\\d{4} [A-Z][a-z]{2} \\d{2} )?\\d{1,2}:\\d{2}(?:\\*\\*|__)?(?:[ \\t]*(?:\\n|$)|[ \\t]+(?=${label}))`, "i");
+  const re = new RegExp(`^\\s*${label}\\s*(?:\\*\\*|__)?[ \\t]*\\n?`, "i");
+  return text.replace(time, "").replace(re, "");
 }

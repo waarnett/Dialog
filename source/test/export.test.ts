@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { conversationFileName, conversationHtml, copiedHtml, copiedText, escapeHtml, firstSentence, type CopiedTurn } from "../src/export";
-import { defaultSettings, formatTime } from "../src/engine";
+import { conversationFileName, conversationHtml, copiedHtml, copiedText, escapeHtml, firstSentence, savedConversationText, type CopiedTurn } from "../src/export";
+import { conversationData } from "../src/storage";
+import { defaultSettings, formatTime, turnStamp } from "../src/engine";
 import type { Entry, Seat, Settings } from "../src/types";
 
 // A stand-in for the page's Markdown renderer: escape, wrap in <p>.
@@ -64,7 +65,8 @@ test("whole conversation: participants, private marks, files, sources, costs; fa
   assert.ok(html.includes('<span class="direction">(privately, to Bill)</span>'));
   assert.ok(!html.includes("broken"), "failed replies are left out");
   assert.ok(html.includes('<div class="foot"><span>stopped early</span></div>'), "stopped early stays after the text");
-  assert.ok(!html.includes('class="time"'), "no per-turn times in the whole-conversation file");
+  assert.ok(html.includes(`<span class="time">${turnStamp({ time: T })}</span><span class="name">Bill</span>`), "each turn's time, the first with the date");
+  assert.ok(html.includes(`<span class="time">${formatTime(new Date(T))}</span><span class="name">Claude</span>`), "the same day: the time alone");
   assert.ok(html.includes('<span class="model">anthropic/claude-sonnet-5.5</span>'), "model noted where it differs");
   assert.equal(html.split('class="model"').length - 1, 1);
   // Files
@@ -254,5 +256,33 @@ test("copied turns: name, direction and model in the margin, the selected text b
   assert.equal(
     copiedText(turns, s),
     "00:00 Bill\nWhat is time?\n\n00:00 Claude\nanthropic/claude-opus-5.5\nChange.\n\nx\n\n00:00 Grok (privately, to Bill)\nx-ai/grok-4.7\nSec".replace(/00:00/g, formatTime(new Date(T))),
+  );
+});
+
+test("a saved conversation as plain text: private turns marked, files named, failures left out", () => {
+  const s = setup();
+  const [A, B] = s.seats as [Seat, Seat];
+  const entries: Entry[] = [
+    human("Look at these.", {
+      attachments: [
+        { id: "f1", name: "notes.md", kind: "text", mime: "text/markdown", size: 20, tokens: 5, data: "SECRET NOTES" },
+        { id: "f2", name: "orbit.png", kind: "image", mime: "image/png", size: 100, data: "data:image/png;base64,AAAA" },
+      ],
+    }),
+    bot(A, "Here is a plan.", { made: [{ id: "m1", name: "plan.md", kind: "md", size: 9, data: "PLAN BODY" }, { id: "m2", name: "old.md", kind: "md", size: 3, removed: true }] }),
+    bot(B, "", { status: "error", error: "Timed out" }),
+    human("Just between us.", { privateWith: "B", addressedTo: { seatId: "B", name: "Grok" } }),
+    bot(B, "Agreed.", { privateWith: "B" }),
+  ];
+  const data = conversationData({ startedAt: T, entries }, s);
+  const t = formatTime(new Date(T));
+  assert.equal(
+    savedConversationText(data),
+    [
+      `${turnStamp({ time: T })} Bill\nLook at these.\n\n(attached: notes.md, orbit.png)`,
+      `${t} Claude\nanthropic/claude-opus-5.5\nHere is a plan.\n\n(made: plan.md)`,
+      `${t} Bill (privately, to Grok)\nJust between us.`,
+      `${t} Grok (privately, to Bill)\nx-ai/grok-4.7\nAgreed.`,
+    ].join("\n\n"),
   );
 });

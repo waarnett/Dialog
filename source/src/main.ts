@@ -156,7 +156,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.11";
+const VERSION = "2.12.4";
 
 const els = {
   transcript: byId("transcript"),
@@ -484,6 +484,33 @@ const opened = new Set<string>();
 /** Replies whose thinking is showing (by id). Kept only while the page is open. */
 const thinkingOpen = new Set<string>();
 
+/** Attached text files whose contents are showing (by attachment id). Kept only while the page is open. */
+const textFileOpen = new Set<string>();
+
+/** An attached text file, its contents folded up under its name until opened (and only then put in the page). */
+function textFileBox(a: Attachment, note: string): HTMLElement {
+  const text = h("pre", { class: "file-text" });
+  const fill = () => {
+    text.textContent = box.open ? (a.data ?? "") : "";
+  };
+  const box = h(
+    "details",
+    {
+      class: "file",
+      open: textFileOpen.has(a.id),
+      ontoggle: () => {
+        if (box.open) textFileOpen.add(a.id);
+        else textFileOpen.delete(a.id);
+        fill();
+      },
+    },
+    h("summary", {}, h("span", { class: "file-name" }, describeAttachment(a)), note ? h("span", { class: "file-note" }, ` ${note}`) : null),
+    text,
+  );
+  fill();
+  return box;
+}
+
 /** A reply's thinking, folded up under a "Thinking" line until opened. */
 function thinkingBox(e: Entry): HTMLElement {
   const box = h(
@@ -705,6 +732,7 @@ function renderEntry(e: Entry): HTMLElement {
         { class: "files" },
         ...e.attachments.map((a) => {
           const note = !a.data ? "No longer available." : a.unsaved ? "Not saved; lost when this page closes." : "";
+          if (a.kind === "text" && a.data) return textFileBox(a, note);
           return h(
             "div",
             { class: "file" + (a.data ? "" : " missing") },
@@ -2539,29 +2567,33 @@ function saveConversation(): void {
  * Resume a conversation from a file saved with Save All or Save Selected (offered only while
  * the conversation is empty, so nothing is in progress): its turns, and its participants, house rules,
  * name and About you in place of the current ones. The keys and LM Studio address stay.
+ * False if it wasn't resumed: the file couldn't be read, or you pressed Cancel.
  */
-function resumeConversation(file: File): void {
-  const reader = new FileReader();
-  reader.onerror = () => alert(`Couldn't read “${file.name}”.`);
-  reader.onload = () => {
-    let resumed: store.ResumedConversation;
-    try {
-      resumed = store.conversationFromFile(String(reader.result), settings);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : String(err));
-      return;
-    }
-    const when = resumed.savedAt ? `, saved ${formatDate(resumed.savedAt)} at ${formatTime(resumed.savedAt)}` : "";
-    resume(resumed, `in “${file.name}”${when}`);
-  };
-  reader.readAsText(file);
+async function resumeConversation(file: File): Promise<boolean> {
+  let text: string;
+  try {
+    text = await file.text();
+  } catch {
+    alert(`Couldn't read “${file.name}”.`);
+    return false;
+  }
+  let resumed: store.ResumedConversation;
+  try {
+    resumed = store.conversationFromFile(text, settings);
+  } catch (err) {
+    alert(err instanceof Error ? err.message : String(err));
+    return false;
+  }
+  const when = resumed.savedAt ? `, saved ${formatDate(resumed.savedAt)} at ${formatTime(resumed.savedAt)}` : "";
+  return resume(resumed, `in “${file.name}”${when}`);
 }
 
 /**
  * After asking, carry on with a conversation (`which` says which, after "Resume the
  * conversation"), kept from now on as the recent one `recentId`, or as a new one.
+ * False if you pressed Cancel.
  */
-function resume(resumed: store.ResumedConversation, which: string, recentId?: string): void {
+function resume(resumed: store.ResumedConversation, which: string, recentId?: string): boolean {
   const n = resumed.session.entries.length;
   const seats = resumed.settings.seats;
   const who = seats.length ? seats.map((s) => s.name).join(", ") : "no participants";
@@ -2569,7 +2601,7 @@ function resume(resumed: store.ResumedConversation, which: string, recentId?: st
     `Resume the conversation ${which}? It has ${n} ${n === 1 ? "turn" : "turns"}, with ${who}.\n\n` +
       "Your participants, house rules, name and About you will be replaced with the ones saved with it. Your keys stay as they are.",
   );
-  if (!ok) return;
+  if (!ok) return false;
   stopAll();
   settings = resumed.settings;
   session = resumed.session;
@@ -2584,6 +2616,7 @@ function resume(resumed: store.ResumedConversation, which: string, recentId?: st
   renderTranscript(true);
   renderTopbar();
   updateSeatStatus();
+  return true;
 }
 
 // Restore… (offered only while the conversation is empty): the conversations kept in this
@@ -2633,7 +2666,7 @@ async function showRestoreList(): Promise<void> {
 function restoreRow(item: Restorable): HTMLElement {
   const row = h(
     "button",
-    { type: "button", class: "restore-row", title: "file" in item ? `Saved as “${item.file.name}”` : "Kept in this browser", onclick: () => restoreOne(item) },
+    { type: "button", class: "restore-row", title: "file" in item ? `Saved as “${item.file.name}”` : "Kept in this browser", onclick: () => void restoreOne(item) },
     h("span", { class: "r-when" }, formatAsOf(new Date(item.savedAt))),
     h("span", { class: "r-title" + (item.title ? "" : " untitled") }, item.title || "(nothing from you yet)"),
   );
@@ -2659,20 +2692,21 @@ function closeRestore(): void {
   else els.restoreDialog.removeAttribute("open");
 }
 
-function restoreOne(item: Restorable): void {
-  closeRestore();
-  if ("file" in item) resumeConversation(item.file);
-  else void resumeRecent(item);
+/** The list stays open while Dialog asks, and closes only once the conversation is resumed: Cancel goes back to it. */
+async function restoreOne(item: Restorable): Promise<void> {
+  const resumed = "file" in item ? await resumeConversation(item.file) : await resumeRecent(item);
+  if (resumed) closeRestore();
 }
 
-async function resumeRecent(r: { id: string; title: string; savedAt: string }): Promise<void> {
+/** False if it wasn't resumed: it's no longer kept, or you pressed Cancel. */
+async function resumeRecent(r: { id: string; title: string; savedAt: string }): Promise<boolean> {
   const data = await recent.loadRecent(r.id);
   if (!data) {
     alert("That conversation is no longer kept in this browser.");
-    return;
+    return false;
   }
   const title = r.title ? `“${r.title}”` : "without a message from you";
-  resume(store.conversationFromData(data, settings), `${title}, last kept ${formatAsOf(new Date(r.savedAt))}`, r.id);
+  return resume(store.conversationFromData(data, settings), `${title}, last kept ${formatAsOf(new Date(r.savedAt))}`, r.id);
 }
 
 async function deleteKept(r: { id: string; title: string; savedAt: string }): Promise<void> {

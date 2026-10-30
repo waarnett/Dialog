@@ -1,11 +1,14 @@
 // Turning files you drop or pick into attachments the models can read.
 //
 //   text files (Markdown, plain text, CSV, code, ...)  -> sent as text
+//   conversations saved by Dialog                      -> sent as their turns in plain text
 //   images (PNG, JPEG, WebP, GIF)                      -> sent as images; large ones scaled down
 //   PDFs                                               -> sent as files
 // Anything else is refused with a suggestion.
 
 import { formatBytes, newId } from "./engine";
+import { savedConversationText } from "./export";
+import { savedConversationData } from "./storage";
 import type { Attachment } from "./types";
 
 /** Above this many tokens, ask before attaching a text file. */
@@ -13,6 +16,8 @@ export const LARGE_TEXT_TOKENS = 50_000;
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+/** A saved conversation's page holds its pictures and files too, so it may be this large. */
+const MAX_SAVED_BYTES = 100 * 1024 * 1024;
 /** Images are scaled so their longer side is at most this (models downscale anyway). */
 const IMAGE_MAX_SIDE = 2000;
 
@@ -84,8 +89,25 @@ async function prepareImage(file: File): Promise<{ data: string; mime: string; s
   }
 }
 
+/** The text parts of an attachment, once a very large text has been confirmed (or AttachError if declined). */
+function textFile(name: string, text: string, confirmLarge: (message: string) => boolean): { name: string; kind: "text"; tokens: number; data: string } {
+  const tokens = estimateTokens(text);
+  if (
+    tokens > LARGE_TEXT_TOKENS &&
+    !confirmLarge(
+      `${name} is about ${tokens.toLocaleString("en-US")} tokens. Every participant re-reads attached files ` +
+        `each time it speaks, so a file this size adds noticeably to the cost of every turn. Attach it anyway?`,
+    )
+  ) {
+    throw new AttachError(""); // declined; nothing to report
+  }
+  return { name, kind: "text", tokens, data: text };
+}
+
 /**
  * Read one file into an attachment, or throw AttachError with a plain explanation.
+ * A conversation saved by Dialog (Save All or Save Selected) is attached as its turns in plain
+ * text, without the page and data around them.
  * `confirmLarge` is asked before a very large text file is accepted.
  */
 export async function readAttachment(file: File, confirmLarge: (message: string) => boolean): Promise<Attachment> {
@@ -109,22 +131,21 @@ export async function readAttachment(file: File, confirmLarge: (message: string)
     throw new AttachError(`Dialog can't read .${ext} files. Export ${file.name} as a PDF and attach that instead.`);
   }
 
-  if (file.size <= MAX_TEXT_BYTES) {
+  // A page saved by Dialog may be large with the pictures in it; only its turns are attached.
+  const mayBeSaved = (ext === "html" || ext === "htm") && file.size <= MAX_SAVED_BYTES;
+  if (file.size <= MAX_TEXT_BYTES || mayBeSaved) {
     const text = await asText(file);
-    if (text !== null) {
-      const tokens = estimateTokens(text);
-      if (
-        tokens > LARGE_TEXT_TOKENS &&
-        !confirmLarge(
-          `${file.name} is about ${tokens.toLocaleString("en-US")} tokens. Every participant re-reads attached files ` +
-            `each time it speaks, so a file this size adds noticeably to the cost of every turn. Attach it anyway?`,
-        )
-      ) {
-        throw new AttachError(""); // declined; nothing to report
-      }
-      return { ...base, kind: "text", mime: file.type || "text/plain", size: file.size, tokens, data: text };
+    const saved = text === null || !mayBeSaved ? null : savedConversationData(text);
+    if (saved) {
+      const transcript = savedConversationText(saved);
+      const name = `${file.name.replace(/\.html?$/i, "")} (transcript).txt`;
+      return { ...base, ...textFile(name, transcript, confirmLarge), mime: "text/plain", size: new TextEncoder().encode(transcript).length };
     }
-  } else if (TEXT_EXTENSIONS.has(ext) || file.type.startsWith("text/")) {
+    if (text !== null && file.size <= MAX_TEXT_BYTES) {
+      return { ...base, ...textFile(file.name, text, confirmLarge), mime: file.type || "text/plain", size: file.size };
+    }
+  }
+  if (file.size > MAX_TEXT_BYTES && (TEXT_EXTENSIONS.has(ext) || file.type.startsWith("text/"))) {
     throw new AttachError(`${file.name} is too large (${formatBytes(file.size)}); the limit for text files is ${formatBytes(MAX_TEXT_BYTES)}.`);
   }
 
