@@ -483,7 +483,8 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 .body p { margin: 0 0 0.8em; }
 .body h1, .body h2, .body h3, .body h4 { font-family: var(--font-ui); font-weight: 600; line-height: 1.3; margin: 1.2em 0 0.4em; font-size: 1.1rem; }
 .body pre, .file pre { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); padding: 0.6rem 0.8rem; border-radius: 6px; font-size: 0.85rem; }
-.body table { border-collapse: collapse; } .body th, .body td { border: 1px solid var(--line); padding: 0.25rem 0.55rem; }
+.body table { display: block; width: max-content; max-width: calc((100vw + min(100vw, 58rem)) / 2 - 13.85rem - 2px); overflow-x: auto; overflow-wrap: normal; border-collapse: collapse; }
+.body th, .body td { border: 1px solid var(--line); padding: 0.25rem 0.55rem; }
 .body blockquote { margin-left: 0; padding-left: 0.9rem; border-left: 2px solid var(--line); color: var(--muted); }
 .body a, .sources a { color: inherit; }
 .body math[display="block"] { overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }
@@ -513,11 +514,13 @@ details.file summary { cursor: pointer; }
 footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 @media (max-width: 640px) {
   .turn { grid-template-columns: 1fr; }
+  .body table { max-width: 100%; }
   .who { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; text-align: left; }
   .who .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }
 }
 @media print {
   body { background: #fff; }
+  .body table { display: table; width: auto; max-width: 100%; overflow-wrap: anywhere; } /* paper can't scroll sideways */
   .private { box-shadow: none; background: none; border-left: 3px solid var(--aside-line); padding-left: 0.5rem; }
   details.file[open] summary, details.file summary { list-style: none; }
 }

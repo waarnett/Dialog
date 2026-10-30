@@ -238,7 +238,9 @@ keypress never pays for a reply.
 
 - **Replies appear as they are written.** Until something arrives, "waiting for Claude… 12 s"
   shows; the request may be queued at the host or searching the web. Replies are formatted
-  (headings, lists, tables, code), and links open in a new tab.
+  (headings, lists, tables, code), and links open in a new tab. A wide table uses the free
+  space to the right of the text, so widening the window gives it more room; if it still
+  doesn't fit, it scrolls sideways.
 - **The page follows a reply** while you're at the bottom. Scroll up to read something
   earlier and it stays put until you scroll back down.
 - **Thinking.** When a model sends its thinking, a folded **Thinking** line sits above its
