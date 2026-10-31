@@ -23,7 +23,7 @@
   --font-ui: Optima, "Optima Nova", Candara, "Segoe UI", "Gill Sans", sans-serif;
   --font-text: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
 
-  --gutter: 9rem;          /* the margin the speakers' names hang in */
+  --gutter: 4.75rem;       /* the margin the speakers' names hang in: room for "Nemotron" */
   --measure: 42rem;        /* width of the spoken text, about 70 characters */
   --radius: 6px;
   font-size: 16px;
@@ -142,7 +142,7 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
      conversation you've scrolled back in whenever it is redrawn. */
   overflow-anchor: none;
   container-type: inline-size; /* so a wide table can measure the room to its right */
-  padding: 1.75rem 1.5rem 3rem;
+  padding: 1.75rem 1rem 3rem;
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
@@ -319,6 +319,7 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap; /* "1,234 tokens/s ▸" is a little wider than the margin; it stays on one line */
 }
 .entry button.glance {
   border: none;
@@ -409,7 +410,7 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
 
 .composer {
   border-top: 1px solid var(--line);
-  padding: 0.85rem 1.5rem 1rem;
+  padding: 0.85rem 1rem 1rem;
   background: var(--panel);
 }
 .composer > * { max-width: calc(var(--gutter) + var(--measure) + 4.5rem); margin-left: auto; margin-right: auto; }
@@ -789,9 +790,6 @@ dialog::backdrop { background: rgba(20, 20, 18, 0.4); }
 
 /* ---- narrow windows ---- */
 
-@media (max-width: 1000px) {
-  :root { --gutter: 6.5rem; }
-}
 @media (max-width: 860px) {
   .layout { grid-template-columns: 1fr; }
   .seats { border-left: none; border-top: 1px solid var(--line); }

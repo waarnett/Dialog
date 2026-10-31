@@ -39,8 +39,8 @@
         /* behind the engraving (paper-colored in dark mode) */
         --font-ui: Optima, "Optima Nova", Candara, "Segoe UI", "Gill Sans", sans-serif;
         --font-text: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-        --gutter: 9rem;
-        /* the margin the speakers' names hang in */
+        --gutter: 4.75rem;
+        /* the margin the speakers' names hang in: room for "Nemotron" */
         --measure: 42rem;
         /* width of the spoken text, about 70 characters */
         --radius: 6px;
@@ -267,7 +267,7 @@
         overflow-anchor: none;
         container-type: inline-size;
         /* so a wide table can measure the room to its right */
-        padding: 1.75rem 1.5rem 3rem;
+        padding: 1.75rem 1rem 3rem;
         display: flex;
         flex-direction: column;
         gap: 1.75rem;
@@ -631,6 +631,8 @@
         color: var(--muted);
         font-variant-numeric: tabular-nums;
         text-align: right;
+        white-space: nowrap;
+        /* "1,234 tokens/s ▸" is a little wider than the margin; it stays on one line */
       }
 
       .entry button.glance {
@@ -785,7 +787,7 @@
       /* ---- composer ---- */
       .composer {
         border-top: 1px solid var(--line);
-        padding: 0.85rem 1.5rem 1rem;
+        padding: 0.85rem 1rem 1rem;
         background: var(--panel);
       }
 
@@ -1724,12 +1726,6 @@
       }
 
       /* ---- narrow windows ---- */
-      @media (max-width: 1000px) {
-        :root {
-          --gutter: 6.5rem;
-        }
-      }
-
       @media (max-width: 860px) {
         .layout {
           grid-template-columns: 1fr;
@@ -5530,7 +5526,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.13";
+        var VERSION = "2.14.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
