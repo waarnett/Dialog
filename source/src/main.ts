@@ -156,7 +156,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.14.1";
+const VERSION = "2.14";
 
 const els = {
   transcript: byId("transcript"),
