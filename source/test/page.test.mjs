@@ -2430,6 +2430,61 @@ test("arriving text is followed only while you're at the bottom; scrolled back, 
   assert.deepEqual(errors, []);
 });
 
+test("just after your message, the browser moving the conversation back up is undone; you scrolling it up isn't", async () => {
+  const { w, d, replies, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const notBusy = () => !$("#transcript .entry.streaming");
+  await until(() => $$("#seat-list .seat").length === 2, "seats");
+  const t = $("#transcript");
+  let top = 0;
+  Object.defineProperty(t, "scrollHeight", { get: () => 2000, configurable: true });
+  Object.defineProperty(t, "clientHeight", { get: () => 500, configurable: true });
+  Object.defineProperty(t, "scrollTop", { get: () => top, set: (v) => (top = Math.min(v, 1500)), configurable: true });
+  const scrollTo = (v) => {
+    top = v;
+    t.dispatchEvent(new w.Event("scroll"));
+  };
+  const add = (text) => {
+    $("#composer-text").value = text;
+    $("#composer-text").dispatchEvent(new w.Event("input", { bubbles: true }));
+    $("#composer-send").click();
+  };
+
+  // You had stopped at 900, then send: the browser goes back there by itself, and is sent down again.
+  scrollTo(1500);
+  scrollTo(900);
+  add("One.");
+  assert.equal(top, 1500, "your message shown");
+  t.dispatchEvent(new w.Event("scroll"));
+  scrollTo(900);
+  assert.equal(top, 1500, "back at your message");
+  replies.push({ pieces: ["Two."], cost: 0.001 });
+  $("#seat-list .seat button.speak").click();
+  top = 1000;
+  await until(() => notBusy(), "the reply");
+  assert.equal(top, 1500, "and the reply is followed");
+
+  // But when you scroll up right after sending, you stay where you went.
+  add("Three.");
+  t.dispatchEvent(new w.Event("scroll"));
+  t.dispatchEvent(new w.Event("wheel"));
+  scrollTo(1200);
+  assert.equal(top, 1200, "your scrolling stands");
+  replies.push({ pieces: ["Four."], cost: 0.001 });
+  $("#seat-list .seat button.speak").click();
+  await until(() => notBusy(), "the next reply");
+  assert.equal(top, 1200, "and the reply leaves you there");
+
+  // Once things have settled, a move upward is taken as yours, as ever (searching the page, say).
+  add("Five.");
+  t.dispatchEvent(new w.Event("scroll"));
+  await sleep(1100);
+  scrollTo(1100);
+  assert.equal(top, 1100, "not undone after a while");
+  assert.deepEqual(errors, []);
+});
+
 test("a reply that used the web: a new paragraph after each pause, and its searches in the particulars", async () => {
   const { d, replies, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);

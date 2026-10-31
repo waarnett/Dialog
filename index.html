@@ -5526,7 +5526,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.15";
+        var VERSION = "2.16.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -5702,11 +5702,16 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         }
         var following = true;
         var lastScrollTop = 0;
+        var settlingUntil = 0;
+        var SETTLING_MS = 1e3;
 
         function followScrolling() {
           const top = els.transcript.scrollTop;
           if (atBottom()) following = true;
-          else if (top < lastScrollTop) following = false;
+          else if (top < lastScrollTop) {
+            if (performance.now() < settlingUntil) return scrollToBottom();
+            following = false;
+          }
           lastScrollTop = top;
         }
 
@@ -6383,6 +6388,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           });
           persist();
           renderTranscript(true);
+          settlingUntil = performance.now() + SETTLING_MS;
           renderTopbar();
           if (attachments?.some((a) => a.unsaved)) {
             showAttachMessage(
@@ -8234,6 +8240,11 @@ Your participants, house rules, name and About you will be replaced with the one
 
         function wire() {
           els.transcript.addEventListener("scroll", followScrolling);
+          for (const yours of ["wheel", "touchstart", "pointerdown", "keydown"]) {
+            els.transcript.addEventListener(yours, () => settlingUntil = 0, {
+              passive: true
+            });
+          }
           document.addEventListener("copy", onCopy);
           els.composer.addEventListener("submit", (ev) => void onComposerSubmit(ev));
           els.composerTo.addEventListener("change", updateComposerState);

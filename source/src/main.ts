@@ -156,7 +156,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.15";
+const VERSION = "2.16.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -370,6 +370,13 @@ let following = true;
 let lastScrollTop = 0;
 
 /**
+ * Until when a move upward isn't yours: for a moment after you add a message, the browser can
+ * still take the conversation back to where it was. Touching the conversation ends this.
+ */
+let settlingUntil = 0;
+const SETTLING_MS = 1000;
+
+/**
  * On each scroll of the conversation. Only a move upward stops the following: the window or
  * the panels around the conversation changing size can leave it short of the bottom without
  * your having scrolled at all.
@@ -377,7 +384,10 @@ let lastScrollTop = 0;
 function followScrolling(): void {
   const top = els.transcript.scrollTop;
   if (atBottom()) following = true;
-  else if (top < lastScrollTop) following = false;
+  else if (top < lastScrollTop) {
+    if (performance.now() < settlingUntil) return scrollToBottom();
+    following = false;
+  }
   lastScrollTop = top;
 }
 
@@ -1029,6 +1039,7 @@ function addHumanEntry(text: string, privateWith?: string | string[], attachment
   });
   persist();
   renderTranscript(true);
+  settlingUntil = performance.now() + SETTLING_MS;
   renderTopbar();
   if (attachments?.some((a) => a.unsaved)) {
     showAttachMessage(
@@ -2891,6 +2902,9 @@ function onCopy(ev: ClipboardEvent): void {
 
 function wire(): void {
   els.transcript.addEventListener("scroll", followScrolling);
+  for (const yours of ["wheel", "touchstart", "pointerdown", "keydown"]) {
+    els.transcript.addEventListener(yours, () => (settlingUntil = 0), { passive: true });
+  }
   document.addEventListener("copy", onCopy);
   els.composer.addEventListener("submit", (ev) => void onComposerSubmit(ev));
   els.composerTo.addEventListener("change", updateComposerState);
