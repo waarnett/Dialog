@@ -1064,8 +1064,78 @@ export function readAddress(text: string, seats: Seat[]): Addressing {
   return finish(first, { seats: [], everyone: true, call });
 }
 
+/** A word or words at the end of a message that look like a misspelled participant's name. */
+export interface NameSlip {
+  start: number;
+  end: number;
+  seat: Seat;
+}
+
+/**
+ * How many slips away from a name `typed` is, or undefined if too far to be the name. Short
+ * names allow little, since real words are close to them: "cloud" is two slips from "Claude",
+ * and "get" one from "GPT", so a name of under 4 letters can only have its letters out of order.
+ */
+function slipsFromName(typed: string, name: string): number | undefined {
+  if (name.length < 4) {
+    const letters = (s: string) => [...s].sort().join("");
+    return letters(typed) === letters(name) ? 1 : undefined;
+  }
+  const d = editDistance(typed, name);
+  return d <= (name.length < 7 ? 1 : 2) ? d : undefined;
+}
+
+/** The participant whose name the words ending at `end` most look like, leaving out those in `not`. */
+function slipEndingAt(text: string, end: number, seats: Seat[], not: Seat[]): NameSlip | undefined {
+  const WORD = "[\\p{L}\\p{N}']+(?:[.-][\\p{L}\\p{N}']+)*";
+  let best: { slip: NameSlip; d: number } | undefined;
+  for (const seat of seats) {
+    const name = seat.name.trim().toLowerCase().replace(/\s+/g, " ");
+    if (!name || not.includes(seat)) continue;
+    const more = name.split(" ").length - 1; // a name of several words is compared whole
+    const m = new RegExp(`${WORD}(?:\\s+${WORD}){${more}}$`, "u").exec(text.slice(0, end));
+    if (!m) continue;
+    const d = slipsFromName(m[0].toLowerCase().replace(/\s+/g, " "), name);
+    if (d !== undefined && (!best || d < best.d)) best = { slip: { start: end - m[0].length, end, seat }, d };
+  }
+  return best?.slip;
+}
+
+/**
+ * What in the names at the end of a message looks misspelled: "…, Grk?", "…, Claude and Grk,
+ * privately". Unlike "team" and the like these aren't forgiven silently: a name can be close
+ * to anything, so it is for you to say (see withCorrectNames). A name already called in the
+ * list isn't looked for again ("Let it grow, Grok"). In the order typed.
+ */
+export function nameSlips(text: string, seats: Seat[]): NameSlip[] {
+  if (readAddress(text, seats).everyone) return [];
+  // As in readAddress: past a last "privately" or "only", then "independently" or "(in) parallel".
+  let end = lastWordEnd(text);
+  const last = wordEndingAt(text, end);
+  if (last && (last.word === "only" || isPrivately(last.word))) end = lastWordEnd(text, last.start);
+  const apart = apartEndingAt(text, end);
+  if (apart !== undefined) end = skipSeparators(text, apart);
+
+  const called: Seat[] = [];
+  const slips: NameSlip[] = [];
+  for (let pos = end; ; ) {
+    const exact = nameEndingAt(text, pos, seats);
+    const slip = exact ? undefined : slipEndingAt(text, pos, seats, called);
+    const seat = exact?.seat ?? slip?.seat;
+    if (!seat) return slips;
+    called.push(seat);
+    if (slip) slips.unshift(slip);
+    pos = skipSeparators(text, exact?.start ?? slip!.start);
+  }
+}
+
+/** The message with its misspelled names put right. */
+export function withCorrectNames(text: string, slips: NameSlip[]): string {
+  return slips.reduceRight((t, s) => t.slice(0, s.start) + s.seat.name.trim() + t.slice(s.end), text);
+}
+
 /** "Claude", "Claude and Grok", "Claude, Grok and Gemini". */
-function nameList(names: string[]): string {
+export function nameList(names: string[]): string {
   return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 

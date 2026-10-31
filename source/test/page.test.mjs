@@ -2430,6 +2430,78 @@ test("arriving text is followed only while you're at the bottom; scrolled back, 
   assert.deepEqual(errors, []);
 });
 
+test("a misspelled name at the end of your message: you're asked, and OK treats it as the name", async () => {
+  const { w, d, replies, chatCalls, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const entries = () => $$("#transcript .entry");
+  const notBusy = () => !$("#transcript .entry.streaming");
+  const asked = [];
+  let answer = true;
+  w.confirm = (m) => (asked.push(m), answer);
+  await until(() => $$("#seat-list .seat").length === 2, "seats");
+  const type = (text) => {
+    $("#composer-text").value = text;
+    $("#composer-text").dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  const pressReturn = (opts = {}) => $("#composer-text").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, ...opts }));
+  const seen = () => JSON.stringify(chatCalls.at(-1).messages);
+
+  // OK: Grok replies, and the name comes off the message as usual.
+  replies.push({ pieces: ["Mine."], cost: 0.001 });
+  type("What do you think, Grk?");
+  pressReturn();
+  await until(() => notBusy() && entries().length === 2, "Grok's reply");
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /Did you mean Grok instead of “Grk”\?/);
+  assert.equal(entries()[0].querySelector(".direction").textContent, "(to Grok)");
+  assert.equal(entries()[1].querySelector(".who").textContent, "Grok");
+  assert.match(seen(), /What do you think\?/);
+  assert.equal($("#composer-text").value, "", "the box is empty");
+
+  // Several at once, in one question.
+  replies.push({ pieces: ["First."], cost: 0.001 }, { pieces: ["Second."], cost: 0.001 });
+  type("And now, Clude and Grk?");
+  pressReturn();
+  await until(() => notBusy() && entries().length === 5, "both replies");
+  assert.equal(asked.length, 2);
+  assert.match(asked[1], /Did you mean Claude and Grok instead of “Clude” and “Grk”\?/);
+  assert.equal(entries()[2].querySelector(".direction").textContent, "(to Claude and Grok, in turn)");
+
+  // Cancel: it goes as written, to whoever would have replied anyway.
+  answer = false;
+  replies.push({ pieces: ["As written."], cost: 0.001 });
+  type("It keeps on growing, as things grow.");
+  pressReturn();
+  await until(() => notBusy() && entries().length === 7, "the reply");
+  assert.equal(asked.length, 3);
+  assert.match(entries()[5].textContent, /as things grow\./, "the word stays");
+  assert.equal(entries()[5].querySelector(".direction"), null);
+  assert.equal(entries()[6].querySelector(".who").textContent, "Grok", "the last speaker");
+
+  // ⌘↩ just adds and reads no names, unless the message is private.
+  answer = true;
+  type("Noted, Grk.");
+  pressReturn({ metaKey: true });
+  await until(() => entries().length === 8, "added");
+  assert.equal(asked.length, 3, "not asked");
+  assert.match(entries()[7].textContent, /Noted, Grk\./);
+  type("For you alone, Clude, privately");
+  pressReturn({ metaKey: true });
+  await until(() => entries().length === 9, "added privately");
+  assert.equal(asked.length, 4);
+  assert.equal(entries()[8].querySelector(".direction").textContent, "(privately, to Claude)");
+
+  // While replies are arriving, Return just adds, so nothing is asked.
+  replies.push({ pieces: ["Slowly."], cost: 0.001, pause: true });
+  $$("#seat-list .seat button.speak")[0].click();
+  type("Meanwhile, Grk.");
+  pressReturn();
+  assert.equal(asked.length, 4, "not asked");
+  await until(() => notBusy(), "the slow reply");
+  assert.deepEqual(errors, []);
+});
+
 test("just after your message, the browser moving the conversation back up is undone; you scrolling it up isn't", async () => {
   const { w, d, replies, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);

@@ -21,6 +21,8 @@ import {
   addresseeLabel,
   DEFAULT_HOUSE_RULES,
   readAddress,
+  nameSlips,
+  withCorrectNames,
   privateLabel,
   privateWithFor,
   privateGroup,
@@ -590,6 +592,38 @@ test("a list of names at the end asks just those participants, in the order name
   const three = { seats: [{ id: "A", name: "Claude" }, { id: "G", name: "Grok" }, { id: "Z", name: "Gone" }], how: "independently" as const };
   assert.equal(label(three), "to Claude, Grok and Gone, independently");
   assert.equal(label(three, true), "to Claude, Grok and Gone, each replying without seeing the others' replies");
+});
+
+test("a name at the end that looks misspelled is found, and can be corrected", () => {
+  const seat = (id: string, name: string) => ({ id, name, model: "m", role: "", effort: "default", color: "#000" });
+  const seats = [seat("A", "Claude"), seat("B", "Claude 2"), seat("G", "Grok"), seat("M", "Gemini Pro"), seat("N", "Nemotron"), seat("O", "GPT")];
+  const found = (t: string) => nameSlips(t, seats).map((s) => [t.slice(s.start, s.end), s.seat.id]);
+  assert.deepEqual(found("What do you think, Grk?"), [["Grk", "G"]]);
+  assert.deepEqual(found("Over to you, cluade."), [["cluade", "A"]], "a swap; case doesn't matter");
+  assert.deepEqual(found("Over to you, Clude 2"), [["Clude 2", "B"]], "a name of two words");
+  assert.deepEqual(found("Your view, Gemni Pro"), [["Gemni Pro", "M"]]);
+  assert.deepEqual(found("Your view, Nemtorn"), [["Nemtorn", "N"]], "a long name allows two slips");
+  assert.deepEqual(found("Your view, GTP"), [["GTP", "O"]], "a short name allows only its letters out of order");
+  assert.deepEqual(found("Views, Clude and Grk?"), [["Clude", "A"], ["Grk", "G"]], "every slip in a list");
+  assert.deepEqual(found("Views, Clude and Grok?"), [["Clude", "A"]], "before a name spelled right");
+  assert.deepEqual(found("Views, Grok and Clude?"), [["Clude", "A"]], "and after one");
+  assert.deepEqual(found("Your view, Grk, privately"), [["Grk", "G"]], "before “privately”");
+  assert.deepEqual(found("Your view, Grk only"), [["Grk", "G"]], "and “only”");
+  assert.deepEqual(found("Your views, Clude and Grk, independently."), [["Clude", "A"], ["Grk", "G"]], "and “independently”");
+
+  assert.deepEqual(found("What do you think, Grok?"), [], "spelled right");
+  assert.deepEqual(found("Nothing for Dialog here."), []);
+  assert.deepEqual(found("It lives in the cloud."), [], "two slips is too far for a name this short");
+  assert.deepEqual(found("What did you get?"), [], "nor is a real word taken for a short name");
+  assert.deepEqual(found("Let it grow, Grok"), [], "a name already called isn't looked for again");
+  assert.deepEqual(found("What do you think, team?"), [], "“team” is its own word");
+  assert.deepEqual(found("Grk is what I typed, not at the end"), []);
+  assert.deepEqual(nameSlips("Your view, Grk", []), [], "no participants");
+
+  const fix = (t: string) => withCorrectNames(t, nameSlips(t, seats));
+  assert.equal(fix("What do you think, Grk?"), "What do you think, Grok?");
+  assert.equal(fix("Views, clude and Grk, independently."), "Views, Claude and Grok, independently.");
+  assert.equal(readAddress(fix("Your view, Grk, privately"), seats).seats[0]!.id, "G", "then it reads like the name itself");
 });
 
 // ---------------------------------------------------------------------------

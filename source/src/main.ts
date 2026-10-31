@@ -16,6 +16,9 @@ import {
   addresseeLabel,
   buildMessages,
   readAddress,
+  nameList,
+  nameSlips,
+  withCorrectNames,
   teamCall,
   type TeamCall,
   copySeat,
@@ -156,7 +159,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.16";
+const VERSION = "2.17.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -1090,6 +1093,7 @@ async function speak(
 
   // Speak also adds whatever you've typed or attached, for everyone (or privately, if it says so).
   if (useComposer && !privateTo && !els.composerTo.value) {
+    if (readAddress(els.composerText.value, settings.seats).privately) askAboutNameSlips();
     const typed = els.composerText.value.trim();
     const a = readAddress(typed, settings.seats);
     if (a.privately) {
@@ -1489,9 +1493,10 @@ async function sendPrivately(a: Addressing, fallback?: Seat): Promise<void> {
  * replies. (Privately: send, and that one replies.)
  */
 async function sendAndAsk(): Promise<void> {
-  const typed = els.composerText.value;
-  if (!typed.trim() && !pending.length) return;
+  if (!els.composerText.value.trim() && !pending.length) return;
   if (els.composerTo.value) return submitComposer(); // To: has already chosen someone, privately
+  if (!occupied()) askAboutNameSlips();
+  const typed = els.composerText.value;
   if (readAddress(typed, settings.seats).privately) {
     // Ending with "privately": never added for everyone by mistake. While others are still
     // replying, it waits in the box (the note beside the button says so).
@@ -1538,6 +1543,21 @@ async function sendAndAsk(): Promise<void> {
   else await speak(a.seats[0]!.id); // "…, Grok"
 }
 
+/**
+ * A name at the end of your message that looks misspelled: ask. OK puts it right in the box,
+ * so that it is read like the name itself; Cancel leaves the message as you wrote it.
+ */
+function askAboutNameSlips(): void {
+  const typed = els.composerText.value;
+  const slips = nameSlips(typed, settings.seats);
+  if (!slips.length) return;
+  const names = nameList(slips.map((s) => s.seat.name.trim()));
+  const words = nameList(slips.map((s) => `“${typed.slice(s.start, s.end)}”`));
+  if (confirm(`Did you mean ${names} instead of ${words}?\n\nOK reads it as ${names}. Cancel sends your message as you wrote it.`)) {
+    els.composerText.value = withCorrectNames(typed, slips);
+  }
+}
+
 /** Put a line break at the caret, as typing one would (undoable where the browser allows). */
 function insertNewline(box: HTMLTextAreaElement): void {
   let done = false;
@@ -1560,9 +1580,11 @@ function submitComposer(): void {
 
 async function onComposerSubmit(ev: Event): Promise<void> {
   ev.preventDefault();
+  const to = els.composerTo.value;
+  // Just adding reads no names, unless the message says it is private to them.
+  if (!to && !occupied() && readAddress(els.composerText.value, settings.seats).privately) askAboutNameSlips();
   const text = els.composerText.value.trim();
   if (!text && !pending.length) return;
-  const to = els.composerTo.value;
   if (!to) {
     const a = readAddress(text, settings.seats);
     if (a.privately) {

@@ -193,6 +193,10 @@ keypress never pays for a reply.
   independent round; the note beside the button shows this before you press Return.
 - Small typing slips are forgiven ("tema", "independantly", "paralel", "privatly"), but
   real words that are close are not: "…in the long term." starts no round.
+- **A misspelled name** ("…what do you think, Grk?") gets a question: "Did you mean Grok?" OK
+  reads it as the name; Cancel sends your message as you wrote it. You're only asked when the
+  name would count: not while others are replying, or when ⌘↩ just adds your message (unless
+  it ends with "privately").
 - With no name at the end, Return asks the last participant who spoke openly and is awake.
   If nobody has spoken yet, Return only adds your message.
 
