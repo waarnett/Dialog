@@ -422,6 +422,10 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
 }
 .entry.private .body { border-left-color: var(--aside-line); }
 
+/* An aside to the readers, which no participant sees: in italics, behind a dotted rule. */
+.entry.for-readers .body { font-style: italic; border-left: 2px dotted var(--muted); }
+.composer.aside-mode textarea { font-style: italic; border-style: dotted; border-color: var(--muted); }
+
 .entry.error .body { border-left-color: var(--error); }
 
 .waiting { color: var(--muted); font-style: italic; }

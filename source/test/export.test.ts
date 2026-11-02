@@ -367,3 +367,23 @@ test("a saved conversation as plain text: private turns marked, files named, fai
     ].join("\n\n"),
   );
 });
+
+test("an aside to the readers: marked and in its own style in the saved page and in copies; left out of the text for other conversations", () => {
+  const s = setup();
+  const [A] = s.seats as [Seat];
+  const q = human("What is time?");
+  const note = human("Claude tends to hedge here.", { aside: true });
+  const r = bot(A, "Change.");
+  const html = conversationHtml({ startedAt: T, entries: [q, note, r] }, s, { render });
+  assert.ok(html.includes('<article class="turn human for-readers">'));
+  assert.ok(html.includes('<span class="direction">(aside, to the readers)</span>'));
+  assert.ok(html.includes(".for-readers .body { font-style: italic;"));
+
+  const copied = copiedHtml([{ entry: note, html: "<p>Claude tends</p>", text: "Claude tends", sources: false, files: false, made: false }], s);
+  assert.ok(copied.includes(">(aside, to the readers)</div>"));
+  assert.ok(copied.includes("border-left: 2px dotted #6a6c67; font-style: italic;"));
+
+  const text = savedConversationText(conversationData({ startedAt: T, entries: [q, note, r] }, s));
+  assert.ok(!text.includes("hedge"));
+  assert.ok(text.includes("What is time?") && text.includes("Change."));
+});

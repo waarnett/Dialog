@@ -136,6 +136,8 @@ export interface Entry {
   text: string;
   /** Files the human added with this entry. */
   attachments?: Attachment[];
+  /** Your aside to the readers ("…, Bill", or To: Aside): shown and saved, but never given to any participant. */
+  aside?: boolean;
   /** Files a participant made in this reply (taken out of `text`). */
   made?: MadeFile[];
   /** ISO timestamp. */

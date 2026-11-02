@@ -798,6 +798,18 @@
         border-left-color: var(--aside-line);
       }
 
+      /* An aside to the readers, which no participant sees: in italics, behind a dotted rule. */
+      .entry.for-readers .body {
+        font-style: italic;
+        border-left: 2px dotted var(--muted);
+      }
+
+      .composer.aside-mode textarea {
+        font-style: italic;
+        border-style: dotted;
+        border-color: var(--muted);
+      }
+
       .entry.error .body {
         border-left-color: var(--error);
       }
@@ -2618,6 +2630,7 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
         }
 
         function canSee(seatId, e) {
+          if (e.aside) return false;
           const g = privateGroup(e);
           return !g || g.includes(seatId);
         }
@@ -2643,6 +2656,7 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return Object.fromEntries(group.flatMap((id) => seats.filter((s) => s.id === id).map((
             s) => [id, s.name])));
         }
+        var ASIDE_LABEL = "aside, to the readers";
 
         function isSettled(e) {
           if (e.speaker === "human" || e.speaker === "stage") return true;
@@ -3471,25 +3485,26 @@ ${newText}
           return w.start;
         }
 
+        function withoutEnd(text, cut, tail) {
+          const before = text.slice(0, skipSeparators(text, cut)).replace(/[\s,;:–—-]+$/u, "");
+          let after = text.slice(tail).trim();
+          if (!before || /[.?!…]$/.test(before)) after = "";
+          return (before + after).trim();
+        }
+
         function readAddress(text, seats) {
           const tail = lastWordEnd(text);
           const lastWord = wordEndingAt(text, tail);
           const only = lastWord?.word === "only";
           const privately = lastWord !== void 0 && (only || isPrivately(lastWord.word));
           const stop = privately ? lastWordEnd(text, lastWord.start) : tail;
-          const finish = (cut2, rest) => {
-            const before = text.slice(0, skipSeparators(text, cut2)).replace(/[\s,;:–—-]+$/u,
-              "");
-            let after = text.slice(tail).trim();
-            if (!before || /[.?!…]$/.test(before)) after = "";
-            return {
-              text: (before + after).trim(),
-              ...rest,
-              ...privately ? {
-                privately: true
-              } : {}
-            };
-          };
+          const finish = (cut2, rest) => ({
+            text: withoutEnd(text, cut2, tail),
+            ...rest,
+            ...privately ? {
+              privately: true
+            } : {}
+          });
           let end = stop;
           let independently = false;
           const trailing = apartEndingAt(text, end);
@@ -3541,6 +3556,18 @@ ${newText}
             everyone: true,
             call
           });
+        }
+
+        function readAside(text, humanName, seats) {
+          const name = humanName.trim().toLowerCase();
+          if (!name) return void 0;
+          const a = readAddress(text, seats);
+          if (a.seats.length || a.everyone || a.privately) return void 0;
+          const tail = lastWordEnd(text);
+          const start2 = tail - name.length;
+          if (start2 < 0 || text.slice(start2, tail).toLowerCase() !== name || isWordChar(text[
+              start2 - 1])) return void 0;
+          return withoutEnd(text, start2, tail);
         }
 
         function slipsFromName(typed, name) {
@@ -4139,6 +4166,7 @@ body {
         }
 
         function direction(e, settings2) {
+          if (e.aside) return `(${ASIDE_LABEL})`;
           const privately = privateLabel(e, settings2.seats, settings2.humanName);
           if (privately) return `(${privately})`;
           if (e.addressedTo) return `(${addresseeLabel(e.addressedTo)})`;
@@ -4243,7 +4271,7 @@ body {
           const isHuman = e.speaker === "human";
           const color = seatColor(e, settings2);
           const cls = ["turn", isHuman ? "human" : "bot", e.privateWith ? "private" : "", e
-            .status === "stopped" ? "stopped" : ""
+            .aside ? "for-readers" : "", e.status === "stopped" ? "stopped" : ""
           ].filter(Boolean).join(" ");
           const dir = direction(e, settings2);
           const model = modelNote(e, listed, opts.models);
@@ -4429,9 +4457,12 @@ body {
             if (t.thinking) parts.push(
               `<div style="${small} margin-bottom: 0.4em;"><div>Thinking</div>${styleText(t.thinking)}</div>`
               );
-            if (t.html) parts.push(
-              `<div style="padding-left: 1em; border-left: 2px solid ${rule};">${styleText(t.html)}</div>`
-              );
+            if (t.html) {
+              const look = e.aside ? `border-left: 2px dotted ${MUTED}; font-style: italic;` :
+                `border-left: 2px solid ${rule};`;
+              parts.push(
+              `<div style="padding-left: 1em; ${look}">${styleText(t.html)}</div>`);
+            }
             const files = t.files ? e.attachments ?? [] : [];
             if (files.length) {
               const items = files.map((a) => {
@@ -4486,7 +4517,7 @@ body {
         }
 
         function savedConversationText(data) {
-          return data.entries.filter(isSettled).map((e, i, settled) => {
+          return data.entries.filter((e) => isSettled(e) && !e.aside).map((e, i, settled) => {
             const attached = (e.attachments ?? []).map((a) => a.name);
             const made = (e.made ?? []).filter((f) => !f.removed).map((f) => f.name);
             const files = [
@@ -4560,6 +4591,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 .side-text { margin: 0; font-family: var(--font-text); font-size: 0.95rem; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 0.8rem; border-left: 2px solid var(--line); }
 .private { background: var(--aside); box-shadow: 0 0 0 0.6rem var(--aside); border-radius: 2px; }
 .private .body { border-left-color: var(--aside-line); }
+.for-readers .body { font-style: italic; border-left: 2px dotted var(--muted); }
 .files { padding-left: 1.2rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); }
 .files-label { margin: 0 0 0.2rem; font-size: 0.72rem; }
 .file { margin: 0 0 0.5rem; }
@@ -5926,7 +5958,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.18";
+        var VERSION = "2.19.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -6443,12 +6475,14 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const streaming = e.status === "streaming";
           const classes = ["entry", isHuman ? "human" : "bot"];
           if (e.privateWith) classes.push("private");
+          if (e.aside) classes.push("for-readers");
           if (e.status === "error") classes.push("error");
           if (streaming) classes.push("streaming");
           let direction2 = e.independent ? "(answering independently)" : void 0;
           if (e.addressedTo && !e.privateWith) direction2 = `(${addresseeLabel(e.addressedTo)})`;
           const privately = privateLabel(e, settings.seats, settings.humanName);
           if (privately) direction2 = `(${privately})`;
+          if (e.aside) direction2 = `(${ASIDE_LABEL})`;
           const body = h("div", {
             class: "body"
           });
@@ -6867,7 +6901,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           updateSeatStatus();
         }
 
-        function addHumanEntry(text, privateWith, attachments, addressedTo) {
+        function addHumanEntry(text, privateWith, attachments, addressedTo, aside) {
           settleChanges(session, settings);
           session.entries.push({
             id: newId(),
@@ -6880,6 +6914,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             addressedTo,
             text,
             attachments,
+            ...aside ? {
+              aside
+            } : {},
             time: ( /* @__PURE__ */ new Date()).toISOString()
           });
           persist();
@@ -6917,7 +6954,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             alert(`Choose a model for ${seat.name} first.`);
             return void 0;
           }
-          if (useComposer && !privateTo && !els.composerTo.value) {
+          const aside = useComposer && !privateTo ? typedAside() : void 0;
+          if (aside !== void 0) addAside(aside);
+          else if (useComposer && !privateTo && !els.composerTo.value) {
             if (readAddress(els.composerText.value, settings.seats).privately)
               askAboutNameSlips();
             const typed = els.composerText.value.trim();
@@ -7117,6 +7156,23 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             useComposer: false
           });
         }
+        var ASIDE2 = "aside";
+
+        function typedAside() {
+          const typed = els.composerText.value.trim();
+          if (els.composerTo.value === ASIDE2) return typed;
+          if (els.composerTo.value) return void 0;
+          const aside = readAside(typed, settings.humanName, settings.seats);
+          return aside || pending.length ? aside : void 0;
+        }
+
+        function addAside(text) {
+          const files = takePending();
+          if (!text && !files) return;
+          addHumanEntry(text, void 0, files, void 0, true);
+          els.composerText.value = "";
+          updateComposerState();
+        }
 
         function renderComposerTo() {
           const current = els.composerTo.value;
@@ -7126,9 +7182,13 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             }, "Everyone"),
             ...settings.seats.map((s) => h("option", {
               value: s.id
-            }, `Privately: ${s.name || "unnamed"}`))
+            }, `Privately: ${s.name || "unnamed"}`)),
+            h("option", {
+              value: ASIDE2
+            }, `Aside: ${settings.humanName}`)
           );
-          els.composerTo.value = settings.seats.some((s) => s.id === current) ? current : "";
+          els.composerTo.value = current === ASIDE2 || settings.seats.some((s) => s.id ===
+            current) ? current : "";
           updateComposerState();
         }
         var IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -7164,6 +7224,16 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             "Add to conversation";
           els.composerSend.disabled = Boolean(seat && busy.size);
           els.composer.classList.toggle("private-mode", Boolean(seat));
+          const aside = typedAside() !== void 0;
+          els.composer.classList.toggle("aside-mode", aside);
+          if (aside) {
+            els.composerSend.textContent = "Add aside";
+            els.composerHint.replaceChildren(
+              `${ASK_KEY} adds an aside for the readers; no participant sees it`);
+            els.composerHint.title =
+              `Return (or ${ADD_KEY}, or Add aside) adds your message as an aside to the readers: it is shown and saved, set in italics, but no participant ever sees it, and no one replies. Choose it under To, or end your message with your name, ${settings.humanName}. ${NEWLINE_KEY} starts a new line.`;
+            return;
+          }
           const name = (s) => h("b", {
             style: `--seat-color: ${s.color}`
           }, s.name);
@@ -7322,6 +7392,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         }
         async function sendAndAsk() {
           if (!els.composerText.value.trim() && !pending.length) return;
+          const aside = typedAside();
+          if (aside !== void 0) return addAside(aside);
           if (els.composerTo.value) return submitComposer();
           if (!occupied()) askAboutNameSlips();
           const typed = els.composerText.value;
@@ -7406,6 +7478,8 @@ OK reads it as ${names}. Cancel sends your message as you wrote it.`)) {
         }
         async function onComposerSubmit(ev) {
           ev.preventDefault();
+          const aside = typedAside();
+          if (aside !== void 0) return addAside(aside);
           const to = els.composerTo.value;
           if (!to && !occupied() && readAddress(els.composerText.value, settings.seats)
             .privately) askAboutNameSlips();
@@ -8881,6 +8955,7 @@ Your participants, house rules, name and About you will be replaced with the one
           els.setName.addEventListener("input", () => {
             settings.humanName = els.setName.value.trim() || defaultSettings().humanName;
             persistSoon();
+            renderComposerTo();
           });
           els.setRules.addEventListener("input", () => {
             settings.houseRules = els.setRules.value;

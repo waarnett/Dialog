@@ -28,6 +28,7 @@ import {
   addresseeLabel,
   DEFAULT_HOUSE_RULES,
   readAddress,
+  readAside,
   nameSlips,
   withCorrectNames,
   privateLabel,
@@ -997,4 +998,36 @@ test("a private label keeps the names of the moment", () => {
   s.seats = [];
   const e: Entry = { id: "e", speaker: "human", speakerName: "Bill", privateWith: "G", privateNames: { G: "Grok" }, text: "x", time: "2026-11-01T10:00:00Z" };
   assert.equal(privateLabel(e, s.seats, "Bill"), "privately, to Grok", "even with the seat gone");
+});
+
+test("a message ending with your own name is an aside to the readers; the name comes off", () => {
+  const s = setup();
+  const aside = (text: string, name = "Bill") => readAside(text, name, s.seats);
+  assert.equal(aside("Note to self: check this later, Bill."), "Note to self: check this later.");
+  assert.equal(aside("Readers: Grok is guessing here. bill"), "Readers: Grok is guessing here.", "case doesn't matter");
+  assert.equal(aside("Thoughts? Bill."), "Thoughts?");
+  assert.equal(aside("Some context — John Doe", "John Doe"), "Some context", "a name of several words");
+  assert.equal(aside("Bill"), "", "the name alone: nothing left");
+  assert.equal(aside("I agree with Bill, Grok?"), undefined, "a participant's name at the end wins");
+  assert.equal(aside("Ask Billy"), undefined, "only the whole name");
+  assert.equal(aside("What do you think, Bill, privately"), undefined, "“privately” isn't an aside");
+  assert.equal(aside("Thoughts, Bill, team"), undefined);
+  assert.equal(aside("Hello, Bill", ""), undefined, "no name, no asides");
+  s.seats.push({ id: "D", name: "Bill", model: "m", role: "", effort: "default", color: "#000" });
+  assert.equal(aside("Your turn, Bill"), undefined, "a participant of the same name wins");
+});
+
+test("no participant ever sees an aside to the readers", () => {
+  const s = setup();
+  const [A, B] = s.seats as [Seat, Seat];
+  const note: Entry = { ...human("Grok is bluffing."), aside: true };
+  assert.equal(canSee("A", note), false);
+  const entries = [human("What is time?"), bot(A, "A view."), note, bot(B, "B view.")];
+  for (const seat of [A, B]) {
+    const all = buildMessages(seat, s, entries).map((x) => x.content).join("\n");
+    assert.ok(!all.includes("bluffing"), seat.name);
+  }
+  // Only asides so far: as if nothing had been said.
+  const only = buildMessages(A, s, [note]);
+  assert.match(String(only.at(-1)?.content), /asked you to open the conversation/);
 });

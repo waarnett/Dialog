@@ -4,6 +4,7 @@
 
 import {
   addresseeLabel,
+  ASIDE_LABEL,
   describeAttachment,
   describeMadeFile,
   formatCost,
@@ -89,9 +90,11 @@ function seatColor(e: Entry, settings: Settings): string | undefined {
 
 /**
  * "(privately, to Grok)" for a private exchange; "(to Grok)" or "(to everyone, in turn)" for
- * a message addressed by its last words; "(answering independently)" in an independent round.
+ * a message addressed by its last words; "(answering independently)" in an independent round;
+ * "(aside, to the readers)" for an aside.
  */
 function direction(e: Entry, settings: Pick<Settings, "seats" | "humanName">): string {
+  if (e.aside) return `(${ASIDE_LABEL})`;
   const privately = privateLabel(e, settings.seats, settings.humanName);
   if (privately) return `(${privately})`;
   if (e.addressedTo) return `(${addresseeLabel(e.addressedTo)})`;
@@ -196,7 +199,7 @@ function turnHtml(e: Entry, settings: Settings, listed: Seat[], opts: ExportOpti
   if (e.speaker === "stage") return directionHtml(e, stamp);
   const isHuman = e.speaker === "human";
   const color = seatColor(e, settings);
-  const cls = ["turn", isHuman ? "human" : "bot", e.privateWith ? "private" : "", e.status === "stopped" ? "stopped" : ""]
+  const cls = ["turn", isHuman ? "human" : "bot", e.privateWith ? "private" : "", e.aside ? "for-readers" : "", e.status === "stopped" ? "stopped" : ""]
     .filter(Boolean)
     .join(" ");
   const dir = direction(e, settings);
@@ -406,7 +409,11 @@ export function copiedHtml(turns: CopiedTurn[], settings: Settings): string {
 
     const parts: string[] = [];
     if (t.thinking) parts.push(`<div style="${small} margin-bottom: 0.4em;"><div>Thinking</div>${styleText(t.thinking)}</div>`);
-    if (t.html) parts.push(`<div style="padding-left: 1em; border-left: 2px solid ${rule};">${styleText(t.html)}</div>`);
+    if (t.html) {
+      // An aside to the readers: in italics, behind a dotted rule.
+      const look = e.aside ? `border-left: 2px dotted ${MUTED}; font-style: italic;` : `border-left: 2px solid ${rule};`;
+      parts.push(`<div style="padding-left: 1em; ${look}">${styleText(t.html)}</div>`);
+    }
     const files = t.files ? (e.attachments ?? []) : [];
     if (files.length) {
       const items = files.map((a) => {
@@ -460,11 +467,12 @@ function plainTurn(e: Entry, text: string, settings: Pick<Settings, "seats" | "h
 /**
  * A saved conversation's turns as plain text, as copiedText writes them but with the date on a
  * new day (see turnStamp), for attaching to another conversation: private turns are marked,
- * failed replies left out, and files attached or made are named but not included.
+ * failed replies and asides to the readers left out, and files attached or made are named but
+ * not included.
  */
 export function savedConversationText(data: ConversationData): string {
   return data.entries
-    .filter(isSettled)
+    .filter((e) => isSettled(e) && !e.aside)
     .map((e, i, settled) => {
       const attached = (e.attachments ?? []).map((a) => a.name);
       const made = (e.made ?? []).filter((f) => !f.removed).map((f) => f.name);
@@ -543,6 +551,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 .side-text { margin: 0; font-family: var(--font-text); font-size: 0.95rem; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 0.8rem; border-left: 2px solid var(--line); }
 .private { background: var(--aside); box-shadow: 0 0 0 0.6rem var(--aside); border-radius: 2px; }
 .private .body { border-left-color: var(--aside-line); }
+.for-readers .body { font-style: italic; border-left: 2px dotted var(--muted); }
 .files { padding-left: 1.2rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); }
 .files-label { margin: 0 0 0.2rem; font-size: 0.72rem; }
 .file { margin: 0 0 0.5rem; }

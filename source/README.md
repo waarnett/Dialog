@@ -3,7 +3,8 @@
 A moderated group conversation between you and several AI models: Claude, ChatGPT, Gemini,
 Grok, DeepSeek or any other model OpenRouter offers, and models running in LM Studio on your
 own computer. You decide who speaks next. Every participant sees the same conversation,
-except for private exchanges you have with one or more of them. Dialog is a single web page;
+except for private exchanges you have with one or more of them and your asides to the
+readers, which no participant sees. Dialog is a single web page;
 Safari and Chrome both work.
 
 **Contents**
@@ -181,6 +182,7 @@ keypress never pays for a reply.
 | "team" and "independently" | "…team, independently"              | Every awake participant replies at once, without seeing the others' replies. |
 | "privately"                | "…, Grok, privately"                | As without "privately", but only those named see it (see Private messages).  |
 | "only"                     | "…, Grok only"                      | The same as "privately", right after a name, names or "team".                |
+| your own name              | "…Grok always says this, Bill."     | No participant sees it: an aside (see Asides to the readers).                |
 | nothing of these           | "…that's my view."                  | Whoever spoke last replies.                                                  |
 
 - **These words are for Dialog, not part of your message.** Dialog takes them off ("What do
@@ -239,6 +241,25 @@ keypress never pays for a reply.
   chat window, and a private exchange doesn't change who is next.
 - **Nothing goes to everyone by mistake:** if Dialog can't tell whom a private message is
   for, the button waits and the note says why.
+
+### Asides to the readers
+
+An aside is a comment for whoever reads the conversation later, yourself included: what you
+were thinking, why you asked what you did, a note on a reply. It stays in the conversation
+and in saved files, but **no participant ever sees it**, and no one replies to it.
+
+- **End your message with your own name** (the one in Settings): "Readers: Grok always says
+  this, Bill." Your name comes off, as a participant's would. A participant with the same
+  name as yours wins, and a message that is just your name is an ordinary message.
+- Or choose **To: Aside: \<your name\>** in the menu beside the button; then whatever you type
+  is an aside, however it ends.
+- While a message will be an aside, the box shows it in italics, the button reads "Add
+  aside", and Return, ⌘↩ and the button all just add it. You can add an aside at any time,
+  even while participants are replying. A card's **Speak** adds it, then that participant
+  replies to the conversation as before.
+- In the conversation, an aside is set in italics behind a dotted rule and marked "(aside,
+  to the readers)", in the page, in saved pages and when copied into an email. A saved
+  conversation attached to another one goes in without its asides.
 
 ## Stage directions
 
@@ -352,7 +373,8 @@ drops one) and go out with your next message, privately if the message is privat
 - **A conversation saved by Dialog** (Save All or Save Selected) goes in as just its turns,
   as plain text, named "… (transcript).txt": each turn's time (with the date on the first
   turn of each day), speaker and model, private exchanges marked as private, and the names
-  of any files that were attached or made, but not the files themselves. That is far smaller than the saved page, which also holds its
+  of any files that were attached or made, but not the files themselves, nor your asides to
+  the readers. That is far smaller than the saved page, which also holds its
   appearance and the data Restore… uses. To carry on with the conversation itself, use
   Restore… instead.
 - **Images** (PNG, JPEG, WebP, GIF) are scaled down if large. A model that can't view images
@@ -395,7 +417,7 @@ participant may offer one.
   includes anyone since removed; stage directions show later changes, and a reply given with
   another model or thinking level is marked with the one it used. (A conversation begun on
   an earlier version of Dialog lists everyone as of the time of saving, and says so.) Then every turn with its time
-  (the date as well on the first turn of each day), private exchanges included and marked; attached images and files; the participants' files;
+  (the date as well on the first turn of each day), private exchanges and asides included and marked; attached images and files; the participants' files;
   sources; and each reply's cost and speed. Failed replies and thinking are left out.
 - **Save Selected:** tick the box beside some turns (it shows when you point at a turn) and
   the button becomes Save Selected, which saves just those turns.

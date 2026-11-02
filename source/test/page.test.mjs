@@ -192,7 +192,7 @@ test("a full conversation in the page", async () => {
   // Initial state
   assert.equal($("#banner").hidden, true, "no banner when a key is set");
   assert.equal(seatCards().length, 2);
-  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Privately: Claude", "Privately: Grok"]);
+  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Privately: Claude", "Privately: Grok", "Aside: Bill"]);
   assert.ok($("#transcript .empty"), "empty-state help shown");
   assert.equal($$("#transcript .empty li").length, 7, "no 'set your key' step when the key is set");
   assert.match($("#transcript .empty").textContent, /house rules.*edit them in Settings/);
@@ -492,7 +492,7 @@ test("first run: no key, no seats; adding seats names them after their models", 
   const steps = $$("#transcript .empty li").map((li) => li.textContent);
   assert.match(steps[0], /paste your OpenRouter API key/);
   assert.match(steps[1], /^Add participants: press \+ Add a seat/);
-  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone"]);
+  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Aside: John Doe"]);
   await new Promise((r) => setTimeout(r, 20)); // model list arrives
 
   // + Add a seat opens the model picker; the seat takes the model's name and color.
@@ -517,7 +517,7 @@ test("first run: no key, no seats; adding seats names them after their models", 
   $("#btn-add-seat").click();
   pick("grok");
   assert.deepEqual(seats().map((c) => c.querySelector(".seat-head input").value), ["Claude", "Claude 2", "Grok"]);
-  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Privately: Claude", "Privately: Claude 2", "Privately: Grok"]);
+  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Privately: Claude", "Privately: Claude 2", "Privately: Grok", "Aside: John Doe"]);
 
   // A seat you've already named keeps its name when you change its model.
   seats()[1].querySelector(".seat-head input").value = "Skeptic";
@@ -857,7 +857,7 @@ test("settings can be saved to a file and restored from one", async () => {
   assert.equal($("#set-about").value, "Astronomer.");
   assert.equal($("#set-rules").value, "Be civil, {name}.");
   assert.equal($("#set-key").value, "sk-test", "the key stays");
-  assert.deepEqual([...$("#composer-to").options].map((o) => o.textContent), ["Everyone", "Privately: Gemini"]);
+  assert.deepEqual([...$("#composer-to").options].map((o) => o.textContent), ["Everyone", "Privately: Gemini", "Aside: William"]);
   assert.match(status().textContent, /Restored the settings from “backup\.json”/);
   const stored = JSON.parse(w.localStorage.getItem("dialog.settings.v1"));
   assert.equal(stored.humanName, "William");
@@ -1427,7 +1427,7 @@ test("participants can be reordered by dragging the handle, or with the arrow ke
   const $$ = (sel) => [...d.querySelectorAll(sel)];
   await until(() => $$(".seat").length === 2, "seats");
   const names = () => $$(".seat .seat-head input").map((i) => i.value);
-  const toMenu = () => [...$("#composer-to").options].slice(1).map((o) => o.textContent.replace("Privately: ", ""));
+  const toMenu = () => [...$("#composer-to").options].slice(1, -1).map((o) => o.textContent.replace("Privately: ", ""));
   const stored = () => JSON.parse(w.localStorage.getItem("dialog.settings.v1")).seats.map((s) => s.name);
   const grip = (i) => $$(".seat .grip")[i];
 
@@ -1553,6 +1553,64 @@ test("the send keys ask the participant named at the end of the message", async 
   assert.equal(entries().length, 6);
   assert.equal(chatCalls.length, 2, "nobody asked");
   assert.equal(hint(), "Enter adds, then Claude replies · Ctrl+Enter just adds");
+
+  await sleep(20);
+  assert.deepEqual(errors.map(String), [], "no script errors");
+});
+
+test("asides to the readers: “…, Bill” or To: Aside adds the message in its own style, and no participant sees it or replies", async () => {
+  const { w, d, chatCalls, replies, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const entries = () => $$("#transcript .entry");
+  const notBusy = () => $$(".seat .speak").every((b) => !b.disabled && !b.hidden);
+  const hint = () => $("#composer-hint").textContent;
+  const type = (t) => {
+    $("#composer-text").value = t;
+    $("#composer-text").dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  const sendKeys = () => $("#composer-text").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  await until(() => $$(".seat").length === 2, "seats");
+
+  replies.push({ pieces: ["A small Dobsonian."], cost: 0.001 });
+  type("What's the best telescope for a beginner, Grok?");
+  sendKeys();
+  await until(() => notBusy() && entries().length === 2, "Grok replies");
+
+  // Ending with your own name: an aside. The note and the box say so; Return just adds it.
+  type("Readers: Grok always says Dobsonian, Bill.");
+  assert.equal(hint(), "Enter adds an aside for the readers; no participant sees it");
+  assert.equal($("#composer-send").textContent, "Add aside");
+  assert.ok($(".composer").classList.contains("aside-mode"));
+  sendKeys();
+  assert.equal(entries().length, 3);
+  const aside = entries()[2];
+  assert.ok(aside.classList.contains("for-readers"));
+  assert.equal(aside.querySelector(".direction").textContent, "(aside, to the readers)");
+  assert.equal(aside.querySelector(".body").textContent.trim(), "Readers: Grok always says Dobsonian.", "your name comes off");
+  assert.ok(!$(".composer").classList.contains("aside-mode"), "the box is back to normal");
+  await sleep(20);
+  assert.equal(chatCalls.length, 1, "nobody asked");
+
+  // To: Aside: Bill does the same, whatever the message ends with.
+  $("#composer-to").value = "aside";
+  $("#composer-to").dispatchEvent(new w.Event("change"));
+  type("Claude next, I think");
+  $("#composer-send").click();
+  assert.equal(entries().length, 4);
+  assert.ok(entries()[3].classList.contains("for-readers"));
+  assert.equal(entries()[3].querySelector(".body").textContent.trim(), "Claude next, I think");
+  $("#composer-to").value = "";
+  $("#composer-to").dispatchEvent(new w.Event("change"));
+
+  // The participants never see an aside.
+  replies.push({ pieces: ["Agreed."], cost: 0.001 });
+  type("Do you agree, Claude?");
+  sendKeys();
+  await until(() => notBusy() && entries().length === 6, "Claude replies");
+  const seen = JSON.stringify(chatCalls.at(-1).messages);
+  assert.ok(seen.includes("A small Dobsonian.") && seen.includes("Do you agree?"));
+  assert.ok(!seen.includes("always says") && !seen.includes("Claude next"), "asides left out");
 
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");

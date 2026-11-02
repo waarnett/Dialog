@@ -16,6 +16,8 @@ import {
   addresseeLabel,
   buildMessages,
   readAddress,
+  readAside,
+  ASIDE_LABEL,
   nameList,
   nameSlips,
   withCorrectNames,
@@ -166,7 +168,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.18";
+const VERSION = "2.19.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -747,6 +749,7 @@ function renderEntry(e: Entry): HTMLElement {
   const streaming = e.status === "streaming";
   const classes = ["entry", isHuman ? "human" : "bot"];
   if (e.privateWith) classes.push("private");
+  if (e.aside) classes.push("for-readers");
   if (e.status === "error") classes.push("error");
   if (streaming) classes.push("streaming");
 
@@ -755,6 +758,7 @@ function renderEntry(e: Entry): HTMLElement {
   if (e.addressedTo && !e.privateWith) direction = `(${addresseeLabel(e.addressedTo)})`;
   const privately = privateLabel(e, settings.seats, settings.humanName);
   if (privately) direction = `(${privately})`;
+  if (e.aside) direction = `(${ASIDE_LABEL})`;
 
   const body = h("div", { class: "body" });
   if (streaming) fillArrivingBody(body, e);
@@ -1124,7 +1128,7 @@ function deleteEntry(id: string): void {
   updateSeatStatus();
 }
 
-function addHumanEntry(text: string, privateWith?: string | string[], attachments?: Attachment[], addressedTo?: Addressee): void {
+function addHumanEntry(text: string, privateWith?: string | string[], attachments?: Attachment[], addressedTo?: Addressee, aside?: boolean): void {
   settleChanges(session, settings);
   session.entries.push({
     id: newId(),
@@ -1135,6 +1139,7 @@ function addHumanEntry(text: string, privateWith?: string | string[], attachment
     addressedTo,
     text,
     attachments,
+    ...(aside ? { aside } : {}),
     time: new Date().toISOString(),
   });
   persist();
@@ -1188,8 +1193,11 @@ async function speak(
     return undefined;
   }
 
-  // Speak also adds whatever you've typed or attached, for everyone (or privately, if it says so).
-  if (useComposer && !privateTo && !els.composerTo.value) {
+  // Speak also adds whatever you've typed or attached, for everyone (or privately, if it says
+  // so, or as an aside for the readers, before this seat replies all the same).
+  const aside = useComposer && !privateTo ? typedAside() : undefined;
+  if (aside !== undefined) addAside(aside);
+  else if (useComposer && !privateTo && !els.composerTo.value) {
     if (readAddress(els.composerText.value, settings.seats).privately) askAboutNameSlips();
     const typed = els.composerText.value.trim();
     const a = readAddress(typed, settings.seats);
@@ -1400,13 +1408,38 @@ async function retry(failed: Entry): Promise<void> {
 // ---------------------------------------------------------------------------
 // The composer (your input box)
 
+/** To: Aside: your message is an aside to the readers, which no participant sees. */
+const ASIDE = "aside";
+
+/**
+ * The aside you're writing, if it is one (To: Aside, or a message ending with your name),
+ * without your name at its end; undefined if it isn't one.
+ */
+function typedAside(): string | undefined {
+  const typed = els.composerText.value.trim();
+  if (els.composerTo.value === ASIDE) return typed;
+  if (els.composerTo.value) return undefined;
+  const aside = readAside(typed, settings.humanName, settings.seats);
+  return aside || pending.length ? aside : undefined; // your name alone is an ordinary message
+}
+
+/** Add your aside to the readers (with any files): shown and saved, but no participant sees it or replies. */
+function addAside(text: string): void {
+  const files = takePending();
+  if (!text && !files) return;
+  addHumanEntry(text, undefined, files, undefined, true);
+  els.composerText.value = "";
+  updateComposerState();
+}
+
 function renderComposerTo(): void {
   const current = els.composerTo.value;
   els.composerTo.replaceChildren(
     h("option", { value: "" }, "Everyone"),
     ...settings.seats.map((s) => h("option", { value: s.id }, `Privately: ${s.name || "unnamed"}`)),
+    h("option", { value: ASIDE }, `Aside: ${settings.humanName}`),
   );
-  els.composerTo.value = settings.seats.some((s) => s.id === current) ? current : "";
+  els.composerTo.value = current === ASIDE || settings.seats.some((s) => s.id === current) ? current : "";
   updateComposerState();
 }
 
@@ -1449,6 +1482,18 @@ function updateComposerState(): void {
   els.composerSend.textContent = seat ? `Send privately to ${seat.name}` : "Add to conversation";
   els.composerSend.disabled = Boolean(seat && busy.size);
   els.composer.classList.toggle("private-mode", Boolean(seat));
+
+  // An aside to the readers: added as it is, whatever else is happening; no one replies.
+  const aside = typedAside() !== undefined;
+  els.composer.classList.toggle("aside-mode", aside);
+  if (aside) {
+    els.composerSend.textContent = "Add aside";
+    els.composerHint.replaceChildren(`${ASK_KEY} adds an aside for the readers; no participant sees it`);
+    els.composerHint.title =
+      `Return (or ${ADD_KEY}, or Add aside) adds your message as an aside to the readers: it is shown and saved, set in italics, but no participant ever sees it, and no one replies. ` +
+      `Choose it under To, or end your message with your name, ${settings.humanName}. ${NEWLINE_KEY} starts a new line.`;
+    return;
+  }
 
   // The note beside the button: what Return will do, naming who will reply. It follows your
   // typing: a message ending with a participant's name is for that participant.
@@ -1602,6 +1647,8 @@ async function sendPrivately(a: Addressing, fallback?: Seat): Promise<void> {
  */
 async function sendAndAsk(): Promise<void> {
   if (!els.composerText.value.trim() && !pending.length) return;
+  const aside = typedAside();
+  if (aside !== undefined) return addAside(aside); // for the readers: no one replies
   if (els.composerTo.value) return submitComposer(); // To: has already chosen someone, privately
   if (!occupied()) askAboutNameSlips();
   const typed = els.composerText.value;
@@ -1688,6 +1735,8 @@ function submitComposer(): void {
 
 async function onComposerSubmit(ev: Event): Promise<void> {
   ev.preventDefault();
+  const aside = typedAside();
+  if (aside !== undefined) return addAside(aside);
   const to = els.composerTo.value;
   // Just adding reads no names, unless the message says it is private to them.
   if (!to && !occupied() && readAddress(els.composerText.value, settings.seats).privately) askAboutNameSlips();
@@ -3142,6 +3191,7 @@ function wire(): void {
   els.setName.addEventListener("input", () => {
     settings.humanName = els.setName.value.trim() || defaultSettings().humanName;
     persistSoon();
+    renderComposerTo(); // "Aside: <your name>"
   });
   els.setRules.addEventListener("input", () => {
     settings.houseRules = els.setRules.value;

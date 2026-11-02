@@ -313,8 +313,9 @@ export function privateWithFor(group: string[] | undefined): string | string[] |
   return group.length === 1 ? group[0] : [...group];
 }
 
-/** Can this seat see this entry? (Everyone sees what isn't private.) */
-export function canSee(seatId: string, e: Pick<Entry, "privateWith">): boolean {
+/** Can this seat see this entry? (Everyone sees what isn't private, except your asides to the readers.) */
+export function canSee(seatId: string, e: Pick<Entry, "privateWith" | "aside">): boolean {
+  if (e.aside) return false;
   const g = privateGroup(e);
   return !g || g.includes(seatId);
 }
@@ -345,6 +346,9 @@ export function privateNamesFor(group: string[] | undefined, seats: Seat[]): Rec
   if (!group?.length) return undefined;
   return Object.fromEntries(group.flatMap((id) => seats.filter((s) => s.id === id).map((s) => [id, s.name] as const)));
 }
+
+/** How an aside to the readers is marked, as a stage direction without the parentheses. */
+export const ASIDE_LABEL = "aside, to the readers";
 
 /** Is this entry part of the shared record (as opposed to failed or still arriving)? */
 export function isSettled(e: Entry): boolean {
@@ -1197,6 +1201,18 @@ function apartEndingAt(text: string, end: number): number | undefined {
 }
 
 /**
+ * The message without the words from `cut` to `tail` (the last word's end) and what separates
+ * them from it, keeping the sentence's own end punctuation: "What do you think, Grok?" → "What
+ * do you think?"; "Thoughts? Grok." → "Thoughts?".
+ */
+function withoutEnd(text: string, cut: number, tail: number): string {
+  const before = text.slice(0, skipSeparators(text, cut)).replace(/[\s,;:–—-]+$/u, "");
+  let after = text.slice(tail).trim();
+  if (!before || /[.?!…]$/.test(before)) after = "";
+  return (before + after).trim();
+}
+
+/**
  * Take the words meant for Dialog off the end of a message and say what they ask for:
  * - a participant's name ("…, Grok?"), or a list of them ("…, Claude, Grok and Gemini?",
  *   also with "&", "+" or "/"), optionally with "independently" (or "parallel", or "in
@@ -1215,12 +1231,7 @@ export function readAddress(text: string, seats: Seat[]): Addressing {
   const only = lastWord?.word === "only";
   const privately = lastWord !== undefined && (only || isPrivately(lastWord.word));
   const stop = privately ? lastWordEnd(text, lastWord.start) : tail;
-  const finish = (cut: number, rest: Omit<Addressing, "text">): Addressing => {
-    const before = text.slice(0, skipSeparators(text, cut)).replace(/[\s,;:–—-]+$/u, "");
-    let after = text.slice(tail).trim();
-    if (!before || /[.?!…]$/.test(before)) after = ""; // "Thoughts? Grok." → "Thoughts?"
-    return { text: (before + after).trim(), ...rest, ...(privately ? { privately: true } : {}) };
-  };
+  const finish = (cut: number, rest: Omit<Addressing, "text">): Addressing => ({ text: withoutEnd(text, cut, tail), ...rest, ...(privately ? { privately: true } : {}) });
 
   // Names, read backwards from the end, after an optional "independently" or "(in) parallel".
   let end = stop;
@@ -1266,6 +1277,22 @@ export function readAddress(text: string, seats: Seat[]): Addressing {
     first = wordEndingAt(text, skipSeparators(text, apart))?.start ?? apart;
   }
   return finish(first, { seats: [], everyone: true, call });
+}
+
+/**
+ * A message ending with your own name ("…, Bill"): an aside to the readers, which no
+ * participant sees. The message without the name, or undefined if it doesn't end with it alone.
+ * A participant called by the same words wins, as do "privately", "team" and the rest.
+ */
+export function readAside(text: string, humanName: string, seats: Seat[]): string | undefined {
+  const name = humanName.trim().toLowerCase();
+  if (!name) return undefined;
+  const a = readAddress(text, seats);
+  if (a.seats.length || a.everyone || a.privately) return undefined;
+  const tail = lastWordEnd(text);
+  const start = tail - name.length;
+  if (start < 0 || text.slice(start, tail).toLowerCase() !== name || isWordChar(text[start - 1])) return undefined;
+  return withoutEnd(text, start, tail);
 }
 
 /** A word or words at the end of a message that look like a misspelled participant's name. */
