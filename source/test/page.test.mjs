@@ -1721,7 +1721,7 @@ test("Sleep: the card folds to the end and sits out “team” rounds; names at 
   const { w, d, chatCalls, replies, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);
   const $$ = (sel) => [...d.querySelectorAll(sel)];
-  const entries = () => $$("#transcript .entry");
+  const entries = () => $$("#transcript .entry:not(.stage)");
   const speakers = () => entries().map((e) => e.querySelector(".who").textContent);
   const notBusy = () => $$(".seat .speak").every((b) => !b.disabled && !b.hidden);
   const hint = () => $("#composer-hint").textContent;
@@ -2646,23 +2646,85 @@ test("copying turns: just the turns as on screen, with the model and no cost; a 
   assert.deepEqual(errors, []);
 });
 
-test("clicking the medallion or the name shows the version under the name, then a link to the README, then neither", async () => {
-  const { d, errors } = makeHarness();
+test("a reload shows the version until the next turn, even in a conversation under way", async () => {
+  const first = makeHarness();
+  first.d.querySelector("#composer-text").value = "What is time?";
+  first.d.querySelector("#composer-send").click();
+  await until(() => first.d.querySelector("#brand-version").hidden, "the version to go");
+  first.w.dispatchEvent(new first.w.Event("pagehide"));
+  const tab = Object.fromEntries(Object.keys(first.w.sessionStorage).map((k) => [k, first.w.sessionStorage.getItem(k)]));
+
+  const { d, errors } = makeHarness({ tab });
+  const $ = (sel) => d.querySelector(sel);
+  await until(() => d.querySelectorAll("#transcript .entry").length === 1, "the conversation back");
+  assert.equal($("#brand-version").hidden, false, "shown after the reload");
+  assert.equal($(".topbar .wordmark").getAttribute("aria-expanded"), "true");
+  await until(() => $(".seat details textarea"), "a seat's role");
+  $(".seat details textarea").value = "A new role.";
+  $(".seat details textarea").dispatchEvent(new d.defaultView.Event("input", { bubbles: true }));
+  $(".seat details textarea").dispatchEvent(new d.defaultView.Event("change", { bubbles: true }));
+  await until(() => $("#transcript .entry.stage"), "a stage direction");
+  assert.equal($("#brand-version").hidden, false, "a stage direction isn't a turn");
+  $("#composer-text").value = "And space?";
+  $("#composer-send").click();
+  await until(() => $("#brand-version").hidden, "the version to go with the next turn");
+
+  // Clicked to since the reload: it stays through the next turn.
+  const again = makeHarness({ tab });
+  await until(() => again.d.querySelectorAll("#transcript .entry").length === 1, "the conversation back again");
+  again.d.querySelector(".topbar .medallion").click();
+  again.d.querySelector(".topbar .medallion").click();
+  again.d.querySelector(".topbar .medallion").click();
+  assert.equal(again.d.querySelector("#brand-version").hidden, false, "back round to the version, by clicking");
+  again.d.querySelector("#composer-text").value = "And space?";
+  again.d.querySelector("#composer-send").click();
+  await until(() => again.d.querySelectorAll("#transcript .entry").length === 2, "the next turn");
+  assert.equal(again.d.querySelector("#brand-version").hidden, false, "asked for: it stays");
+  assert.deepEqual(errors, []);
+  assert.deepEqual(again.errors, []);
+});
+
+test("the version shows under the name until the first turn; clicking the medallion or the name goes on to a link to the README, then neither, then the version", async () => {
+  const { w, d, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);
   await until(() => $("#brand"), "the top bar");
   const version = $("#brand-version");
   const readme = $("#brand-readme");
   const shown = () => [!version.hidden, !readme.hidden];
-  assert.deepEqual(shown(), [false, false], "neither at first");
+  const $$turns = () => d.querySelectorAll("#transcript .entry").length;
+  assert.deepEqual(shown(), [true, false], "the version, while the conversation is empty");
+  assert.equal($(".topbar .wordmark").getAttribute("aria-expanded"), "true");
   assert.match(version.textContent, /^Version \d+\.\d+(\.\d+)?$/);
   assert.equal(version.textContent, $("#set-version").textContent, "the same as in Settings");
   assert.equal(readme.getAttribute("href"), "README.html");
   assert.equal(readme.getAttribute("target"), "_blank");
+
+  // The first turn takes it away, and a new conversation brings it back.
+  const add = (text) => {
+    $("#composer-text").value = text;
+    $("#composer-send").click();
+  };
+  add("First");
+  await until(() => version.hidden, "the version to go");
+  assert.deepEqual(shown(), [false, false], "gone with the first turn");
+  assert.equal($(".topbar .wordmark").getAttribute("aria-expanded"), "false");
+  assert.equal($(".topbar .wordmark").title, "Show Dialog's version");
   $(".topbar .medallion").click();
   assert.deepEqual(shown(), [true, false], "the version, by the medallion");
-  assert.equal($(".topbar .wordmark").getAttribute("aria-expanded"), "true");
+  add("Second");
+  await until(() => $$turns() === 2, "the second turn");
+  assert.deepEqual(shown(), [true, false], "asked for: later turns leave it");
+  w.confirm = () => true;
   $(".topbar .wordmark").click();
   assert.deepEqual(shown(), [false, true], "the README link in its place, by the name");
+  $("#btn-new").click();
+  await until(() => $$turns() === 0, "the new conversation");
+  assert.deepEqual(shown(), [true, false], "a new conversation shows the version again");
+  add("Third");
+  await until(() => version.hidden, "the version to go again");
+  $(".topbar .medallion").click();
+  $(".topbar .wordmark").click();
+  assert.deepEqual(shown(), [false, true], "the README link again");
   assert.equal($(".topbar .wordmark").title, "Hide the link to the README");
   $(".topbar .medallion").click();
   assert.deepEqual(shown(), [false, false], "neither again");
@@ -2702,4 +2764,149 @@ test("tabs: leaving or reloading never asks, and the tab's conversation is kept;
   assert.deepEqual(seatNames, ["Claude", "Grok"], "the latest participants");
   assert.deepEqual(errors, []);
   assert.deepEqual(fresh.errors, []);
+});
+
+test("stage directions: changes show in the conversation in their own style, with a triangle when the line doesn't say it all; a sleeping seat wakes for its reply", async () => {
+  const { w, d, chatCalls, replies, blobs, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const lines = () => $$("#transcript .entry.stage").map((e) => (e.querySelector("summary") ?? e.querySelector(".body")).textContent);
+  const notBusy = () => $$(".seat .speak").every((b) => !b.disabled && !b.hidden);
+  const type = (t) => {
+    $("#composer-text").value = t;
+    $("#composer-text").dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  const enter = () => $("#composer-text").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  const card = (name) => $$(".seat").find((c) => (c.querySelector(".seat-head input[type=text]")?.value ?? c.querySelector(".seat-name")?.textContent) === name);
+  const sleepBox = (name) => card(name).querySelector("label.sleep input");
+  const said = (call) => call.messages.map((m) => (typeof m.content === "string" ? m.content : "")).join("\n");
+  const setRole = (name, text) => {
+    const box = card(name).querySelector("details textarea");
+    box.value = text;
+    box.dispatchEvent(new w.Event("input", { bubbles: true }));
+    box.dispatchEvent(new w.Event("change", { bubbles: true }));
+  };
+  await until(() => $$(".seat").length === 2, "seats");
+
+  // Before anything is said, there is nothing to report.
+  setRole("Grok", "First role");
+  assert.deepEqual(lines(), []);
+
+  type("Hello, Claude");
+  replies.push({ pieces: ["Hi."], cost: 0.001 });
+  enter();
+  await until(() => notBusy() && $$("#transcript .entry").length === 2, "the first reply");
+  const firstSystem = chatCalls.at(-1).messages[0].content;
+
+  // A role's change is shown to you, with a triangle, and sent to that seat alone.
+  setRole("Grok", "Second role");
+  assert.deepEqual(lines(), ["(Bill changes Grok’s role; only Grok sees this.)"]);
+  const role = $("#transcript .entry.stage");
+  assert.ok(role.classList.contains("private"), "marked as private");
+  assert.match(role.querySelector("details .side:nth-of-type(1) .side-text, details .side-text").textContent, /First role/);
+  assert.match(role.querySelector("details").textContent, /Second role/);
+  assert.ok(!role.querySelector(".del"), "no ×");
+
+  // Typing in the role box isn't a change until you leave it; changing it back cancels the line.
+  const box = card("Grok").querySelector("details textarea");
+  box.value = "Second role and more";
+  box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await sleep(450);
+  assert.match($("#transcript .entry.stage details").textContent, /Second role/);
+  assert.ok(!$("#transcript .entry.stage details").textContent.includes("and more"));
+  setRole("Grok", "First role");
+  assert.deepEqual(lines(), []);
+  setRole("Grok", "Second role");
+
+  // Sleep: one line, with no triangle, since it says it all.
+  sleepBox("Claude").click();
+  const claudeSleeps = "(Claude goes to sleep.)";
+  assert.ok(lines().includes(claudeSleeps));
+  assert.ok(!$$("#transcript .entry.stage")[lines().indexOf(claudeSleeps)].querySelector("details"), "no triangle");
+  sleepBox("Claude").click();
+  assert.ok(!lines().includes(claudeSleeps), "put back before anyone spoke: nothing");
+  sleepBox("Claude").click();
+
+  // The next turn makes them part of the record; Grok gets its new role, Claude's stays private.
+  type("Your view, Grok");
+  replies.push({ pieces: ["Mine."], cost: 0.001 });
+  enter();
+  await until(() => notBusy() && chatCalls.length === 2 && $$("#transcript .entry").at(-1).textContent.includes("Mine."), "Grok's reply");
+  const toGrok = said(chatCalls.at(-1));
+  assert.match(toGrok, /\(\S+ Bill changes your role\. From here on it reads as follows/);
+  assert.match(toGrok, /<new_text>\nSecond role\n<\/new_text>/);
+  assert.match(toGrok, /Your role in this conversation:\nFirst role/, "its standing instructions are as they were");
+  assert.match(toGrok, /Claude goes to sleep\./);
+
+  // Asked by name, the sleeping seat wakes for its reply and goes back to sleep after it.
+  type("And you, Claude");
+  replies.push({ pieces: ["Woken."], cost: 0.001 });
+  enter();
+  await until(() => notBusy() && $$("#transcript .entry").at(-1).classList.contains("stage"), "back to sleep");
+  const order = $$("#transcript .entry").slice(-4).map((e) => (e.classList.contains("stage") ? e.querySelector(".body").textContent : e.querySelector(".who").textContent));
+  assert.deepEqual(order, ["Bill", "(Claude wakes and reviews the entire conversation so far.)", "Claude", "(Claude goes to sleep.)"]);
+  assert.equal(sleepBox("Claude").checked, true, "still asleep");
+  const toClaude = said(chatCalls.at(-1));
+  assert.match(toClaude, /Claude wakes and reviews the entire conversation so far\./);
+  assert.ok(!toClaude.includes("Second role"), "Grok's role stays Grok's");
+  assert.equal(chatCalls.at(-1).messages[0].content, firstSystem, "Claude's standing instructions haven't moved");
+
+  // Privately, so are its wake and its sleep.
+  type("Quietly, Claude, privately");
+  replies.push({ pieces: ["Quiet."], cost: 0.001 });
+  enter();
+  await until(() => notBusy() && $$("#transcript .entry").at(-1).classList.contains("stage"), "private wake");
+  assert.ok($$("#transcript .entry").slice(-3).every((e) => e.classList.contains("private")));
+  type("Anything, Grok");
+  replies.push({ pieces: ["No."], cost: 0.001 });
+  enter();
+  await until(() => notBusy() && $$("#transcript .entry").at(-1).textContent.includes("No."), "Grok again");
+  const later = said(chatCalls.at(-1));
+  assert.equal(later.match(/Claude wakes/g).length, 1, "Grok saw only the open wake");
+
+  // A reply that fails never woke it: no wake line, and no line for going back to sleep.
+  const before = lines().length;
+  type("Once more, Claude");
+  replies.push({ status: 500 });
+  enter();
+  await until(() => notBusy() && $$("#transcript .entry").at(-1).querySelector(".err"), "the failed reply");
+  assert.equal(lines().length, before);
+  assert.equal(sleepBox("Claude").checked, true);
+
+  // A rename leaves old labels and names alone; a removed seat keeps its color.
+  const whoBefore = $$("#transcript .entry .direction").map((e) => e.textContent);
+  const colorBefore = $$("#transcript .entry.bot").find((e) => e.textContent.includes("Mine.")).getAttribute("style");
+  const name = card("Grok").querySelector(".seat-head input[type=text]");
+  name.value = "Skeptic";
+  name.dispatchEvent(new w.Event("input", { bubbles: true }));
+  name.dispatchEvent(new w.Event("change", { bubbles: true }));
+  assert.equal(lines().at(-1), "(Grok is now called Skeptic.)");
+  assert.deepEqual($$("#transcript .entry .direction").map((e) => e.textContent), whoBefore);
+  w.confirm = () => true;
+  card("Skeptic").querySelector(".seat-head button.danger").click();
+  assert.equal(lines().at(-1), "(Grok leaves the conversation.)", "renamed and removed before anyone spoke: only the leaving");
+  assert.deepEqual($$("#transcript .entry .direction").map((e) => e.textContent), whoBefore);
+  assert.equal($$("#transcript .entry.bot").find((e) => e.textContent.includes("Mine.")).getAttribute("style"), colorBefore);
+
+  // House rules: the line, then the lines that differ.
+  $("#btn-settings").click();
+  $("#set-rules").value = $("#set-rules").value.replace("How to think:", "How to reason:");
+  $("#set-rules").dispatchEvent(new w.Event("input", { bubbles: true }));
+  $("#settings-dialog").close?.();
+  $("#settings-dialog").dispatchEvent(new w.Event("close"));
+  await until(() => lines().includes("(Bill changes the house rules.)"), "the rules' line");
+  const rules = $$("#transcript .entry.stage")[lines().indexOf("(Bill changes the house rules.)")].querySelector("details");
+  assert.match(rules.textContent, /Was…\nHow to think:\n…/);
+  assert.match(rules.textContent, /Now…\nHow to reason:\n…/);
+
+  // Saved pages carry them, and resuming keeps them.
+  $("#btn-save").click();
+  await until(() => blobs.length > 0, "the saved page");
+  const page = await blobs.at(-1).text();
+  assert.match(page, /class="turn stage"/);
+  assert.match(page, /Grok leaves the conversation\./);
+  assert.match(squash(page), /<details class="line"><summary>\(Bill changes the house rules\.\)<\/summary>/);
+
+  await sleep(20);
+  assert.deepEqual(errors.map(String), [], "no script errors");
 });

@@ -7,7 +7,7 @@
 
 import { defaultSettings, isSettled, madeFileFrom, MODEL_SORTS, newId, newSession, SEAT_COLORS, splitFiles, upgradeHouseRules, type ModelSort } from "./engine";
 import type { ModelInfo } from "./openrouter";
-import type { Attachment, Entry, MadeFile, Seat, Session, Settings } from "./types";
+import type { Attachment, Cast, Entry, MadeFile, Opening, Seat, Session, Settings } from "./types";
 
 const SETTINGS_KEY = "dialog.settings.v1"; // in this tab, and the latest in shared storage
 const SESSION_KEY = "dialog.session.v1"; // in this tab (in shared storage before tabs were separate)
@@ -224,8 +224,8 @@ export function loadSession(): Session {
       return undefined;
     }
   };
-  const session = isObj(v) && Array.isArray(v.entries)
-    ? { startedAt: str(v.startedAt, new Date().toISOString()), entries: cleanEntries(v.entries, contents) }
+  const session: Session = isObj(v) && Array.isArray(v.entries)
+    ? { startedAt: str(v.startedAt, new Date().toISOString()), entries: cleanEntries(v.entries, contents), ...stageState(v) }
     : newSession();
   if (area === tab) {
     removeUnusedFiles(session);
@@ -276,6 +276,22 @@ function cleanEntries(raw: unknown[], contents: (a: Attachment | MadeFile) => st
     entries.push(entry);
   }
   return entries;
+}
+
+/**
+ * What a stored conversation keeps for its stage directions, if anything. The settings at the
+ * last turn get the same upgrade to the house rules as the settings themselves, so that an
+ * upgrade isn't taken for a change you made.
+ */
+function stageState(v: Record<string, unknown>): Pick<Session, "cast" | "prompts" | "opening"> {
+  const state: Pick<Session, "cast" | "prompts" | "opening"> = {};
+  if (isObj(v.opening) && Array.isArray(v.opening.seats)) state.opening = v.opening as unknown as Opening;
+  if (isObj(v.cast) && Array.isArray(v.cast.seats)) {
+    const cast = v.cast as unknown as Cast;
+    state.cast = { ...cast, houseRules: upgradeHouseRules(str(cast.houseRules, "")) };
+  }
+  if (isObj(v.prompts)) state.prompts = v.prompts as Record<string, string>;
+  return state;
 }
 
 /** Save the conversation (without file contents or thinking) and any files not yet stored. */
@@ -367,6 +383,10 @@ export interface ConversationData {
   seats: Seat[];
   startedAt: string;
   entries: Entry[];
+  /** For its stage directions (absent in those saved before they existed). */
+  cast?: Cast;
+  prompts?: Record<string, string>;
+  opening?: Opening;
 }
 
 /**
@@ -385,6 +405,9 @@ export function conversationData(session: Session, settings: Settings, only?: Re
     seats: settings.seats,
     startedAt: session.startedAt,
     entries,
+    cast: session.cast,
+    prompts: session.prompts,
+    opening: session.opening,
   };
   return JSON.parse(JSON.stringify(data, (key, value: unknown) => (key === "unsaved" || key === "thinking" ? undefined : value))) as ConversationData;
 }
@@ -434,7 +457,7 @@ export function conversationFromData(v: ConversationData, current: Settings): Re
   const parsed = parseSettings({ ...v, seats: Array.isArray(v.seats) ? v.seats : [] });
   const settings: Settings = { ...current, humanName: parsed.humanName, aboutHuman: parsed.aboutHuman, houseRules: parsed.houseRules, seats: parsed.seats };
   const entries = cleanEntries(v.entries, (a) => (typeof a.data === "string" ? a.data : undefined));
-  const session = { startedAt: str(v.startedAt, new Date().toISOString()), entries };
+  const session: Session = { startedAt: str(v.startedAt, new Date().toISOString()), entries, ...stageState(v as unknown as Record<string, unknown>) };
   const savedAt = typeof v.savedAt === "string" && !Number.isNaN(Date.parse(v.savedAt)) ? new Date(v.savedAt) : undefined;
   return { session, settings, savedAt };
 }

@@ -109,6 +109,7 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
   height: 44px;
   border-radius: 50%;
   box-shadow: 0 0 0 1px var(--line);
+  background: var(--plate); /* its background is see-through, and its lines are dark */
   display: block;
 }
 .brand .wordmark { font-size: 1.6rem; letter-spacing: 0.02em; line-height: 1; }
@@ -279,6 +280,29 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
 .entry .body hr { border: none; border-top: 1px solid var(--line); }
 .entry .body math[display="block"] { overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }
 .entry .body .math-error { color: var(--error); }
+
+/* A stage direction: set apart from what's said, as in a printed play. */
+.entry.stage .body {
+  font-family: var(--font-ui);
+  font-style: italic;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--muted);
+  border-left: none;
+  padding-left: calc(1.1rem + 2px);
+}
+.entry.stage summary { cursor: pointer; width: fit-content; }
+.entry.stage .side { margin-top: 0.45rem; font-style: normal; }
+.entry.stage .side-label { font-size: 0.72rem; }
+.entry.stage .side-text {
+  font-family: var(--font-text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  padding-left: 0.8rem;
+  border-left: 2px solid var(--line);
+}
 
 /* A reply's thinking, folded up above it until opened. */
 .entry .thinking { margin-bottom: 0.4rem; padding-left: 1.2rem; font-size: 0.85rem; color: var(--muted); }

@@ -2,6 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   turnDetails,
+  castChanges,
+  castOf,
+  changedPart,
+  noteChanges,
+  settleChanges,
+  stageEntry,
+  wakesLine,
   costRows,
   buildMessages,
   copySeat,
@@ -555,9 +562,9 @@ test("the words meant for Dialog come off the end of the message; the sentence's
   assert.deepEqual(read("Run these in parallel."), ["Run these in parallel.", null], "with no one called, it's just words");
   assert.deepEqual(read("Nothing for Dialog here."), ["Nothing for Dialog here.", null]);
   assert.deepEqual(read("Think about the long term."), ["Think about the long term.", null]);
-  assert.equal(addresseeLabel({ seatId: "G", name: "Grok (old name)" }, seats), "to Grok", "the current name");
-  assert.equal(addresseeLabel({ seatId: "Z", name: "Gone" }, seats), "to Gone", "a removed seat keeps its name");
-  assert.equal(addresseeLabel({ everyone: "independently" }, seats, true), "to everyone, each replying without seeing the others' replies");
+  assert.equal(addresseeLabel({ seatId: "G", name: "Grok (old name)" }), "to Grok (old name)", "the name as it was then");
+  assert.equal(addresseeLabel({ seatId: "Z", name: "Gone" }), "to Gone", "a removed seat keeps its name");
+  assert.equal(addresseeLabel({ everyone: "independently" }, true), "to everyone, each replying without seeing the others' replies");
 });
 
 test("a list of names at the end asks just those participants, in the order named", () => {
@@ -585,7 +592,7 @@ test("a list of names at the end asks just those participants, in the order name
   assert.deepEqual(read("Ask the grand Grok"), ["Ask the grand", "G", null, false], "“grand” isn't “and”");
   assert.deepEqual(read("Thoughts, team?"), ["Thoughts?", "", "in turn", true]);
 
-  const label = (a: Parameters<typeof addresseeLabel>[0], forModels = false) => addresseeLabel(a, seats, forModels);
+  const label = (a: Parameters<typeof addresseeLabel>[0], forModels = false) => addresseeLabel(a, forModels);
   const pair = { seats: [{ id: "A", name: "Claude" }, { id: "G", name: "Grok" }], how: "in turn" as const };
   assert.equal(label(pair), "to Claude and Grok, in turn");
   assert.equal(label(pair, true), "to Claude and Grok, each replying in turn");
@@ -821,4 +828,173 @@ test("particulars: the host after the model, once known; a note while it is bein
   assert.ok(!turnDetails(e).some((l) => typeof l === "string" && l.startsWith("Host")), "unknown: left out");
   assert.equal(turnDetails(e, undefined, true)[1], "Host: looking up…");
   assert.deepEqual(turnDetails({ ...e, host: "Alibaba" }).slice(0, 2), ["Model: qwen/qwen3.8-max.", "Host: Alibaba."]);
+});
+
+// ---------------------------------------------------------------------------
+// Stage directions
+
+test("stage directions: every kind of change gets its line; a role's is for that seat alone", () => {
+  const seat = (id: string, name: string, more = {}) => ({ id, name, model: `m/${id}`, role: "", effort: "default", color: "#000", ...more });
+  const cast = (seats: ReturnType<typeof seat>[], more = {}) => ({ humanName: "Bill", aboutHuman: "About.", houseRules: "Rules.", seats, ...more });
+  const lines = (from: Parameters<typeof castChanges>[0], to: Parameters<typeof castChanges>[1]) => castChanges(from, to).map((l) => l.text);
+  const a = seat("a", "Grok");
+
+  assert.deepEqual(lines(cast([a]), cast([a])), [], "no change, no line");
+  assert.deepEqual(lines(cast([a]), cast([a, seat("g", "Gemini")])), ["Gemini joins, using m/g."]);
+  assert.deepEqual(lines(cast([a, seat("g", "Gemini")]), cast([a])), ["Gemini leaves the conversation."]);
+  assert.deepEqual(lines(cast([a]), cast([{ ...a, name: "Skeptic" }])), ["Grok is now called Skeptic."]);
+  assert.deepEqual(lines(cast([a]), cast([{ ...a, model: "m/new" }])), ["Grok’s model changes from m/a to m/new."]);
+  assert.deepEqual(lines(cast([a]), cast([{ ...a, effort: "max" }])), ["Grok’s thinking level changes from default to max."]);
+  assert.deepEqual(lines(cast([a]), cast([{ ...a, asleep: true }])), ["Grok goes to sleep."]);
+  assert.deepEqual(lines(cast([{ ...a, asleep: true }]), cast([a])), ["Grok wakes and reviews the entire conversation so far."]);
+  assert.deepEqual(lines(cast([a]), cast([a], { humanName: "William" })), ["Bill is now called William."]);
+  assert.deepEqual(lines(cast([a]), cast([a], { houseRules: "New rules." })), ["Bill changes the house rules."]);
+  assert.deepEqual(lines(cast([a]), cast([a], { aboutHuman: "New." })), ["Bill changes what everyone is told about Bill."]);
+  assert.deepEqual(lines(cast([a]), cast([a], { houseRules: "Rules.\n" })), [], "white space at the ends is no change");
+
+  const [role] = castChanges(cast([a]), cast([{ ...a, role: "Argue." }]));
+  assert.equal(role!.text, "Bill changes Grok’s role; only Grok sees this.");
+  assert.equal(role!.privateWith, "a");
+  assert.deepEqual([role!.change!.before, role!.change!.after], ["", "Argue."]);
+});
+
+test("the prior conversation never changes: standing instructions stay, and changes reach a seat where they happened", () => {
+  const s = defaultSettings();
+  s.humanName = "Bill";
+  s.houseRules = "You are {name}. {participants} Today: {date}";
+  s.aboutHuman = "First about.";
+  s.seats = [
+    { id: "A", name: "Claude", model: "m/a", role: "Old role", effort: "default", color: "#111" },
+    { id: "B", name: "Grok", model: "m/b", role: "", effort: "default", color: "#222" },
+  ];
+  const session = { startedAt: "2026-11-01T10:00:00Z", entries: [] as Entry[] } as Session;
+  const t = (h: number) => new Date(2026, 10, 1, h, 0);
+  const say = (speaker: string, name: string, text: string, h: number): Entry =>
+    speaker === "human" ? { id: `e${h}`, speaker, speakerName: name, text, time: t(h).toISOString() } : { id: `e${h}`, speaker, speakerName: name, text, time: t(h).toISOString(), status: "done" };
+  const view = (id: string, now = t(23)) => {
+    const seat = s.seats.find((x) => x.id === id)!;
+    return buildMessages(seat, s, session.entries, now, { images: true }, session.prompts?.[id]).map((m) => `${m.role}: ${m.content as string}`);
+  };
+
+  // Nothing is reported before anything has been said.
+  s.aboutHuman = "Second about.";
+  assert.equal(noteChanges(session, s, t(9)), false);
+  assert.equal(session.entries.length, 0);
+  settleChanges(session, s, t(10));
+  session.entries.push(say("human", "Bill", "Hello", 10));
+
+  const before = view("B");
+  assert.match(before[0]!, /You are Grok\./);
+  assert.match(before[0]!, /Second about\./);
+
+  // Changes arrive as directions, after what has been said, and the system prompt doesn't move.
+  s.houseRules = "New rules for {name}.";
+  s.seats[0]!.role = "New role";
+  s.seats[1]!.name = "Skeptic";
+  assert.equal(noteChanges(session, s, t(11)), true);
+  assert.equal(noteChanges(session, s, t(12)), false, "nothing further");
+  settleChanges(session, s, t(12));
+  const claude = view("A");
+  const grok = view("B");
+  assert.equal(grok[0], before[0], "the same standing instructions");
+  assert.match(grok[1]!, /Hello/);
+  assert.match(grok[1]!, /\(11:00 Grok is now called Skeptic\.\)/);
+  assert.match(grok[1]!, /<new_text>\nNew rules for Skeptic\.\n<\/new_text>/, "the new rules in full, filled in");
+  assert.ok(!grok[1]!.includes("New role"), "another seat's role stays with that seat");
+  assert.match(claude[1]!, /Bill changes your role\. From here on it reads as follows/);
+  assert.match(claude[1]!, /<new_text>\nNew role\n<\/new_text>/);
+  assert.match(claude[0]!, /Your role in this conversation:\nOld role/);
+
+  // Later changes leave those messages alone.
+  const fixed = grok[1];
+  s.seats[1]!.name = "Skeptic 2";
+  s.houseRules = "Third rules.";
+  settleChanges(session, s, t(13));
+  assert.ok(view("B")[1]!.startsWith(fixed!), "what came before is untouched");
+
+  // A newcomer starts with the settings as they are, and is not told again what they already say.
+  s.seats.push({ id: "C", name: "Gemini", model: "m/c", role: "Its role", effort: "default", color: "#333" });
+  s.houseRules = "Fourth rules.";
+  settleChanges(session, s, t(14));
+  const gemini = view("C");
+  assert.match(gemini[0]!, /Fourth rules\./);
+  assert.match(gemini[0]!, /Your role in this conversation:\nIts role/);
+  assert.ok(!gemini.join("\n").includes("Third rules"), "earlier rules aren't sent");
+  assert.ok(!gemini.join("\n").includes("<new_text>"), "nor anything it already has");
+  assert.match(gemini[1]!, /Gemini joins, using m\/c\./);
+  assert.match(gemini[1]!, /Hello/, "and it sees what was said");
+  assert.match(view("B").at(-1)!, /Gemini joins/);
+  assert.match(view("B").at(-1)!, /Fourth rules\./);
+  assert.ok(!view("B").join("\n").includes("Its role"), "the newcomer's role is its own");
+
+  // Today's date alone keeps up with the present.
+  assert.match(view("A", new Date(2026, 10, 2, 9))[0]!, /Today: 2026 Nov 02/);
+});
+
+test("stage directions not yet followed by a turn are recalculated: a change undone leaves nothing", () => {
+  const s = defaultSettings();
+  s.seats = [{ id: "A", name: "Claude", model: "m/a", role: "", effort: "default", color: "#111" }];
+  const session = { startedAt: "x", entries: [] as Entry[] } as Session;
+  settleChanges(session, s);
+  session.entries.push({ id: "h", speaker: "human", speakerName: "Bill", text: "Hi", time: new Date().toISOString() });
+  const directions = () => session.entries.filter((e) => e.speaker === "stage").map((e) => e.text);
+
+  s.seats[0]!.asleep = true;
+  assert.equal(noteChanges(session, s), true);
+  assert.deepEqual(directions(), ["Claude goes to sleep."]);
+  delete s.seats[0]!.asleep;
+  assert.equal(noteChanges(session, s), true);
+  assert.deepEqual(directions(), [], "sleep then wake: nothing");
+
+  s.seats[0]!.name = "C";
+  noteChanges(session, s);
+  s.seats[0]!.name = "Skeptic";
+  noteChanges(session, s);
+  assert.deepEqual(directions(), ["Claude is now called Skeptic."], "the name you ended with");
+
+  // Once a turn follows, it stands.
+  settleChanges(session, s);
+  session.entries.push({ id: "h2", speaker: "human", speakerName: "Bill", text: "Hi", time: new Date().toISOString() });
+  s.seats[0]!.name = "Claude";
+  noteChanges(session, s);
+  assert.deepEqual(directions(), ["Claude is now called Skeptic.", "Skeptic is now called Claude."]);
+
+  // A conversation from before directions were kept starts from the settings it has.
+  const old = { startedAt: "x", entries: [{ id: "h", speaker: "human", speakerName: "Bill", text: "Hi", time: "2026-01-01T00:00:00Z" }] } as Session;
+  assert.equal(noteChanges(old, s), false);
+  assert.deepEqual(old.cast, castOf(s));
+
+  // Every turn removed: nothing left to report on.
+  session.entries = session.entries.filter((e) => e.speaker === "stage");
+  assert.equal(noteChanges(session, s), true);
+  assert.deepEqual(session.entries, []);
+  assert.equal(session.cast, undefined);
+});
+
+test("a stage direction alone doesn't count as being asked something", () => {
+  const s = defaultSettings();
+  s.humanName = "Bill";
+  const seat = { id: "A", name: "Claude", model: "m/a", role: "", effort: "default", color: "#111", asleep: true };
+  s.seats = [seat];
+  const time = "2026-11-01T10:00:00Z";
+  const reply: Entry = { id: "r", speaker: "A", speakerName: "Claude", text: "Mine", time, status: "done" };
+  const wake = stageEntry({ text: wakesLine("Claude") }, "Bill", time);
+  const last = (entries: Entry[]) => buildMessages(seat, s, entries).at(-1)!.content as string;
+  assert.match(last([wake]), /asked you to open the conversation/);
+  assert.match(last([reply, wake]), /wakes and reviews the entire conversation so far\.\)\n\n\(Bill asks you to continue\.\)/);
+  const human: Entry = { id: "h", speaker: "human", speakerName: "Bill", text: "Well?", time };
+  assert.match(last([reply, human, wake]), /wakes and reviews the entire conversation so far\.\)$/, "you've asked already");
+});
+
+test("a change is shown by the lines that differ", () => {
+  assert.deepEqual(changedPart({ before: "one\ntwo\nthree", after: "one\nTWO\nthree" }), { before: "two", after: "TWO", cutAbove: true, cutBelow: true });
+  assert.deepEqual(changedPart({ before: "", after: "new" }), { before: "", after: "new", cutAbove: false, cutBelow: false });
+  assert.deepEqual(changedPart({ before: "a\nb", after: "a\nb\nc" }), { before: "", after: "c", cutAbove: true, cutBelow: false });
+});
+
+test("a private label keeps the names of the moment", () => {
+  const s = defaultSettings();
+  s.seats = [];
+  const e: Entry = { id: "e", speaker: "human", speakerName: "Bill", privateWith: "G", privateNames: { G: "Grok" }, text: "x", time: "2026-11-01T10:00:00Z" };
+  assert.equal(privateLabel(e, s.seats, "Bill"), "privately, to Grok", "even with the seat gone");
 });

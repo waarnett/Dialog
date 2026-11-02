@@ -49,8 +49,8 @@ export interface Citation {
   title?: string;
 }
 
-/** Who said something: the human ("human") or a seat (its id). */
-export type Speaker = "human" | string;
+/** Who said something: the human ("human"), a seat (its id), or nobody: a stage direction ("stage"). */
+export type Speaker = "human" | "stage" | string;
 
 /**
  * Whom a message of yours was addressed to by its last words: one participant ("…, Grok")
@@ -106,18 +106,33 @@ export interface MadeFile {
   incomplete?: boolean;
 }
 
+/** What a stage direction changed, when its one line doesn't say it all. */
+export interface StageChange {
+  topic: "rules" | "about" | "role";
+  before: string;
+  after: string;
+  /** A newcomer's role: already in its standing instructions, so it isn't sent again. */
+  atJoin?: boolean;
+  /** For new house rules: the participants as of the change, to fill in {participants} and {name}. */
+  seats?: Pick<Seat, "id" | "name" | "model" | "asleep">[];
+}
+
 /** One entry in the conversation. */
 export interface Entry {
   id: string;
   speaker: Speaker;
-  /** Name shown for the speaker, captured when the entry was made. */
+  /** Name shown for the speaker, captured when the entry was made (for a stage direction, the moderator's). */
   speakerName: string;
+  /** The speaker's color when the entry was made, so that it stays if the seat is removed. */
+  speakerColor?: string;
   /**
    * If set, this entry is part of a private exchange: only that seat (an id), or those seats
    * (a list of ids, for a private exchange with several), ever see it, besides the human.
    * Unset means everyone sees it.
    */
   privateWith?: string | string[];
+  /** The names of the private group (by seat id) when the entry was made, so that its label never changes. */
+  privateNames?: Record<string, string>;
   text: string;
   /** Files the human added with this entry. */
   attachments?: Attachment[];
@@ -125,6 +140,14 @@ export interface Entry {
   made?: MadeFile[];
   /** ISO timestamp. */
   time: string;
+
+  // The fields below apply only to stage directions.
+  /** The change in full, when the one line doesn't say it all. */
+  change?: StageChange;
+  /** This direction is the arrival of this seat (its id). */
+  joins?: string;
+  /** Not yet followed by a turn: it can still be recalculated, or cancel out. */
+  pending?: boolean;
 
   // The fields below apply only to AI replies.
   /** The model OpenRouter actually used (an alias like "~google/gemini-pro-latest" resolves to a specific one). */
@@ -163,6 +186,24 @@ export interface Entry {
 export interface Session {
   startedAt: string;
   entries: Entry[];
+  /** Who and what were in force at the last turn; the stage directions since say how things differ. */
+  cast?: Cast;
+  /** Each seat's standing instructions (by id) as of when it joined, with {date} still to fill in. */
+  prompts?: Record<string, string>;
+  /** How things stood at the first turn, for a saved page's list (absent in conversations from before this was kept). */
+  opening?: Opening;
+}
+
+/** A seat as it was at the first turn, or on joining if it came later. */
+export interface OpeningSeat extends Seat {
+  joinedLater?: boolean;
+}
+
+/** You and the seats at the first turn, with each later arrival added as it joins. Never changes otherwise. */
+export interface Opening {
+  humanName: string;
+  aboutHuman: string;
+  seats: OpeningSeat[];
 }
 
 export interface Settings {
@@ -178,6 +219,9 @@ export interface Settings {
   houseRules: string;
   seats: Seat[];
 }
+
+/** The settings a stage direction reports changes to. */
+export type Cast = Pick<Settings, "humanName" | "aboutHuman" | "houseRules" | "seats">;
 
 /** One piece of a message: text, an image, or a file (PDF). */
 export type ContentPart =

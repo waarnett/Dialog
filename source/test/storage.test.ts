@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultSettings } from "../src/engine";
+import { defaultSettings, noteChanges, settleChanges } from "../src/engine";
 import {
   conversationFromFile,
   loadCachedModels,
@@ -316,6 +316,29 @@ test("saved conversation: the page carries everything needed to resume it, but n
   const some = conversationFromFile(withConversationData(page, session, s, new Set(["b1", "b2"])), here);
   assert.deepEqual(some.session.entries.map((e) => e.id), ["b1"]);
   assert.deepEqual(some.settings.seats.map((x) => x.name), ["Claude", "Grok"]);
+});
+
+test("the record of a conversation's start survives a reload, a saved page and a resume", () => {
+  const s = defaultSettings();
+  s.seats = [{ id: "A", name: "Claude", model: "m", effort: "high", role: "Be brief.", color: "#c96442" }];
+  const T = "2026-10-23T14:05:00.000Z";
+  const session: Session = { startedAt: T, entries: [] };
+  settleChanges(session, s);
+  session.entries.push({ id: "h1", speaker: "human", speakerName: "Bill", text: "Hello", time: T });
+  const opening = JSON.parse(JSON.stringify(session.opening));
+  assert.equal(opening.seats[0].role, "Be brief.");
+
+  s.seats[0]!.role = "Be long-winded.";
+  const saved = withConversationData("<html><body></body></html>", session, s, undefined, new Date(T));
+  const r = conversationFromFile(saved, defaultSettings());
+  assert.deepEqual(r.session.opening, opening, "from the saved page");
+  assert.equal(r.settings.seats[0]!.role, "Be long-winded.", "resuming goes on with the settings as of saving");
+
+  assert.ok(saveSession(session));
+  assert.deepEqual(loadSession().opening, opening, "after a reload");
+  const emptied: Session = { startedAt: T, entries: [], opening };
+  noteChanges(emptied, s);
+  assert.equal(emptied.opening, undefined, "no turns left: nothing to keep");
 });
 
 test("saved conversation: an older saved page, or anything else, is refused in plain words", () => {

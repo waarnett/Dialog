@@ -61,6 +61,13 @@ import {
   thinkingChoices,
   thinkingLabel,
   totalCost,
+  changedPart,
+  noteChanges,
+  privateNamesFor,
+  settleChanges,
+  sleepsLine,
+  stageEntry,
+  wakesLine,
 } from "./engine";
 import { fetchLocalModels, isLocalModel, LOCAL_EXAMPLE } from "./lmstudio";
 import { fetchCredits, fetchGeneration, fetchKeyInfo, fetchModels, OpenRouterError, streamChat, type CreditInfo, type KeyInfo, type ModelInfo } from "./openrouter";
@@ -159,7 +166,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.17";
+const VERSION = "2.18.6";
 
 const els = {
   transcript: byId("transcript"),
@@ -244,7 +251,16 @@ function renderMarkdown(text: string, keepLineBreaks: boolean, arriving = false)
 let warnedStorage = false;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
+/**
+ * Save after a finished change (a field left, a menu choice, Settings closed): whatever has
+ * changed in the participants or their instructions shows up in the conversation.
+ */
 function persist(): void {
+  if (noteChanges(session, settings)) renderTranscript();
+  save();
+}
+
+function save(): void {
   clearTimeout(saveTimer);
   const ok = store.saveSettings(settings) && store.saveSession(session);
   if (!ok && !warnedStorage) {
@@ -276,7 +292,7 @@ function keepRecentNow(): void {
 /** Save shortly after typing stops, rather than on every keystroke. */
 function persistSoon(): void {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(persist, 400);
+  saveTimer = setTimeout(save, 400);
 }
 
 // ---------------------------------------------------------------------------
@@ -339,8 +355,38 @@ function renderTopbar(): void {
 /** Turns ticked for saving (by id). Kept only while the page is open. */
 const picked = new Set<string>();
 
+// Under the name at the top: nothing (0), the version (1) or a link to the README (2).
+let brandStep = 0;
+let brandTurns: number | undefined;
+let versionUntilTurn = false;
+
+function setBrandStep(step: number): void {
+  brandStep = step;
+  els.brandVersion.hidden = step !== 1;
+  els.brandReadme.hidden = step !== 2;
+  const title = ["Show Dialog's version", "Show a link to the README", "Hide the link to the README"][step]!;
+  for (const b of els.brand.querySelectorAll("button")) {
+    b.title = title;
+    b.setAttribute("aria-expanded", String(step > 0));
+  }
+}
+
+/** The version shows after a reload or once the conversation is empty, and goes with the next turn (unless you've clicked since). */
+function showVersionUntilNextTurn(): void {
+  const turns = session.entries.filter((e) => e.speaker !== "stage").length;
+  if (brandTurns === undefined || (turns === 0 && brandTurns > 0)) {
+    setBrandStep(1);
+    versionUntilTurn = true;
+  } else if (versionUntilTurn && turns > brandTurns) {
+    setBrandStep(0);
+    versionUntilTurn = false;
+  }
+  brandTurns = turns;
+}
+
 /** "Save All", or "Save Selected" while any turn is ticked; and Restore… only while the conversation is empty. */
 function updateSaveButton(): void {
+  showVersionUntilNextTurn();
   for (const id of picked) if (!session.entries.some((e) => e.id === id)) picked.delete(id);
   const n = picked.size;
   els.btnSave.textContent = n ? "Save Selected" : "Save All";
@@ -633,9 +679,71 @@ function replyModelTitle(e: Entry): string | undefined {
   return [model, thinking].filter(Boolean).join(", ") || undefined;
 }
 
+/** The box for choosing a turn for Save Selected. */
+function pickBox(e: Entry): HTMLElement {
+  return h("input", {
+    type: "checkbox",
+    class: "pick",
+    checked: picked.has(e.id),
+    title: "Tick to save this turn with Save Selected",
+    "aria-label": "Select this turn for saving",
+    onchange: (ev) => {
+      if ((ev.target as HTMLInputElement).checked) picked.add(e.id);
+      else picked.delete(e.id);
+      updateSaveButton();
+    },
+  });
+}
+
+/** Stage directions whose change is showing (by id). Kept only while the page is open. */
+const changeOpen = new Set<string>();
+
+/** One version of a change: the lines that differ, with "…" where it runs on into lines that didn't. */
+function changeSide(label: string, text: string, above: boolean, below: boolean): HTMLElement {
+  return h(
+    "div",
+    { class: "side" },
+    h("div", { class: "side-label" }, label),
+    h("div", { class: "side-text" }, [above ? "…\n" : "", text || "(nothing)", below ? "\n…" : ""].join("")),
+  );
+}
+
+/** A stage direction's line, with a triangle to open the full change when the line doesn't say it all. */
+function directionBody(e: Entry): HTMLElement {
+  const line = `(${e.text})`;
+  if (!e.change) return h("div", { class: "body" }, line);
+  const part = changedPart(e.change);
+  const box = h(
+    "details",
+    {
+      class: "body",
+      open: changeOpen.has(e.id),
+      ontoggle: () => {
+        if (box.open) changeOpen.add(e.id);
+        else changeOpen.delete(e.id);
+      },
+    },
+    h("summary", {}, line),
+    changeSide("Was", part.before, part.cutAbove, part.cutBelow),
+    changeSide("Now", part.after, part.cutAbove, part.cutBelow),
+  );
+  return box;
+}
+
+/** A stage direction: just its time and its line, set apart from what's said. It can't be removed. */
+function renderDirection(e: Entry): HTMLElement {
+  return h(
+    "article",
+    { class: `entry stage${e.privateWith ? " private" : ""}`, "data-id": e.id },
+    h("header", {}, h("span", { class: "stamp" }, pickBox(e), h("span", { class: "time", title: "When this happened" }, formatTime(new Date(e.time))))),
+    directionBody(e),
+  );
+}
+
 function renderEntry(e: Entry): HTMLElement {
+  if (e.speaker === "stage") return renderDirection(e);
   const isHuman = e.speaker === "human";
-  const seat = isHuman ? undefined : seatById(e.speaker);
+  const color = e.speakerColor ?? (isHuman ? undefined : seatById(e.speaker)?.color);
   const streaming = e.status === "streaming";
   const classes = ["entry", isHuman ? "human" : "bot"];
   if (e.privateWith) classes.push("private");
@@ -644,7 +752,7 @@ function renderEntry(e: Entry): HTMLElement {
 
   // A private exchange is marked like a stage direction in a printed play.
   let direction: string | undefined = e.independent ? "(answering independently)" : undefined;
-  if (e.addressedTo && !e.privateWith) direction = `(${addresseeLabel(e.addressedTo, settings.seats)})`;
+  if (e.addressedTo && !e.privateWith) direction = `(${addresseeLabel(e.addressedTo)})`;
   const privately = privateLabel(e, settings.seats, settings.humanName);
   if (privately) direction = `(${privately})`;
 
@@ -685,27 +793,14 @@ function renderEntry(e: Entry): HTMLElement {
 
   const article = h(
     "article",
-    { class: classes.join(" "), "data-id": e.id, style: seat ? `--seat-color: ${seat.color}` : undefined },
+    { class: classes.join(" "), "data-id": e.id, style: color ? `--seat-color: ${color}` : undefined },
     h(
       "header",
       {},
       h(
         "span",
         { class: "stamp" },
-        isSettled(e)
-          ? h("input", {
-              type: "checkbox",
-              class: "pick",
-              checked: picked.has(e.id),
-              title: "Tick to save this turn with Save Selected",
-              "aria-label": "Select this turn for saving",
-              onchange: (ev) => {
-                if ((ev.target as HTMLInputElement).checked) picked.add(e.id);
-                else picked.delete(e.id);
-                updateSaveButton();
-              },
-            })
-          : null,
+        isSettled(e) ? pickBox(e) : null,
         h("span", { class: "time", title: "When this turn began" }, formatTime(new Date(e.time))),
       ),
       h("span", { class: "who", title: isHuman ? undefined : replyModelTitle(e) }, e.speakerName),
@@ -759,7 +854,7 @@ function renderEntry(e: Entry): HTMLElement {
   }
   if (e.made?.length) article.append(madeFilesBox(e));
   if (e.error) {
-    const canRetry = !isHuman && seat !== undefined;
+    const canRetry = !isHuman && seatById(e.speaker) !== undefined;
     article.append(
       h(
         "div",
@@ -1030,11 +1125,13 @@ function deleteEntry(id: string): void {
 }
 
 function addHumanEntry(text: string, privateWith?: string | string[], attachments?: Attachment[], addressedTo?: Addressee): void {
+  settleChanges(session, settings);
   session.entries.push({
     id: newId(),
     speaker: "human",
     speakerName: settings.humanName,
     privateWith,
+    privateNames: privateNamesFor(privateGroup({ privateWith }), settings.seats),
     addressedTo,
     text,
     attachments,
@@ -1106,6 +1203,13 @@ async function speak(
     }
   }
 
+  // Anything changed since the last turn is now on the record. A sleeping seat asked by name
+  // wakes for this reply and goes back to sleep after it (privately, if the reply is private).
+  settleChanges(session, settings);
+  const group = { privateWith: privateWithFor(privateTo), privateNames: privateNamesFor(privateTo, settings.seats) };
+  const wake = seat.asleep ? stageEntry({ text: wakesLine(seat.name), ...group }, settings.humanName, new Date().toISOString()) : undefined;
+  if (wake) session.entries.push(wake);
+
   // What this seat's model can take in directly (unknown models: assume images, convert PDFs;
   // LM Studio's take no PDFs, and images only if its list says so).
   const info = modelInfo(seat.model);
@@ -1113,16 +1217,15 @@ async function speak(
   // The seat's view is built now, before this function first waits. In an independent round
   // every seat's view is built in the same moment, while the others' replies are still empty
   // and arriving, and replies still arriving are never part of anyone's view.
-  const messages = buildMessages(seat, settings, session.entries, new Date(), {
-    images: info ? info.inputModalities.includes("image") : !local,
-    pdfs: !local,
-  });
+  const abilities = { images: info ? info.inputModalities.includes("image") : !local, pdfs: !local };
+  const messages = buildMessages(seat, settings, session.entries, new Date(), abilities, session.prompts?.[seat.id]);
   const pdfEngine = hasFileParts(messages) && !info?.inputModalities.includes("file") ? "cloudflare-ai" : undefined;
   const entry: Entry = {
     id: newId(),
     speaker: seat.id,
     speakerName: seat.name,
-    privateWith: privateWithFor(privateTo),
+    speakerColor: seat.color,
+    ...group,
     independent: independent || undefined,
     text: "",
     time: new Date().toISOString(),
@@ -1204,6 +1307,11 @@ async function speak(
       firstTextMs: tFirst === undefined ? undefined : Math.round(tFirst - t0),
     };
     busy.delete(seat.id);
+    // Woken for this reply: back to sleep. A reply that never came never woke it (still here, unless the conversation was cleared).
+    if (wake && session.entries.includes(entry)) {
+      if (!isSettled(entry)) session.entries = session.entries.filter((x) => x !== wake);
+      else if (seatById(seat.id)?.asleep) session.entries.push(stageEntry({ text: sleepsLine(seat.name), ...group }, settings.humanName, new Date().toISOString()));
+    }
     persist();
     renderTranscript();
     renderTopbar();
@@ -1941,6 +2049,7 @@ function seatCard(seat: Seat): HTMLElement {
             roleSummary.textContent = seat.role.trim() ? "Role (set)" : "Role (none)";
             persistSoon();
           },
+          onchange: () => persist(),
         },
         seat.role,
       ),
@@ -2949,17 +3058,10 @@ function wire(): void {
   // Clicking the medallion or the name shows the version under the name, then a link to the
   // README in its place, then neither again.
   els.brandVersion.textContent = `Version ${VERSION}`;
-  let brandStep = 0;
-  const brandTitles = ["Show Dialog's version", "Show a link to the README", "Hide the link to the README"];
   for (const button of els.brand.querySelectorAll("button")) {
     button.addEventListener("click", () => {
-      brandStep = (brandStep + 1) % 3;
-      els.brandVersion.hidden = brandStep !== 1;
-      els.brandReadme.hidden = brandStep !== 2;
-      for (const b of els.brand.querySelectorAll("button")) {
-        b.title = brandTitles[brandStep]!;
-        b.setAttribute("aria-expanded", String(brandStep > 0));
-      }
+      versionUntilTurn = false;
+      setBrandStep((brandStep + 1) % 3);
     });
   }
   els.btnSave.addEventListener("click", saveConversation);

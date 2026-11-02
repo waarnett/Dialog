@@ -6,10 +6,13 @@
 //   - the seat's own earlier replies become "assistant" messages;
 //   - everything said by anyone else becomes "user" messages, labeled "Name says:";
 //   - private exchanges with other seats are left out entirely.
+// What was said is never rewritten. A seat's standing instructions are fixed when it joins,
+// and whatever changes afterwards reaches it as a stage direction at that point in the
+// conversation (see "Stage directions").
 
 import { isLocalModel, localId, localModelName } from "./lmstudio";
 import type { ModelInfo } from "./openrouter";
-import type { Addressee, Attachment, ChatMessage, ContentPart, Entry, MadeFile, MadeKind, Seat, Session, Settings, Usage } from "./types";
+import type { Addressee, Attachment, Cast, ChatMessage, ContentPart, Entry, MadeFile, MadeKind, Opening, OpeningSeat, Seat, Session, Settings, StageChange, Usage } from "./types";
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -324,17 +327,28 @@ export function canSee(seatId: string, e: Pick<Entry, "privateWith">): boolean {
 export function privateLabel(e: Entry, seats: Seat[], humanName: string): string | undefined {
   const group = privateGroup(e);
   if (!group) return undefined;
-  const name = (id: string) => seats.find((s) => s.id === id)?.name ?? "a removed seat";
+  const name = (id: string) => memberName(e, id, seats);
   if (e.speaker === "human") {
-    if (e.addressedTo && !("seatId" in e.addressedTo)) return `privately, ${addresseeLabel(e.addressedTo, seats)}`;
+    if (e.addressedTo && !("seatId" in e.addressedTo)) return `privately, ${addresseeLabel(e.addressedTo)}`;
     return `privately, to ${nameList(group.map(name))}`;
   }
   return `privately, to ${nameList([humanName, ...group.filter((id) => id !== e.speaker).map(name)])}`;
 }
 
+/** A private group's member by name: as it was when the entry was made (entries from before that was kept: as it is now). */
+function memberName(e: Pick<Entry, "privateNames">, id: string, seats: Seat[]): string {
+  return e.privateNames?.[id] ?? seats.find((s) => s.id === id)?.name ?? "a removed seat";
+}
+
+/** The names of a private group now, to keep with an entry. */
+export function privateNamesFor(group: string[] | undefined, seats: Seat[]): Record<string, string> | undefined {
+  if (!group?.length) return undefined;
+  return Object.fromEntries(group.flatMap((id) => seats.filter((s) => s.id === id).map((s) => [id, s.name] as const)));
+}
+
 /** Is this entry part of the shared record (as opposed to failed or still arriving)? */
 export function isSettled(e: Entry): boolean {
-  if (e.speaker === "human") return true;
+  if (e.speaker === "human" || e.speaker === "stage") return true;
   return (e.status === "done" || e.status === "stopped") && (e.text.trim() !== "" || (e.made?.length ?? 0) > 0);
 }
 
@@ -545,6 +559,9 @@ export function totalCost(entries: Entry[]): number {
 /** What every participant is told about making files (after the house rules). */
 export const MAKING_FILES_NOTE = `Making files: if {humanName} asks for a file, or a file is clearly the best way to deliver something (a document, a table, a drawing, a small web page), you can make one. Write it on lines of its own between <file name="name.ext"> and </file>, with the whole contents in between and nothing else around them, not even a code fence. Use .md, .txt, .svg or .html; make a web page complete in one file, with its styles and scripts inside it. {humanName} sees each file as a card with buttons to open or save it, and the other participants see it too. Mention the file in your reply, but don't repeat its contents outside the tags. To revise a file, write it again in full under the same name; the newer version replaces the older one for everyone.`;
 
+/** Tells a seat what stage directions are; every seat gets it, whatever the house rules say. */
+export const STAGE_NOTE = `Stage directions: a line in parentheses that begins with a time, such as "(15:20 Gemini joins, using google/gemini-3-pro.)", is Dialog reporting a change: who is taking part, their names, models, thinking levels or whether they are asleep, the house rules, what you are told about {humanName}, or your role. Everything said before it stands as it was said. A change holds from that point on, and new text replaces the matching part of these instructions. A participant who wakes reads everything said while it slept. Never write stage directions yourself.`;
+
 /** The kind of file a name stands for: .html/.htm, .svg, .md/.markdown, anything else text. */
 export function madeKind(name: string): MadeKind {
   const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "";
@@ -672,23 +689,45 @@ function madeFileText(f: MadeFile, maker: string, humanName: string, replaced: R
 // ---------------------------------------------------------------------------
 // What each seat sees
 
-/** The house rules with the placeholders filled in for one seat; {date} is today's, with this computer's UTC offset. */
-export function systemPromptFor(seat: Seat, settings: Settings, now = new Date()): string {
+/** The house rules with the placeholders filled in for one seat, all but {date}. */
+function filledRules(rules: string, seat: Pick<Seat, "id" | "name">, seats: Pick<Seat, "id" | "name" | "model" | "asleep">[], humanName: string): string {
   const participants = [
-    `- ${settings.humanName} (human moderator)`,
-    ...settings.seats.map((s) => `- ${s.name}: model ${s.model}${s.id === seat.id ? " (this is you)" : ""}`),
+    `- ${humanName} (human moderator)`,
+    ...seats
+      .filter((s) => s.model.trim() || s.id === seat.id)
+      .map((s) => `- ${s.name}: model ${s.model}${s.asleep ? " (asleep for now)" : ""}${s.id === seat.id ? " (this is you)" : ""}`),
   ].join("\n");
-  const filled = settings.houseRules
+  return rules
     .split("{name}").join(seat.name)
-    .split("{humanName}").join(settings.humanName)
-    .split("{participants}").join(participants)
-    .split("{date}").join(`${formatDate(now)} (${formatUtcOffset(-now.getTimezoneOffset())})`);
-  let prompt = filled + "\n\n" + MAKING_FILES_NOTE.split("{humanName}").join(settings.humanName);
+    .split("{humanName}").join(humanName)
+    .split("{participants}").join(participants);
+}
+
+/** A date as the house rules give it, with this computer's UTC offset. */
+function ruleDate(d: Date): string {
+  return `${formatDate(d)} (${formatUtcOffset(-d.getTimezoneOffset())})`;
+}
+
+/** Fill in {date}: the one part of a seat's standing instructions that keeps up with the present. */
+function withDate(prompt: string, now: Date): string {
+  return prompt.split("{date}").join(ruleDate(now));
+}
+
+/** A seat's standing instructions, as of now and with {date} still to fill in: what it keeps from when it joins. */
+export function standingPrompt(seat: Seat, settings: Settings): string {
+  let prompt = filledRules(settings.houseRules, seat, settings.seats, settings.humanName);
+  prompt += "\n\n" + MAKING_FILES_NOTE.split("{humanName}").join(settings.humanName);
+  prompt += "\n\n" + STAGE_NOTE.split("{humanName}").join(settings.humanName);
   const about = settings.aboutHuman.trim();
   if (about) prompt += `\n\nAbout ${settings.humanName}, in ${settings.humanName}'s own words:\n${about}`;
   const role = seat.role.trim();
   if (role) prompt += `\n\nYour role in this conversation:\n${role}`;
   return prompt;
+}
+
+/** A seat's standing instructions as of now, with today's date. */
+export function systemPromptFor(seat: Seat, settings: Settings, now = new Date()): string {
+  return withDate(standingPrompt(seat, settings), now);
 }
 
 /** What the seat's model can take in directly. */
@@ -711,15 +750,15 @@ function entryParts(
 ): ContentPart[] {
   const files = e.attachments ?? [];
   const group = privateGroup(e);
-  const name = (id: string) => seats.find((s) => s.id === id)?.name ?? "a removed seat";
+  const name = (id: string) => memberName(e, id, seats);
   let label: string;
   if (e.speaker === "human") {
     const verb = e.text.trim() ? "says" : files.length > 1 ? "shares these files" : "shares a file";
-    const to = e.addressedTo ? ` (${addresseeLabel(e.addressedTo, seats, true)})` : "";
+    const to = e.addressedTo ? ` (${addresseeLabel(e.addressedTo, true)})` : "";
     if (group) {
       // Who else can see it, and (to several) how they are to reply.
       const others = group.filter((id) => id !== viewerId).map(name);
-      const how = e.addressedTo && !("seatId" in e.addressedTo) ? `; ${addresseeLabel(e.addressedTo, seats, true)}` : "";
+      const how = e.addressedTo && !("seatId" in e.addressedTo) ? `; ${addresseeLabel(e.addressedTo, true)}` : "";
       label = `${humanName} ${verb} (privately, only you${others.length ? ` and ${nameList(others)}` : ""} can see this${how}):`;
     } else {
       label = `${humanName} ${verb}${to}:`;
@@ -761,7 +800,8 @@ function entryParts(
  * Build the messages to send when `seat` is asked to speak.
  * The result always starts with the system prompt, alternates user/assistant,
  * begins with a user message and ends with one (as all the providers require).
- * Messages are plain text unless images or PDFs are included.
+ * Messages are plain text unless images or PDFs are included. `standing` is the seat's
+ * standing instructions as of when it joined (see standingPrompt); without it, as of now.
  */
 export function buildMessages(
   seat: Seat,
@@ -769,6 +809,7 @@ export function buildMessages(
   entries: Entry[],
   now = new Date(),
   abilities: ModelAbilities = { images: true },
+  standing?: string,
 ): ChatMessage[] {
   const turns: { role: "user" | "assistant"; parts: ContentPart[] }[] = [];
   // Consecutive pieces of text, within an entry or across entries, are joined into one.
@@ -786,13 +827,17 @@ export function buildMessages(
   };
   const text = (t: string): ContentPart[] => [{ type: "text", text: t }];
 
-  // What this seat can see; among its files, the ones replaced by a later version.
-  const seen = entries.filter((e) => isSettled(e) && canSee(seat.id, e));
+  // What this seat can see; among its files, the ones replaced by a later version. Changes
+  // from before it joined, and its role as it joined, are in its standing instructions already.
+  const joined = entries.findIndex((e) => e.joins === seat.id);
+  const seen = entries.filter((e, i) => isSettled(e) && canSee(seat.id, e) && !(e.change && (e.change.atJoin || i < joined)));
   const replaced = replacedFiles(seen);
   seen.forEach((e, i) => {
     // Every turn begins with when it began, the date too on a new day (as of the turn before it here).
     const stamp = turnStamp(e, seen[i - 1]);
-    if (e.speaker === seat.id) {
+    if (e.speaker === "stage") {
+      push("user", text(directionForSeat(e, seat, stamp)));
+    } else if (e.speaker === seat.id) {
       // Its own reply, after just its time, with its own files as it wrote them (or a note where they're gone).
       const own = [e.text, ...(e.made ?? []).map((f) => madeFileText(f, e.speakerName, settings.humanName, replaced))];
       push("assistant", text(`${stamp}\n${own.filter((t) => t.trim()).join("\n\n")}`));
@@ -802,10 +847,16 @@ export function buildMessages(
   });
 
   const opener = `(${settings.humanName} has asked you to open the conversation.)`;
+  const again = `(${settings.humanName} asks you to continue.)`;
   if (turns.length === 0) turns.push({ role: "user", parts: text(opener) });
   else if (turns[0]?.role === "assistant") turns.unshift({ role: "user", parts: text(opener) });
   if (turns[turns.length - 1]?.role === "assistant") {
-    turns.push({ role: "user", parts: text(`(${settings.humanName} asks you to continue.)`) });
+    turns.push({ role: "user", parts: text(again) });
+  } else if (seen.at(-1)?.speaker === "stage") {
+    // Only a stage direction since it last spoke, or since the start: that isn't a question to answer.
+    const lastSaid = seen.filter((e) => e.speaker !== "stage").at(-1);
+    if (!lastSaid) push("user", text(opener));
+    else if (lastSaid.speaker === seat.id) push("user", text(again));
   }
 
   const messages: ChatMessage[] = turns.map((t) => {
@@ -813,7 +864,160 @@ export function buildMessages(
     const content = allText ? t.parts.map((p) => (p.type === "text" ? p.text : "")).join("\n\n") : t.parts;
     return { role: t.role, content };
   });
-  return [{ role: "system", content: systemPromptFor(seat, settings, now) }, ...messages];
+  return [{ role: "system", content: withDate(standing ?? standingPrompt(seat, settings), now) }, ...messages];
+}
+
+// ---------------------------------------------------------------------------
+// Stage directions
+//
+// What was said never changes. When the participants or their instructions do, a line goes
+// into the conversation at that point, for you and (unless it is one seat's role) for them.
+// They are worked out by comparing the settings with those at the last turn, so anything you
+// change and change back before the next turn leaves no trace.
+
+/** The settings a stage direction reports on, as of now. A seat with no model hasn't arrived yet. */
+export function castOf(settings: Settings): Cast {
+  return {
+    humanName: settings.humanName,
+    aboutHuman: settings.aboutHuman,
+    houseRules: settings.houseRules,
+    seats: settings.seats.filter((s) => s.model.trim()).map((s) => ({ ...s })),
+  };
+}
+
+/** A stage direction before it has a place in the conversation. */
+export type StageLine = Pick<Entry, "text" | "privateWith" | "change" | "joins">;
+
+/** The direction for a seat waking; it then reads everything said while it slept. */
+export function wakesLine(name: string): string {
+  return `${name} wakes and reviews the entire conversation so far.`;
+}
+
+/** The direction for a seat going to sleep. */
+export function sleepsLine(name: string): string {
+  return `${name} goes to sleep.`;
+}
+
+/** The stage directions that take `from` to `to`, in the order they should be read. */
+export function castChanges(from: Cast, to: Cast): StageLine[] {
+  const lines: StageLine[] = [];
+  const you = to.humanName;
+  if (from.humanName !== you) lines.push({ text: `${from.humanName} is now called ${you}.` });
+  if (from.houseRules.trim() !== to.houseRules.trim()) {
+    const seats = to.seats.map(({ id, name, model, asleep }) => ({ id, name, model, asleep }));
+    lines.push({ text: `${you} changes the house rules.`, change: { topic: "rules", before: from.houseRules, after: to.houseRules, seats } });
+  }
+  if (from.aboutHuman.trim() !== to.aboutHuman.trim()) {
+    lines.push({ text: `${you} changes what everyone is told about ${you}.`, change: { topic: "about", before: from.aboutHuman, after: to.aboutHuman } });
+  }
+  const roleLine = (s: Seat, before: string, atJoin?: boolean): StageLine => ({
+    text: `${you} ${atJoin ? "gives" : "changes"} ${s.name}${atJoin ? " a" : "’s"} role; only ${s.name} sees this.`,
+    privateWith: s.id,
+    change: { topic: "role", before, after: s.role, ...(atJoin ? { atJoin } : {}) },
+  });
+  for (const s of from.seats) {
+    if (!to.seats.some((x) => x.id === s.id)) lines.push({ text: `${s.name} leaves the conversation.` });
+  }
+  for (const s of to.seats) {
+    const was = from.seats.find((x) => x.id === s.id);
+    if (!was) {
+      const thinking = s.effort === "default" ? "" : `, thinking level ${s.effort}`;
+      lines.push({ text: `${s.name} joins, using ${s.model}${thinking}.`, joins: s.id });
+      if (s.asleep) lines.push({ text: sleepsLine(s.name) });
+      if (s.role.trim()) lines.push(roleLine(s, "", true));
+      continue;
+    }
+    if (was.name !== s.name) lines.push({ text: `${was.name} is now called ${s.name}.` });
+    if (was.model !== s.model) lines.push({ text: `${s.name}’s model changes from ${was.model} to ${s.model}.` });
+    if (was.effort !== s.effort) lines.push({ text: `${s.name}’s thinking level changes from ${was.effort} to ${s.effort}.` });
+    if (Boolean(was.asleep) !== Boolean(s.asleep)) lines.push({ text: s.asleep ? sleepsLine(s.name) : wakesLine(s.name) });
+    if (was.role.trim() !== s.role.trim()) lines.push(roleLine(s, was.role));
+  }
+  return lines;
+}
+
+/** A stage direction as a new entry. */
+export function stageEntry(line: StageLine, humanName: string, time: string, pending?: boolean): Entry {
+  return { id: newId(), speaker: "stage", speakerName: humanName, ...line, time, ...(pending ? { pending } : {}) };
+}
+
+const sameLine = (a: StageLine, b: StageLine) => a.text === b.text && a.change?.after === b.change?.after && a.change?.before === b.change?.before;
+
+/**
+ * Bring the directions not yet followed by a turn up to date with the settings. A line that
+ * still holds keeps its time and place. Until something has been said there is nothing to
+ * report: everyone starts with the settings as they are then. True if the entries changed.
+ */
+export function noteChanges(session: Session, settings: Settings, now = new Date()): boolean {
+  if (!session.entries.some((e) => e.speaker !== "stage")) {
+    const had = session.entries.length > 0;
+    session.entries = [];
+    delete session.cast;
+    delete session.prompts;
+    delete session.opening;
+    return had;
+  }
+  session.cast ??= castOf(settings); // a conversation from before these were kept: from here on
+  const old = session.entries.filter((e) => e.pending);
+  const lines = castChanges(session.cast, castOf(settings));
+  if (old.length === lines.length && lines.every((l, i) => sameLine(l, old[i]!))) return false;
+  session.entries = session.entries.filter((e) => !e.pending);
+  for (const line of lines) {
+    session.entries.push(old.find((e) => sameLine(line, e)) ?? stageEntry(line, settings.humanName, now.toISOString(), true));
+  }
+  return true;
+}
+
+/**
+ * A turn is about to be added: the directions so far become part of the record, and any seat
+ * that has just arrived gets its standing instructions. The first turn records how things
+ * stand, and each later arrival joins that record (a conversation without one stays without).
+ */
+export function settleChanges(session: Session, settings: Settings, now = new Date()): void {
+  noteChanges(session, settings, now);
+  for (const e of session.entries) delete e.pending;
+  session.cast = castOf(settings);
+  const prompts: Record<string, string> = {};
+  for (const s of session.cast.seats) prompts[s.id] = session.prompts?.[s.id] ?? standingPrompt(s, settings);
+  session.prompts = prompts;
+  if (!session.entries.some((e) => e.speaker !== "stage")) {
+    session.opening = { humanName: settings.humanName, aboutHuman: settings.aboutHuman, seats: session.cast.seats.map((s) => ({ ...s })) };
+  } else if (session.opening) {
+    session.opening.seats.push(...arrivalsSince(session.opening, session.cast.seats));
+  }
+}
+
+/** The seats among `seats` that aren't in the record yet, as they are now. */
+export function arrivalsSince(opening: Opening, seats: Seat[]): OpeningSeat[] {
+  return seats.filter((s) => !opening.seats.some((x) => x.id === s.id)).map((s) => ({ ...s, joinedLater: true }));
+}
+
+/** A stage direction as a seat receives it: with the new text in full, if there is any. */
+function directionForSeat(e: Entry, seat: Seat, stamp: string): string {
+  const c = e.change;
+  if (!c) return `(${stamp} ${e.text})`;
+  const who = e.speakerName;
+  const newText = c.topic === "rules" ? filledRules(c.after, { id: seat.id, name: c.seats?.find((s) => s.id === seat.id)?.name ?? seat.name }, c.seats ?? [], who).split("{date}").join(ruleDate(new Date(e.time))) : c.after;
+  const line = c.topic === "role" ? `${who} changes your role.` : e.text;
+  if (!newText.trim()) return `(${stamp} ${line} It is now empty.)`;
+  const lead = c.topic === "rules" ? "From here on they read as follows, in place of the earlier ones:" : "From here on it reads as follows, in place of what came before:";
+  return `(${stamp} ${line} ${lead})\n<new_text>\n${newText}\n</new_text>`;
+}
+
+/** What changed, for showing: the lines that differ, without those the two versions share at either end. */
+export function changedPart(c: Pick<StageChange, "before" | "after">): { before: string; after: string; cutAbove: boolean; cutBelow: boolean } {
+  const a = c.before.trim().split("\n");
+  const b = c.after.trim().split("\n");
+  let top = 0;
+  while (top < a.length && top < b.length && a[top] === b[top]) top++;
+  let end = 0;
+  while (end < a.length - top && end < b.length - top && a[a.length - 1 - end] === b[b.length - 1 - end]) end++;
+  return {
+    before: a.slice(top, a.length - end).join("\n"),
+    after: b.slice(top, b.length - end).join("\n"),
+    cutAbove: top > 0,
+    cutBelow: end > 0,
+  };
 }
 
 /** Does any message carry a PDF? */
@@ -1141,12 +1345,12 @@ export function nameList(names: string[]): string {
 
 /**
  * The addressee as a stage direction: "to Grok", "to Claude and Grok, in turn", "to
- * everyone, independently". For the models, the manner is spelled out.
+ * everyone, independently", with the names as they were then. For the models, the manner is
+ * spelled out.
  */
-export function addresseeLabel(a: Addressee, seats: Seat[], forModels = false): string {
-  const current = (id: string, name: string) => seats.find((s) => s.id === id)?.name ?? name;
-  if ("seatId" in a) return `to ${current(a.seatId, a.name)}`;
-  const who = "seats" in a ? nameList(a.seats.map((x) => current(x.id, x.name))) : "everyone";
+export function addresseeLabel(a: Addressee, forModels = false): string {
+  if ("seatId" in a) return `to ${a.name}`;
+  const who = "seats" in a ? nameList(a.seats.map((x) => x.name)) : "everyone";
   const how = "seats" in a ? a.how : a.everyone;
   if (how === "in turn") return forModels ? `to ${who}, each replying in turn` : `to ${who}, in turn`;
   return forModels ? `to ${who}, each replying without seeing the others' replies` : `to ${who}, independently`;

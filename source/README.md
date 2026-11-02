@@ -13,6 +13,7 @@ Safari and Chrome both work.
 - [Participants](#participants)
 - [Roles](#roles)
 - [Talking](#talking)
+- [Stage directions](#stage-directions)
 - [Reading replies](#reading-replies)
 - [Web search and reading pages](#web-search-and-reading-pages)
 - [Files](#files)
@@ -47,9 +48,10 @@ guide and shows Dialog's version number.
 
 ## The top bar
 
-- **Dialog** and the Socrates medallion: click either once to show the version number, a
-  second time for a link to this guide in its place, and a third time to hide it again. This
-  guide shows the version number under its own Dialog at the top.
+- **Dialog** and the Socrates medallion: the version number shows under the name after you
+  reload the page or start a new conversation, and goes with the next turn. Click either to
+  go through the version number, a link to this guide in its place, and nothing; what you
+  click to stays through later turns. This guide shows the version number under its own Dialog at the top.
 - **This conversation:** what its replies have cost, as OpenRouter reports it. OpenRouter's
   5.5% fee on credit purchases comes on top.
 - **Credit left** (only with a management key; see Settings): your account's remaining
@@ -86,8 +88,8 @@ Each participant (a "seat") has a card on the right:
   "(none)".
 - **Sleep** benches the participant without removing it. Its card folds up and moves to the
   end of the list. A sleeping participant sits out "team" rounds and isn't the one Return
-  asks by default, but still replies when you name it. Untick Sleep and it returns to its
-  place.
+  asks by default, but still replies when you name it: it wakes for that one reply and goes
+  back to sleep after it. Untick Sleep and it returns to its place.
 - **Speak** asks the participant to reply now; **Stop** ends its reply early. While it
   speaks, its card is outlined.
 - **⠿** (left of the name) moves the card: drag it, or click it and press ↑ or ↓. The order
@@ -104,9 +106,8 @@ when a model can't.
 A role turns a model into a particular participant. "Claude" and "Claude-Skeptic" can run
 the same model; what makes them different is mostly the role.
 
-**What a role is.** Any text you write in the seat's Role box. That participant receives it
-every time it speaks, after the house rules and About you, as "Your role in this
-conversation". Because it comes last, a role can override the house rules for that one
+**What a role is.** Any text you write in the seat's Role box. That participant starts with
+it, after the house rules and About you, as "Your role in this conversation". Because it comes last, a role can override the house rules for that one
 participant.
 
 **What a role can do:**
@@ -142,10 +143,11 @@ participant.
   plainer and firmer.
 
 **Changing a role** takes effect on the participant's next turn; its earlier replies stay
-as they were. Since the role is part of what the participant re-reads every turn, its next
-turn reads the whole conversation at full price once (see The re-reading discount, below).
+as they were. The change goes into the conversation as a stage direction that only you and
+that participant see (see Stage directions, below).
 
-Roles are saved with the conversation (Save All shows each participant's role) and with the
+Roles are saved with the conversation (a page saved with Save All starts each participant's
+line with the first sentence of its role, and its triangle opens the whole role) and with the
 settings (Save settings to a file).
 
 **Role, house rules or About you?** The house rules are for every participant; a role is for
@@ -237,6 +239,44 @@ keypress never pays for a reply.
   chat window, and a private exchange doesn't change who is next.
 - **Nothing goes to everyone by mistake:** if Dialog can't tell whom a private message is
   for, the button waits and the note says why.
+
+## Stage directions
+
+What has been said never changes. If you change who is taking part or what they have been
+told, a line in its own style goes into the conversation at that point, with its time, as in
+a printed play:
+
+- (Gemini joins, using google/gemini-3-pro.)
+- (Grok leaves the conversation.)
+- (Grok is now called Skeptic.)
+- (Claude's model changes from one model to another.)
+- (Claude's thinking level changes from high to max.)
+- (Grok goes to sleep.)
+- (Grok wakes and reviews the entire conversation so far.)
+- (Bill changes the house rules.)
+- (Bill changes what everyone is told about Bill.)
+- (Bill changes Grok's role; only Grok sees this.)
+
+**Who sees them.** You and every participant, except that a change of role is seen only by
+you and that participant. A sleeping participant catches up when it wakes.
+
+**The full change.** When the line doesn't say it all (the house rules, About you, a role), it
+has a triangle: click it to see what the changed lines said before and say now. The
+participants are sent the new text in full.
+
+**A sleeping participant you ask by name** wakes for that reply and goes back to sleep after
+it, with a line before and a line after. In a private exchange those lines are private too. If
+the reply fails, its wake line goes away.
+
+**When a line appears.** When you finish the change: when you leave the Role or name box, close
+Settings, or choose from a menu. Until someone next speaks, you can change your mind: put a
+participant to sleep and wake it again and no line is left; retype a name and there's one line
+for the name you ended with. Once a turn follows, a line stays, and it can't be removed.
+
+Nothing is reported before the conversation begins: everyone starts with the settings as they
+are at the first turn. A participant who joins later starts with the settings as they are
+then, and sees the conversation from the beginning. Reordering the cards isn't a change. Lines
+are saved and copied along with the turns, and can be ticked for Save Selected.
 
 ## Reading replies
 
@@ -349,7 +389,12 @@ participant may offer one.
 ## Saving, restoring and tabs
 
 - **Save All** saves the whole conversation as one web page, readable in any browser:
-  the participants with their models, thinking levels and roles; every turn with its time
+  the participants, one line each with the name and the first sentence of the role, and a
+  triangle that opens the model, thinking level and whole role. The list shows everyone as
+  they were at the start of the conversation, or on joining if they came later, and that
+  includes anyone since removed; stage directions show later changes, and a reply given with
+  another model or thinking level is marked with the one it used. (A conversation begun on
+  an earlier version of Dialog lists everyone as of the time of saving, and says so.) Then every turn with its time
   (the date as well on the first turn of each day), private exchanges included and marked; attached images and files; the participants' files;
   sources; and each reply's cost and speed. Failed replies and thinking are left out.
 - **Save Selected:** tick the box beside some turns (it shows when you point at a turn) and
@@ -406,9 +451,10 @@ participant may offer one.
   your remaining credit.
 - **LM Studio server** (optional): see Models on this computer, below.
 - **Your name**: what the participants call you.
-- **About you**: a few sentences every participant receives on every turn, after the house
-  rules and before its role.
-- **House rules**: the instructions every participant receives. The defaults explain how the
+- **About you**: a few sentences every participant starts with, after the house rules and
+  before its role. Later changes reach them as a stage direction.
+- **House rules**: the instructions every participant starts with; later changes reach them as
+  a stage direction, and only today's date keeps up by itself. The defaults explain how the
   conversation works and ask for brief, honest, careful contributions: no flattery,
   confidence given as a percentage, alternatives shown with the evidence against them, and
   a qualified answer preferred to a confident mistake. Edit freely; **Restore default
@@ -463,8 +509,9 @@ them across.
 ## How it works, and what it costs
 
 **Each participant starts from scratch every turn.** The models keep no memory between
-requests. Each time a participant speaks, Dialog sends its instructions (house rules, About
-you, its role) and the whole conversation as that participant sees it. Two seats running
+requests. Each time a participant speaks, Dialog sends its instructions as they were when it
+joined (house rules, About you, its role) and the whole conversation as that participant sees
+it, stage directions included. Two seats running
 the same model share nothing but the transcript; each is told every participant's model.
 
 **No hidden instructions from the makers' apps.** The ChatGPT, Claude and Gemini apps give
@@ -478,9 +525,9 @@ model's makers never see your key.
 **The re-reading discount.** Since every turn re-sends the whole conversation, the hosts
 charge much less for text they've seen recently: for Claude Opus 5.5, a re-read costs a
 twentieth of a fresh read. Dialog asks Claude for its 1-hour cache, which costs extra to fill
-but soon pays for itself. Anything that changes a participant's instructions (its
-role, the house rules, About you, the order of the cards) means its next turn reads
-everything at full price once. Long conversations and attached files are what make a
+but soon pays for itself. Since a change reaches a participant as a stage direction, what it
+has already read stays the same and the discount carries on. Only a new day, which changes the
+date in its instructions, means its next turn reads everything at full price once. Long conversations and attached files are what make a
 conversation expensive; start a new one when the old one has served its purpose.
 
 ## Where your data lives

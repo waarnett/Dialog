@@ -19,11 +19,14 @@ import {
   totalCost,
   turnSpeed,
   turnStamp,
+  changedPart,
+  arrivalsSince,
+  castOf,
 } from "./engine";
 import { MATH_CSS } from "./math";
 import type { ModelInfo } from "./openrouter";
 import type { ConversationData } from "./storage";
-import type { Attachment, Entry, Session, Settings } from "./types";
+import type { Attachment, Entry, OpeningSeat, Seat, Session, Settings } from "./types";
 
 export interface ExportOptions {
   /** OpenRouter's model list, to name each seat's thinking level. */
@@ -81,7 +84,7 @@ export function firstSentence(text: string): { sentence: string; more: boolean }
 // Pieces
 
 function seatColor(e: Entry, settings: Settings): string | undefined {
-  return e.speaker === "human" ? undefined : settings.seats.find((s) => s.id === e.speaker)?.color;
+  return e.speakerColor ?? (e.speaker === "human" ? undefined : settings.seats.find((s) => s.id === e.speaker)?.color);
 }
 
 /**
@@ -91,17 +94,17 @@ function seatColor(e: Entry, settings: Settings): string | undefined {
 function direction(e: Entry, settings: Pick<Settings, "seats" | "humanName">): string {
   const privately = privateLabel(e, settings.seats, settings.humanName);
   if (privately) return `(${privately})`;
-  if (e.addressedTo) return `(${addresseeLabel(e.addressedTo, settings.seats)})`;
+  if (e.addressedTo) return `(${addresseeLabel(e.addressedTo)})`;
   return e.independent ? "(answering independently)" : "";
 }
 
 /**
  * The model and thinking level behind a reply, when the Participants list wouldn't tell the
- * reader: the seat has since changed either one, or has been removed.
+ * reader: it shows the seat with another of either, or doesn't show the seat at all.
  */
-function modelNote(e: Entry, settings: Settings, models: ModelInfo[] | undefined): string {
+function modelNote(e: Entry, listed: Seat[], models: ModelInfo[] | undefined): string {
   if (e.speaker === "human") return "";
-  const seat = settings.seats.find((s) => s.id === e.speaker);
+  const seat = listed.find((s) => s.id === e.speaker);
   const used = e.seatModel ?? e.model;
   const modelChanged = e.seatModel !== undefined && seat?.model !== e.seatModel;
   const effortChanged = e.seatEffort !== undefined && seat?.effort !== e.seatEffort;
@@ -175,15 +178,29 @@ function footHtml(e: Entry, opts: ExportOptions): string {
   return e.status === "stopped" ? `<div class="foot"><span>stopped early</span></div>` : "";
 }
 
+/** A stage direction, set like the page: its time in the margin, its line beside it, and the full change under a triangle. */
+function directionHtml(e: Entry, stamp: string): string {
+  const line = esc(`(${e.text})`);
+  let body = `<p class="line">${line}</p>`;
+  if (e.change) {
+    const part = changedPart(e.change);
+    const side = (label: string, text: string) =>
+      `<div class="side"><div class="side-label">${label}</div><pre class="side-text">${esc([part.cutAbove ? "…\n" : "", text || "(nothing)", part.cutBelow ? "\n…" : ""].join(""))}</pre></div>`;
+    body = `<details class="line"><summary>${line}</summary>${side("Was", part.before)}${side("Now", part.after)}</details>`;
+  }
+  return `<article class="turn stage${e.privateWith ? " private" : ""}"><div class="who"><span class="time">${esc(stamp)}</span></div><div class="speech">${body}</div></article>`;
+}
+
 /** One turn, set like the page: its time (see turnStamp) and name in the margin, speech beside it. */
-function turnHtml(e: Entry, settings: Settings, opts: ExportOptions, stamp: string): string {
+function turnHtml(e: Entry, settings: Settings, listed: Seat[], opts: ExportOptions, stamp: string): string {
+  if (e.speaker === "stage") return directionHtml(e, stamp);
   const isHuman = e.speaker === "human";
   const color = seatColor(e, settings);
   const cls = ["turn", isHuman ? "human" : "bot", e.privateWith ? "private" : "", e.status === "stopped" ? "stopped" : ""]
     .filter(Boolean)
     .join(" ");
   const dir = direction(e, settings);
-  const model = modelNote(e, settings, opts.models);
+  const model = modelNote(e, listed, opts.models);
   const body = e.text.trim() ? `<div class="body">${opts.render(e.text, isHuman)}</div>` : "";
   return [
     `<article class="${cls}"${color ? ` style="--seat-color: ${esc(color)}"` : ""}>`,
@@ -223,6 +240,13 @@ function heading(title: string, lines: string[], opts: ExportOptions): string {
 
 const when = (d: Date) => `${formatDate(d)} at ${formatTime(d)}`;
 
+/** One participant in the list: a single line (name, then `gist`, already HTML), with `rest` under a triangle if there is any. */
+function personHtml(name: string, gist: string, rest: string, color?: string): string {
+  const line = `<span class="name">${esc(name)}</span> ${gist}`.trim();
+  const style = color ? ` style="--seat-color: ${esc(color)}"` : "";
+  return `<li${style}>${rest ? `<details><summary>${line}</summary>${rest}</details>` : `<div class="person">${line}</div>`}</li>`;
+}
+
 // ---------------------------------------------------------------------------
 // The two kinds of file
 
@@ -230,6 +254,8 @@ const when = (d: Date) => `${formatDate(d)} at ${formatTime(d)}`;
  * The conversation as a page: participants and settings, then the turns. Normally every
  * turn and every seat; with `opts.only`, just those turns and the people who speak in them.
  * Failed replies are always left out. Of "About you", only the first sentence is shown.
+ * The list shows how things stood at the first turn (for a later arrival, on joining), or as
+ * of saving for a conversation from before that was recorded.
  */
 export function conversationHtml(session: Session, settings: Settings, opts: ExportOptions): string {
   const savedAt = opts.savedAt ?? new Date();
@@ -238,23 +264,31 @@ export function conversationHtml(session: Session, settings: Settings, opts: Exp
 
   const entries = session.entries.filter((e) => isSettled(e) && (!only || only.has(e.id)));
   const speakers = new Set(entries.map((e) => e.speaker));
-  const seats = only ? settings.seats.filter((s) => speakers.has(s.id)) : settings.seats;
+  const opening = session.opening;
+  // Besides those on record: anyone added since the last turn, whose arrival is noted but not yet settled.
+  const listed: OpeningSeat[] = opening ? [...opening.seats, ...arrivalsSince(opening, castOf(settings).seats)] : settings.seats;
+  const seats = only ? listed.filter((s) => speakers.has(s.id)) : listed;
   const showHuman = !only || speakers.has("human");
-  const about = firstSentence(settings.aboutHuman);
+  const human = opening ?? settings;
+  const about = firstSentence(human.aboutHuman);
 
   const people: string[] = [];
   const notes = [
-    "Models, settings and roles are as of the time of saving; a reply given with a different model or thinking level is marked with the one it used.",
+    opening
+      ? "Models, settings and roles are as of the start of the conversation, or of joining for anyone who came later. Stage directions show later changes, and a reply given with a different model or thinking level is marked with the one it used."
+      : "Models, settings and roles are as of the time of saving; a reply given with a different model or thinking level is marked with the one it used.",
     "Participants could search the web and read web pages unless noted.",
   ];
   if (showHuman) {
     people.push(
-      `<li><span class="name">${esc(settings.humanName)}</span>, human moderator` +
-        (about.sentence ? `<blockquote>${opts.render(about.sentence, true)}</blockquote>` : "") +
-        `</li>`,
+      personHtml(
+        human.humanName,
+        `<span class="gist">human moderator</span>`,
+        about.sentence ? `<blockquote>${opts.render(about.sentence, true)}</blockquote>` : "",
+      ),
     );
     if (about.sentence) {
-      const who = esc(settings.humanName);
+      const who = esc(human.humanName);
       notes.push(`Quoted under ${who}: ${about.more ? "the first sentence of " : ""}what every participant was told about ${who}.`);
     }
   }
@@ -262,14 +296,16 @@ export function conversationHtml(session: Session, settings: Settings, opts: Exp
     const m = opts.models?.find((x) => x.id === s.model);
     const facts = [`<code>${esc(s.model)}</code>`, `thinking: ${esc(thinkingLabel(s, m))}`];
     if (m?.tools === false) facts.push("no web search or page reading");
+    if (s.joinedLater) facts.push("joined later");
+    if (opening && s.asleep) facts.push(s.joinedLater ? "asleep on joining" : "asleep at the start");
     const role = s.role.trim() ? `<blockquote>${opts.render(s.role, true)}</blockquote>` : "";
-    people.push(
-      `<li style="--seat-color: ${esc(s.color)}"><span class="name">${esc(s.name)}</span>, ${facts.join(", ")}${role}</li>`,
-    );
+    // The role's first sentence, without its Markdown; gives way to the whole role when opened.
+    const start = opts.render(firstSentence(s.role).sentence, true).replace(/<[^>]*>/g, "").trim();
+    people.push(personHtml(s.name, start && `<span class="gist role-start">${start}</span>`, `<p class="facts">${facts.join(", ")}</p>${role}`, s.color));
   }
-  if (seats.some((s) => s.role.trim())) notes.push("Quoted under a participant: its role.");
+  if (seats.length) notes.push("A participant’s triangle opens its model, thinking level and role.");
 
-  const turns = entries.map((e, i) => turnHtml(e, settings, opts, turnStamp(e, entries[i - 1])));
+  const turns = entries.map((e, i) => turnHtml(e, settings, listed, opts, turnStamp(e, entries[i - 1])));
   const n = entries.length;
   const dates = only
     ? `${n} ${n === 1 ? "turn" : "turns"} chosen from a conversation started ${when(started)}. Saved ${when(savedAt)}.`
@@ -351,6 +387,10 @@ export function copiedHtml(turns: CopiedTurn[], settings: Settings): string {
   const small = `font-family: ${FONT_UI}; font-size: 0.85em; color: ${MUTED};`;
   const rows = turns.map((t) => {
     const e = t.entry;
+    if (e.speaker === "stage") {
+      const tint = e.privateWith ? ` background: ${ASIDE};` : "";
+      return `<tr style="${tint}"><td style="width: 8.5em; padding: 0.4em 1.25em 1.2em 0.4em; vertical-align: top; text-align: right; font-family: ${FONT_UI}; font-size: 0.85em; color: ${MUTED};">${formatTime(new Date(e.time))}</td><td style="padding: 0.4em 0.4em 1.2em 1em; vertical-align: top; font-family: ${FONT_UI}; font-style: italic; color: ${MUTED};">${esc(`(${e.text})`)}</td></tr>`;
+    }
     const seat = seatColor(e, settings);
     const nameColor = seat ? mix(seat, INK, 0.78) : INK;
     const rule = e.privateWith ? ASIDE_LINE : seat ? mix(seat, "#ffffff", 0.45) : mix(INK, "#ffffff", 0.22);
@@ -411,6 +451,7 @@ export function copiedText(turns: CopiedTurn[], settings: Settings): string {
 
 /** One turn as plain text: a heading line (`stamp`, name, direction), its model, then `text`. */
 function plainTurn(e: Entry, text: string, settings: Pick<Settings, "seats" | "humanName">, stamp: string): string {
+  if (e.speaker === "stage") return `(${stamp} ${e.text})`;
   const model = e.speaker === "human" ? "" : (e.model ?? e.seatModel ?? "");
   const head = [stamp, e.speakerName, direction(e, settings)].filter(Boolean).join(" ");
   return [head, model, text.trim().replace(/\n{3,}/g, "\n\n")].filter(Boolean).join("\n");
@@ -442,26 +483,31 @@ export function savedConversationText(data: ConversationData): string {
 const EXPORT_CSS = `
 :root {
   --paper: #edeeea; --panel: #f8f8f5; --ink: #1e1d1b; --muted: #6a6c67; --line: #d3d5cf;
-  --aside: #f2e8cb; --aside-line: #c2a04a;
+  --aside: #f2e8cb; --aside-line: #c2a04a; --plate: transparent;
   --font-ui: Optima, "Optima Nova", Candara, "Segoe UI", "Gill Sans", sans-serif;
   --font-text: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --paper: #181917; --panel: #20211f; --ink: #e7e5df; --muted: #9c9d97; --line: #363833; --aside: #2d2919; --aside-line: #9c8240; }
+  :root { --paper: #181917; --panel: #20211f; --ink: #e7e5df; --muted: #9c9d97; --line: #363833; --aside: #2d2919; --aside-line: #9c8240; --plate: #f2f1ec; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-text); line-height: 1.62; -webkit-font-smoothing: antialiased; }
 main { max-width: 58rem; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
-h1, h2, .name, .participants li, .time, .direction, .model, .glance, .foot, .files-label, .note, footer { font-family: var(--font-ui); }
+h1, h2, .name, .participants li, .time, .direction, .model, .glance, .foot, .files-label, .note, footer, .line { font-family: var(--font-ui); }
 .doc-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.25rem; }
 .doc-head h1 { font-weight: 400; font-size: 2.2rem; margin: 0; line-height: 1.1; }
 .doc-head p { margin: 0.2rem 0 0; color: var(--muted); font-family: var(--font-ui); font-size: 0.95rem; }
-.medallion { width: 64px; height: 64px; border-radius: 50%; box-shadow: 0 0 0 1px var(--line); }
+.medallion { width: 64px; height: 64px; border-radius: 50%; box-shadow: 0 0 0 1px var(--line); background: var(--plate); }
 h2 { font-weight: 400; font-size: 1.35rem; margin: 2rem 0 1rem; }
 .participants ul { list-style: none; padding: 0; margin: 0; }
 .participants li { margin: 0 0 0.6rem; font-size: 0.95rem; }
 .participants li .name { font-weight: 600; color: color-mix(in srgb, var(--seat-color, var(--ink)) 78%, var(--ink)); }
+.participants summary, .participants .person { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.participants summary { cursor: pointer; }
+.participants .gist { margin-left: 0.35em; color: var(--muted); }
+.participants details[open] .role-start { display: none; }
+.participants .facts { margin: 0.25rem 0 0 1rem; color: var(--muted); }
 .participants blockquote { margin: 0.25rem 0 0 1rem; padding-left: 0.8rem; border-left: 2px solid var(--line); font-family: var(--font-text); color: var(--muted); }
 .participants blockquote > :first-child { margin-top: 0; } .participants blockquote > :last-child { margin-bottom: 0; }
 code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
@@ -489,6 +535,12 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 .body a, .sources a { color: inherit; }
 .body math[display="block"] { overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }
 .body .math-error { color: #a3261b; }
+.stage { margin-bottom: 1.25rem; }
+.line { margin: 0; padding-left: 1.1rem; font-style: italic; font-size: 0.95rem; color: var(--muted); line-height: 1.4; }
+.line summary { cursor: pointer; width: fit-content; }
+.side { margin-top: 0.45rem; font-style: normal; }
+.side-label { font-size: 0.72rem; }
+.side-text { margin: 0; font-family: var(--font-text); font-size: 0.95rem; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 0.8rem; border-left: 2px solid var(--line); }
 .private { background: var(--aside); box-shadow: 0 0 0 0.6rem var(--aside); border-radius: 2px; }
 .private .body { border-left-color: var(--aside-line); }
 .files { padding-left: 1.2rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); }

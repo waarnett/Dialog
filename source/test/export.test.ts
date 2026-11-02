@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { conversationFileName, conversationHtml, copiedHtml, copiedText, escapeHtml, firstSentence, savedConversationText, type CopiedTurn } from "../src/export";
 import { conversationData } from "../src/storage";
-import { defaultSettings, formatTime, turnStamp } from "../src/engine";
-import type { Entry, Seat, Settings } from "../src/types";
+import { defaultSettings, formatTime, noteChanges, settleChanges, turnStamp } from "../src/engine";
+import type { Entry, Seat, Session, Settings } from "../src/types";
 
 // A stand-in for the page's Markdown renderer: escape, wrap in <p>.
 const render = (md: string) => `<p>${escapeHtml(md)}</p>`;
@@ -56,9 +56,9 @@ test("whole conversation: participants, private marks, files, sources, costs; fa
   assert.ok(html.includes('<img class="medallion" src="data:image/png;base64,LOGO"'));
   assert.match(html, /Started 2026 Oct 0\d at \d\d:\d\d\. Saved 2026 Oct 07 at 22:05\./);
   // Participants
-  assert.ok(html.includes("<span class=\"name\">Bill</span>, human moderator<blockquote><p>Retired engineer.</p></blockquote>"));
-  assert.ok(html.includes("<span class=\"name\">Claude</span>, <code>anthropic/claude-opus-5.5</code>, thinking: high (default)<blockquote><p>Be brief.</p></blockquote>"));
-  assert.ok(html.includes("<span class=\"name\">Grok</span>, <code>x-ai/grok-4.7</code>, thinking: low</li>"));
+  assert.ok(html.includes('<summary><span class="name">Bill</span> <span class="gist">human moderator</span></summary><blockquote><p>Retired engineer.</p></blockquote>'));
+  assert.ok(html.includes('<summary><span class="name">Claude</span> <span class="gist role-start">Be brief.</span></summary><p class="facts"><code>anthropic/claude-opus-5.5</code>, thinking: high (default)</p><blockquote><p>Be brief.</p></blockquote>'));
+  assert.ok(html.includes('<summary><span class="name">Grok</span></summary><p class="facts"><code>x-ai/grok-4.7</code>, thinking: low</p></details>'));
   assert.ok(html.includes("Participants could search the web and read web pages unless noted."));
   // Turns
   assert.ok(html.includes('<span class="direction">(privately, to Grok)</span>'));
@@ -81,6 +81,87 @@ test("whole conversation: participants, private marks, files, sources, costs; fa
   // Costs
   assert.ok(html.includes('<span class="glance"><span>$0.0200</span></span></div>'), "cost in the margin, under the name");
   assert.ok(html.includes("Total reported cost: $0.0350"));
+});
+
+test("each participant is one line: name and the start of the role, the rest under a triangle", () => {
+  const s = setup();
+  s.aboutHuman = "";
+  (s.seats[0] as Seat).role = "**Doubt** <everything>. Then say why.\n\nKeep it short.";
+  // A stand-in that handles bold, as the page's Markdown renderer would.
+  const bold = (md: string) => render(md).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const html = conversationHtml({ startedAt: T, entries: [] }, s, { render: bold });
+
+  assert.ok(html.includes('<span class="gist role-start">Doubt &lt;everything&gt;.</span></summary>'), "the first sentence, plain and still escaped");
+  assert.ok(html.includes("<blockquote><p><strong>Doubt</strong> &lt;everything&gt;. Then say why."), "the whole role under the triangle");
+  assert.ok(html.includes('<div class="person"><span class="name">Bill</span> <span class="gist">human moderator</span></div>'), "nothing more to show: no triangle");
+  assert.ok(html.includes("A participant’s triangle opens its model, thinking level and role."));
+});
+
+test("the participants are listed as they were at the start; stage directions and marks on replies tell the rest", () => {
+  const s = setup();
+  const [A, B] = s.seats as [Seat, Seat];
+  B.asleep = true;
+  const session: Session = { startedAt: T, entries: [] };
+  const list = (html: string) => html.slice(html.indexOf('class="participants"'), html.indexOf('class="conversation"'));
+
+  // The first turn fixes the record.
+  settleChanges(session, s);
+  session.entries.push(human("Hello"), bot(A, "First.", { seatEffort: "default" }));
+
+  // Then everything changes: you, a role, a model, a thinking level, a name; one leaves, one comes.
+  s.humanName = "William";
+  s.aboutHuman = "Now a beekeeper.";
+  A.role = "Be long-winded.";
+  A.model = "anthropic/claude-sonnet-5.5";
+  A.effort = "low";
+  A.name = "Claudia";
+  s.seats = [A, { id: "C", name: "Gemini", model: "google/gemini-3", role: "Sum up.", effort: "default", color: "#111111" }];
+  settleChanges(session, s);
+  session.entries.push(bot(A, "Second.", { seatEffort: "low" }), bot(s.seats[1] as Seat, "Third.", { seatEffort: "default" }));
+
+  const html = conversationHtml(session, s, { render, models: [opusInfo] });
+  const people = list(html);
+  assert.ok(people.includes('<span class="name">Bill</span>') && people.includes("<blockquote><p>Retired engineer.</p></blockquote>"), "you, as you were");
+  assert.ok(!people.includes("William") && !people.includes("beekeeper"));
+  assert.ok(people.includes('<span class="name">Claude</span> <span class="gist role-start">Be brief.</span>'), "the first name and role");
+  assert.ok(people.includes("<code>anthropic/claude-opus-5.5</code>, thinking: high (default)"), "the first model and level");
+  assert.ok(!people.includes("Claudia") && !people.includes("long-winded") && !people.includes("sonnet"));
+  assert.ok(people.includes('<span class="name">Grok</span>') && people.includes("asleep at the start"), "removed since, still listed");
+  assert.ok(people.includes("<code>google/gemini-3</code>, thinking: model’s default, joined later"), "a later arrival, as it joined");
+  assert.ok(people.includes("as of the start of the conversation, or of joining for anyone who came later"));
+  assert.ok(!html.includes("as of the time of saving"));
+
+  // Replies are marked against the list: not the first, which matches it, but the second.
+  const notes = [...html.matchAll(/<span class="model">([^<]*)<\/span>/g)].map((m) => m[1]);
+  assert.deepEqual(notes, ["anthropic/claude-sonnet-5.5, thinking: low"]);
+
+  // A later change to an arrival doesn't touch its entry in the record.
+  (s.seats[1] as Seat).role = "Say nothing.";
+  settleChanges(session, s);
+  assert.ok(list(conversationHtml(session, s, { render })).includes("Sum up."));
+
+  // Save Selected: only those who speak in the ticked turns, still as they were.
+  const picked = list(conversationHtml(session, s, { render, only: new Set([session.entries[1]!.id]) }));
+  assert.ok(picked.includes('<span class="name">Claude</span>') && !picked.includes("Grok") && !picked.includes("Gemini") && !picked.includes("human moderator"));
+
+  // Someone added since the last turn is listed too, since the direction says they joined.
+  s.seats.push({ id: "D", name: "Late", model: "x-ai/grok-4.7", role: "", effort: "default", color: "#222222", asleep: true });
+  noteChanges(session, s);
+  const late = list(conversationHtml(session, s, { render }));
+  assert.ok(late.includes('<span class="name">Late</span>') && late.includes("joined later, asleep on joining"));
+});
+
+test("a conversation with no record of its start lists everyone as of saving, and says so", () => {
+  const s = setup();
+  (s.seats[1] as Seat).asleep = true;
+  const session: Session = { startedAt: T, entries: [human("Hello")] };
+  settleChanges(session, s);
+  assert.equal(session.opening, undefined, "too late to record the start");
+  (s.seats[0] as Seat).role = "Be long-winded.";
+  const html = conversationHtml(session, s, { render });
+  assert.ok(html.includes("as of the time of saving"));
+  assert.ok(html.includes("long-winded"));
+  assert.ok(!html.includes("asleep at the start"));
 });
 
 test("a reply is marked with its model and thinking level when either differs from the seat's now", () => {
