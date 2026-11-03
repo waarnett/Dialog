@@ -129,16 +129,27 @@ export function seatColorFor(name: string, seats: Seat[], exceptId?: string): st
   return OTHER_SEAT_COLORS.find((c) => !used.has(c)) ?? OTHER_SEAT_COLORS[seats.length % OTHER_SEAT_COLORS.length] ?? "#888888";
 }
 
-/** First run: no participants yet (add them with "+ Add a seat"), and a placeholder name. */
+/**
+ * The seats a first run starts with: OpenRouter's "latest" aliases, which always lead to the
+ * newest model in the family, so these stay current without a new Dialog.
+ */
+export const FIRST_RUN_MODELS = ["~anthropic/claude-opus-latest", "~google/gemini-pro-latest"];
+
+/** First run: a placeholder name, and one seat each for the latest Claude Opus and Gemini Pro. */
 export function defaultSettings(): Settings {
+  const seats: Seat[] = [];
+  for (const model of FIRST_RUN_MODELS) {
+    const name = friendlySeatName(model);
+    seats.push({ id: newId(), name, model, role: "", effort: "default", color: seatColorFor(name, seats) });
+  }
   return {
     apiKey: "",
     managementKey: "",
     localServer: "",
-    humanName: "John Doe",
+    humanName: "Grasshopper",
     aboutHuman: "",
     houseRules: DEFAULT_HOUSE_RULES,
-    seats: [],
+    seats,
   };
 }
 

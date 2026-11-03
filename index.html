@@ -336,6 +336,22 @@
         color: var(--muted);
       }
 
+      /* The steps for getting an OpenRouter key, inside the first welcome step. */
+      .how ol ol {
+        list-style: lower-alpha;
+        margin: 0.3rem 0 0.4rem;
+      }
+
+      .how li li {
+        margin-bottom: 0.2rem;
+      }
+
+      .how li a {
+        color: inherit;
+        text-decoration-color: var(--accent);
+        text-underline-offset: 2px;
+      }
+
       .how .how-note {
         color: var(--muted);
         font-size: 0.9rem;
@@ -1972,8 +1988,11 @@
               placeholder="sk-or-…">
             <button id="set-key-show" type="button" class="subtle">Show</button>
           </span>
-          <small>Stored only in this browser on this computer. Tip: give the key a credit limit on
-            OpenRouter's Keys page; it caps
+          <small>Stored only in this browser on this computer. Create one on OpenRouter's
+            <a href="https://openrouter.ai/settings/keys" target="_blank"
+              rel="noopener noreferrer">Keys page</a> (the welcome
+            screen and the README go through it step by step). Tip: give the key a credit limit
+            there; it caps
             what Dialog can ever spend. The top bar shows what the key has spent; your remaining
             credit is on
             OpenRouter's <a href="https://openrouter.ai/settings/credits" target="_blank"
@@ -2457,16 +2476,29 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return OTHER_SEAT_COLORS.find((c) => !used.has(c)) ?? OTHER_SEAT_COLORS[seats.length %
             OTHER_SEAT_COLORS.length] ?? "#888888";
         }
+        var FIRST_RUN_MODELS = ["~anthropic/claude-opus-latest", "~google/gemini-pro-latest"];
 
         function defaultSettings() {
+          const seats = [];
+          for (const model of FIRST_RUN_MODELS) {
+            const name = friendlySeatName(model);
+            seats.push({
+              id: newId(),
+              name,
+              model,
+              role: "",
+              effort: "default",
+              color: seatColorFor(name, seats)
+            });
+          }
           return {
             apiKey: "",
             managementKey: "",
             localServer: "",
-            humanName: "John Doe",
+            humanName: "Grasshopper",
             aboutHuman: "",
             houseRules: DEFAULT_HOUSE_RULES,
-            seats: []
+            seats
           };
         }
 
@@ -5958,7 +5990,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.19";
+        var VERSION = "2.20.2";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -6190,6 +6222,53 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           els.transcript.scrollTop = els.transcript.scrollHeight;
           following = true;
         }
+        var openRouterLink = (path, text) => h("a", {
+          href: `https://openrouter.ai/${path}`,
+          target: "_blank",
+          rel: "noopener noreferrer"
+        }, text);
+
+        function keySteps() {
+          return h(
+            "li", {},
+            "Get an OpenRouter API key; the participants speak through OpenRouter, which passes your messages to each model\u2019s maker:",
+            h(
+              "ol", {},
+              h("li", {}, "Go to ", openRouterLink("", "openrouter.ai"),
+                " and sign up (or sign in), with Google, GitHub or an email address."),
+              h(
+                "li", {},
+                "On the ",
+                openRouterLink("settings/credits", "Credits page"),
+                ", add a little credit with a card; $10 lasts a good while. OpenRouter adds a 5.5% fee, and unused credit expires after a year."
+              ),
+              h(
+                "li", {},
+                "On the ",
+                openRouterLink("settings/keys", "Keys page"),
+                ", create a key. Name it Dialog, and give it a credit limit (for instance $10 a month): it caps what Dialog can ever spend, and can reset daily, weekly or monthly."
+              ),
+              h(
+                "li", {},
+                "Copy the key (it starts sk-or-v1-) as soon as it\u2019s shown: OpenRouter shows it only once. If you lose it, delete it on the Keys page and create another."
+              ),
+              h(
+                "li", {},
+                "Here, open Settings (top right), paste the key into OpenRouter API key, and click Done. It is kept only in this browser on this computer, and sent only to OpenRouter."
+              ),
+              h(
+                "li", {},
+                "From then on the top bar shows what this conversation has cost, and what the key has spent this month. To see your remaining credit there too (optional), create a management key on OpenRouter\u2019s ",
+                openRouterLink("settings/management-keys", "Management Keys page"),
+                ", with an expiration date, and paste it into OpenRouter management key in Settings. Keep it safe: it can create new keys, so anyone who got hold of it could spend your credit."
+              )
+            ),
+            "While you\u2019re in Settings, put in your name" + (settings.humanName ===
+              defaultSettings().humanName ?
+              ` (until then the participants call you ${settings.humanName})` : "") +
+            " and a few words about yourself. For models running in LM Studio on this computer you need no key: put its server\u2019s address in Settings instead."
+          );
+        }
 
         function emptyState() {
           const figure = byId("welcome-figure").content.cloneNode(true);
@@ -6205,10 +6284,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               h("h2", {}, "Start a dialogue"),
               h(
                 "ol", {},
-                hasKey() || hasLocal() ? null : h(
-                  "li", {},
-                  "Open Settings and paste your OpenRouter API key (or, for models running in LM Studio on this computer, its server\u2019s address). While you're there, put in your name and a few words about yourself."
-                ),
+                hasKey() || hasLocal() ? null : keySteps(),
                 settings.seats.length ? null : h(
                   "li", {},
                   "Add participants: press + Add a seat, under Participants on the right, and choose a model. Each new seat is named after its model (you can rename it). Add as many as you like, including several of the same model."
@@ -8920,7 +8996,7 @@ Your participants, house rules, name and About you will be replaced with the one
           });
           els.setVersion.textContent = `Version ${VERSION}`;
           els.setLocal.placeholder = LOCAL_EXAMPLE;
-          els.setLocal.addEventListener("focus", () => {
+          els.setLocal.addEventListener("click", () => {
             if (els.setLocal.value.trim()) return;
             els.setLocal.value = LOCAL_EXAMPLE;
             els.setLocal.select();

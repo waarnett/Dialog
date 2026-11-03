@@ -27,17 +27,39 @@ Safari and Chrome both work.
 
 ## Getting started
 
-1. **Get an OpenRouter API key.** At openrouter.ai, sign in, add a little credit (Credits
-   page), then create a key (Keys page). Give the key a **credit limit**: it caps what Dialog
-   can ever spend, and can reset daily, weekly or monthly.
+1. **Get an OpenRouter API key.** The participants speak through OpenRouter, which passes your
+   messages to each model's maker and bills you for what they use.
+   1. Go to [openrouter.ai](https://openrouter.ai/) and sign up (or sign in), with Google,
+      GitHub or an email address.
+   2. On the [Credits page](https://openrouter.ai/settings/credits), add a little credit with a
+      card; $10 lasts a good while. OpenRouter adds a 5.5% fee to each purchase, and unused
+      credit expires after a year.
+   3. On the [Keys page](https://openrouter.ai/settings/keys), create a key. Name it Dialog,
+      and give it a **credit limit** (for instance $10 a month): it caps what Dialog can ever
+      spend, and can reset daily, weekly or monthly. You can change the limit later on the
+      same page.
+   4. **Copy the key** (it starts `sk-or-v1-`) as soon as it is shown: OpenRouter shows it
+      only once. If you lose it, delete it on the Keys page and create another.
 2. **Open Dialog**: online at https://waarnett.github.io/Dialog/, or double-click a copy of
    `index.html` (keep `README.html` beside it).
-3. Click **Settings**, paste the key, and put in **your name** and, if you like, a few
+3. Click **Settings** (top right), paste the key into **OpenRouter API key**, and put in
+   **your name** (until you do, the participants call you Grasshopper) and, if you like, a few
    sentences **about you**. Look over the **house rules**, the instructions every participant
-   gets. Click **Done**.
-4. **Add participants.** Under Participants, on the right, press **+ Add a seat** and choose a
-   model. Add as many as you like, including several of the same model, and give each one a
-   **role** if you want it to play a particular part (see Roles, below).
+   gets. Click **Done**. The key is kept only in this browser on this computer, and sent only
+   to OpenRouter.
+
+   **What you're spending.** From then on the top bar shows what this conversation has cost
+   and what the key has spent this month (see The top bar, below). To see your **remaining
+   credit** there too (optional), create a management key on OpenRouter's
+   [Management Keys page](https://openrouter.ai/settings/management-keys), with an
+   expiration date, and paste it into **OpenRouter management key** in Settings. Keep it
+   safe: it can create new keys, so anyone who got hold of it could spend your credit.
+4. **Participants.** The first time you open Dialog, two are already seated, under
+   Participants on the right: **Claude**, the latest Claude Opus, and **Gemini**, the latest
+   Gemini Pro. Each always gets the newest model in its family, as OpenRouter releases them.
+   To add more, press **+ Add a seat** and choose a model. Add as many as you like, including
+   several of the same model, and give each one a **role** if you want it to play a
+   particular part (see Roles, below).
 5. **Talk.** Type a message and end it with a name or with "team": "What's the strongest
    objection to this, team?" (see Talking, below).
 
@@ -472,7 +494,7 @@ participant may offer one.
   aware that a management key can create new keys: someone who got hold of it could spend
   your remaining credit.
 - **LM Studio server** (optional): see Models on this computer, below.
-- **Your name**: what the participants call you.
+- **Your name**: what the participants call you (Grasshopper until you change it).
 - **About you**: a few sentences every participant starts with, after the house rules and
   before its role. Later changes reach them as a stage direction.
 - **House rules**: the instructions every participant starts with; later changes reach them as

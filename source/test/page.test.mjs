@@ -465,7 +465,7 @@ test("a full conversation in the page", async () => {
   assert.deepEqual(errors.map(String), [], "no script errors");
 });
 
-test("first run: no key, no seats; adding seats names them after their models", async () => {
+test("first run: no key, Claude and Gemini seated; adding seats names them after their models", async () => {
   const { chatCalls } = makeHarness();
   const fresh = new JSDOM(html, {
     runScripts: "dangerously",
@@ -475,6 +475,7 @@ test("first run: no key, no seats; adding seats names them after their models", 
       win.fetch = async (url) => (url.endsWith("/models") ? new Response(JSON.stringify(MODELS)) : new Response("{}", { status: 500 }));
       win.TextDecoder = TextDecoder;
       win.localStorage.clear();
+      win.confirm = () => true;
     },
   });
   const fw = fresh.window;
@@ -483,17 +484,33 @@ test("first run: no key, no seats; adding seats names them after their models", 
   const $$ = (sel) => [...fd.querySelectorAll(sel)];
   const seats = () => $$("#seat-list .seat");
 
-  // Nothing set up yet.
+  // No key yet; the latest Claude Opus and Gemini Pro are already seated, and you are Grasshopper.
   assert.equal($("#banner").hidden, false);
   assert.match($("#banner").textContent, /Add your OpenRouter API key/);
-  assert.equal(seats().length, 0, "no seats on first run");
+  assert.deepEqual(seats().map((c) => c.querySelector(".seat-head input").value), ["Claude", "Gemini"]);
+  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Privately: Claude", "Privately: Gemini", "Aside: Grasshopper"]);
+  const steps = () => $$("#transcript .empty .how > ol > li").map((li) => li.textContent);
+  assert.match(steps()[0], /^Get an OpenRouter API key/);
+  assert.match(steps()[0], /the participants call you Grasshopper/);
+  assert.ok(!steps().some((t) => /^Add participants/.test(t)), "no step for adding participants: there are some");
+  const keyLinks = $$("#transcript .empty .how > ol > li:first-child a").map((a) => a.getAttribute("href"));
+  assert.deepEqual(keyLinks, [
+    "https://openrouter.ai/",
+    "https://openrouter.ai/settings/credits",
+    "https://openrouter.ai/settings/keys",
+    "https://openrouter.ai/settings/management-keys",
+  ]);
+  assert.equal($$("#transcript .empty .how > ol > li:first-child li").length, 6, "the key's steps, one by one");
+  assert.match(steps()[0], /top bar shows what this conversation has cost/);
+  await new Promise((r) => setTimeout(r, 20)); // model list arrives
+
+  // Remove them both: then nothing is set up.
+  for (let i = 0; i < 2; i++) seats()[0].querySelector('button[aria-label="Remove seat"]').click();
+  assert.equal(seats().length, 0);
   assert.match($("#seat-list .seats-empty").textContent, /No participants yet\. Press \+ Add a seat/);
   assert.ok($("#btn-add-seat").classList.contains("primary"), "Add a seat stands out while there are none");
-  const steps = $$("#transcript .empty li").map((li) => li.textContent);
-  assert.match(steps[0], /paste your OpenRouter API key/);
-  assert.match(steps[1], /^Add participants: press \+ Add a seat/);
-  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Aside: John Doe"]);
-  await new Promise((r) => setTimeout(r, 20)); // model list arrives
+  assert.match(steps()[1], /^Add participants: press \+ Add a seat/);
+  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Aside: Grasshopper"]);
 
   // + Add a seat opens the model picker; the seat takes the model's name and color.
   const pick = (query) => {
@@ -517,7 +534,7 @@ test("first run: no key, no seats; adding seats names them after their models", 
   $("#btn-add-seat").click();
   pick("grok");
   assert.deepEqual(seats().map((c) => c.querySelector(".seat-head input").value), ["Claude", "Claude 2", "Grok"]);
-  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Privately: Claude", "Privately: Claude 2", "Privately: Grok", "Aside: John Doe"]);
+  assert.deepEqual($$("#composer-to option").map((o) => o.textContent), ["Everyone", "Privately: Claude", "Privately: Claude 2", "Privately: Grok", "Aside: Grasshopper"]);
 
   // A seat you've already named keeps its name when you change its model.
   seats()[1].querySelector(".seat-head input").value = "Skeptic";
@@ -532,11 +549,11 @@ test("first run: no key, no seats; adding seats names them after their models", 
   $("#model-cancel").click();
   assert.equal(seats()[3].querySelector(".seat-head input").value, "New seat");
 
-  // Without a key, Speak asks for one instead of calling OpenRouter; the name starts as John Doe.
+  // Without a key, Speak asks for one instead of calling OpenRouter; the name starts as Grasshopper.
   seats()[0].querySelector("button.speak").click();
   assert.equal(chatCalls.length, 0);
   assert.ok($("#settings-dialog").open, "settings opened to ask for the key");
-  assert.equal($("#set-name").value, "John Doe");
+  assert.equal($("#set-name").value, "Grasshopper");
 });
 
 test("About you, and attaching files by drag and drop", async () => {
@@ -2410,7 +2427,7 @@ test("LM Studio: a dialog with only local models needs no OpenRouter key; the pi
   assert.deepEqual(errors.map(String), [], "no script errors");
 });
 
-test("LM Studio: clicking into the empty Settings box fills in the usual address; one typed in is left alone", async () => {
+test("LM Studio: clicking into the empty Settings box fills in the usual address; tabbing through or one typed in is left alone", async () => {
   const page = new JSDOM(html, {
     runScripts: "dangerously",
     pretendToBeVisual: true,
@@ -2426,7 +2443,17 @@ test("LM Studio: clicking into the empty Settings box fills in the usual address
   pw.document.querySelector("#btn-settings").click();
   assert.equal(field.value, "");
   assert.equal(field.placeholder, "http://localhost:1234");
+  // Tabbing through it on the way to Your name fills in nothing, so the key steps stay on the welcome screen.
   field.focus();
+  field.blur();
+  assert.equal(field.value, "");
+  pw.document.querySelector("#settings-dialog").close?.();
+  await sleep(20);
+  assert.match(pw.document.querySelector("#transcript .empty").textContent, /Get an OpenRouter API key/);
+  assert.equal(pw.document.querySelector("#banner").hidden, false, "still asks for a key");
+  pw.document.querySelector("#btn-settings").click();
+  field.focus();
+  field.click();
   assert.equal(field.value, "http://localhost:1234");
   assert.equal(field.selectionStart, 0);
   assert.equal(field.selectionEnd, field.value.length, "selected, so typing replaces it");

@@ -115,7 +115,7 @@ test("settings file: other files are refused in plain words; hand-edited ones ar
   assert.equal(r.settings.seats.length, 1);
   assert.ok(r.settings.seats[0]!.id.length > 0, "a seat without an id gets one");
   assert.equal(r.settings.seats[0]!.effort, "default");
-  assert.equal(r.settings.humanName, "John Doe", "missing fields get their defaults");
+  assert.equal(r.settings.humanName, "Grasshopper", "missing fields get their defaults");
 });
 
 test("a sleeping seat stays asleep in the settings file; awake seats carry no mark", () => {

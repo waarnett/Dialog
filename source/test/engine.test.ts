@@ -457,10 +457,18 @@ test("default house rules: Bill's guidance included; untouched old copies upgrad
   assert.ok(p.includes("Avoid even a hint of sycophancy, toward Bill or toward the other participants."));
 });
 
-test("first run: no seats, a placeholder name", () => {
+test("first run: a placeholder name, and seats for the latest Claude Opus and Gemini Pro", () => {
   const d = defaultSettings();
-  assert.deepEqual(d.seats, []);
-  assert.equal(d.humanName, "John Doe");
+  assert.equal(d.humanName, "Grasshopper");
+  assert.deepEqual(
+    d.seats.map((s) => [s.name, s.model, s.effort, s.color, s.role]),
+    [
+      ["Claude", "~anthropic/claude-opus-latest", "default", "#c96442", ""],
+      ["Gemini", "~google/gemini-pro-latest", "default", "#4285f4", ""],
+    ],
+  );
+  assert.notEqual(d.seats[0]!.id, d.seats[1]!.id);
+  assert.notEqual(defaultSettings().seats[0]!.id, d.seats[0]!.id, "fresh ids each time");
 });
 
 test("new seats are named and colored after their model", () => {

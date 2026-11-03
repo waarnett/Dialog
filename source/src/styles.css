@@ -175,6 +175,10 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
 .how ol { margin: 0; padding-left: 1.3rem; font-family: var(--font-text); font-size: 1.02rem; line-height: 1.6; }
 .how li { margin-bottom: 0.55rem; padding-left: 0.2rem; }
 .how li::marker { font-family: var(--font-ui); color: var(--muted); }
+/* The steps for getting an OpenRouter key, inside the first welcome step. */
+.how ol ol { list-style: lower-alpha; margin: 0.3rem 0 0.4rem; }
+.how li li { margin-bottom: 0.2rem; }
+.how li a { color: inherit; text-decoration-color: var(--accent); text-underline-offset: 2px; }
 .how .how-note { color: var(--muted); font-size: 0.9rem; margin: 1rem 0 0; }
 .how .how-readme { font-family: var(--font-text); font-size: 1.02rem; margin: 0.9rem 0 0; }
 .how .how-readme a { color: inherit; text-decoration-color: var(--accent); text-underline-offset: 2px; }

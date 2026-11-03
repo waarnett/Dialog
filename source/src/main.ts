@@ -168,7 +168,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.19";
+const VERSION = "2.20.2";
 
 const els = {
   transcript: byId("transcript"),
@@ -452,6 +452,63 @@ function scrollToBottom(): void {
   following = true;
 }
 
+/** A link to one of OpenRouter's pages, opened in a new tab. */
+const openRouterLink = (path: string, text: string): HTMLElement =>
+  h("a", { href: `https://openrouter.ai/${path}`, target: "_blank", rel: "noopener noreferrer" }, text);
+
+/** The welcome step for a first run without a key: how to get an OpenRouter API key, step by step. */
+function keySteps(): HTMLElement {
+  return h(
+    "li",
+    {},
+    "Get an OpenRouter API key; the participants speak through OpenRouter, which passes your messages to each model’s maker:",
+    h(
+      "ol",
+      {},
+      h("li", {}, "Go to ", openRouterLink("", "openrouter.ai"), " and sign up (or sign in), with Google, GitHub or an email address."),
+      h(
+        "li",
+        {},
+        "On the ",
+        openRouterLink("settings/credits", "Credits page"),
+        ", add a little credit with a card; $10 lasts a good while. OpenRouter adds a 5.5% fee, and unused credit expires after a year.",
+      ),
+      h(
+        "li",
+        {},
+        "On the ",
+        openRouterLink("settings/keys", "Keys page"),
+        ", create a key. Name it Dialog, and give it a credit limit (for instance $10 a month): " +
+          "it caps what Dialog can ever spend, and can reset daily, weekly or monthly.",
+      ),
+      h(
+        "li",
+        {},
+        "Copy the key (it starts sk-or-v1-) as soon as it’s shown: OpenRouter shows it only once. " +
+          "If you lose it, delete it on the Keys page and create another.",
+      ),
+      h(
+        "li",
+        {},
+        "Here, open Settings (top right), paste the key into OpenRouter API key, and click Done. " +
+          "It is kept only in this browser on this computer, and sent only to OpenRouter.",
+      ),
+      h(
+        "li",
+        {},
+        "From then on the top bar shows what this conversation has cost, and what the key has spent this month. " +
+          "To see your remaining credit there too (optional), create a management key on OpenRouter’s ",
+        openRouterLink("settings/management-keys", "Management Keys page"),
+        ", with an expiration date, and paste it into OpenRouter management key in Settings. " +
+          "Keep it safe: it can create new keys, so anyone who got hold of it could spend your credit.",
+      ),
+    ),
+    "While you’re in Settings, put in your name" +
+      (settings.humanName === defaultSettings().humanName ? ` (until then the participants call you ${settings.humanName})` : "") +
+      " and a few words about yourself. For models running in LM Studio on this computer you need no key: put its server’s address in Settings instead.",
+  );
+}
+
 /** The welcome screen shown while the conversation is empty: the engraving and how to begin. */
 function emptyState(): HTMLElement {
   const figure = byId<HTMLTemplateElement>("welcome-figure").content.cloneNode(true);
@@ -466,14 +523,7 @@ function emptyState(): HTMLElement {
       h(
         "ol",
         {},
-        hasKey() || hasLocal()
-          ? null
-          : h(
-              "li",
-              {},
-              "Open Settings and paste your OpenRouter API key (or, for models running in LM Studio on this computer, its server’s address). " +
-                "While you're there, put in your name and a few words about yourself.",
-            ),
+        hasKey() || hasLocal() ? null : keySteps(),
         settings.seats.length
           ? null
           : h(
@@ -3156,7 +3206,9 @@ function wire(): void {
   els.setVersion.textContent = `Version ${VERSION}`;
   els.setLocal.placeholder = LOCAL_EXAMPLE;
   // Clicking into the empty box fills in the usual address, selected so typing replaces it.
-  els.setLocal.addEventListener("focus", () => {
+  // Only a click: tabbing through it on the way to Your name must leave it empty, or Dialog
+  // would take LM Studio as set up and stop asking for an OpenRouter key.
+  els.setLocal.addEventListener("click", () => {
     if (els.setLocal.value.trim()) return;
     els.setLocal.value = LOCAL_EXAMPLE;
     els.setLocal.select();
