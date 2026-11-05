@@ -1319,8 +1319,12 @@ test("a reply's host: shown in its particulars, from the reply itself or looked 
   assert.deepEqual(hostCalls, [{ id: "gen-2", auth: "Bearer sk-test" }]);
   toggle(2); // closed
   state.hosts["gen-2"] = "DeepInfra";
+  const focusedBefore = focusOptions.length;
   toggle(2); // opened again: asked again
   await until(() => lines(2)[1] === "Host: DeepInfra.", "the host looked up");
+  // The reply is drawn again with the host, and the focus put back without scrolling: Safari
+  // would otherwise take the view back up to the top of a long reply, away from its particulars.
+  assert.deepEqual(focusOptions.slice(focusedBefore), [true, true], "opening, then the redraw: neither scrolls");
   assert.equal(hostCalls.length, 2);
   assert.equal(JSON.parse(w.sessionStorage.getItem("dialog.session.v1")).entries[2].host, "DeepInfra", "kept with the reply");
   toggle(2);

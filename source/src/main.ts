@@ -168,7 +168,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.21";
+const VERSION = "2.22.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -693,13 +693,15 @@ async function lookUpHost(e: Entry): Promise<void> {
     /* unreachable: leave it out */
   }
   hostLookups.delete(e.id);
-  // Redraw the reply, if it's still there, keeping the focus where it was.
+  // Redraw the reply, if it's still there, keeping the focus where it was. Putting the focus
+  // back mustn't scroll: Safari would take the view back up to the button at the top of a long
+  // reply, away from the particulars just scrolled into view.
   const article = [...els.transcript.querySelectorAll<HTMLElement>("article.entry")].find((a) => a.dataset.id === e.id);
   if (!article) return;
   const focused = article.contains(document.activeElement);
   const fresh = renderEntry(e);
   article.replaceWith(fresh);
-  if (focused) (fresh.querySelector<HTMLElement>("button.glance") ?? fresh.querySelector<HTMLElement>("button.foot"))?.focus();
+  if (focused) (fresh.querySelector<HTMLElement>("button.glance") ?? fresh.querySelector<HTMLElement>("button.foot"))?.focus({ preventScroll: true });
 }
 
 /**
