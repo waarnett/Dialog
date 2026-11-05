@@ -411,26 +411,25 @@ export function waitingLabel(name: string, ms: number): string {
   return `waiting for ${name}…${waited}`;
 }
 
-/** The longer explanation shown on hover. */
-export function speedDetails(e: Entry, s: Speed): string {
-  const u = e.usage;
-  const n = (x: number) => x.toLocaleString("en-US");
-  const parts: string[] = [];
-  if (u) {
-    parts.push(
-      `${n(u.completionTokens)} tokens written` +
-        (u.reasoningTokens ? ` (${n(u.reasoningTokens)} of them thinking)` : "") +
-        ` in ${s.seconds.toFixed(1)} s from pressing Speak to the last word: ${n(Math.round(s.tokensPerSecond))} tokens per second overall.`,
-    );
-  }
-  if (s.firstTextSeconds !== undefined) {
-    let line = `The first words appeared after ${s.firstTextSeconds.toFixed(1)} s`;
-    if (s.visibleTokensPerSecond !== undefined) {
-      line += `; after that, text arrived at about ${n(Math.round(s.visibleTokensPerSecond))} tokens per second`;
-    }
-    parts.push(line + ".");
-  }
-  return parts.join(" ");
+/** One row of a reply's speed table: what ("Total time"), the figure ("21.3"), and its unit ("secs"). */
+export interface SpeedRow {
+  item: string;
+  value: string;
+  unit: string;
+}
+
+/**
+ * A reply's speed, as a little table under "Speed:": the total time, the time to the first
+ * words, tokens per second overall, and tokens per second once the words started. The two
+ * about the first words only when they are known.
+ */
+export function speedRows(s: Speed): SpeedRow[] {
+  const perSecond = (x: number) => Math.round(x).toLocaleString("en-US");
+  const rows: SpeedRow[] = [{ item: "Total time", value: s.seconds.toFixed(1), unit: "secs" }];
+  if (s.firstTextSeconds !== undefined) rows.push({ item: "Time to 1st word", value: s.firstTextSeconds.toFixed(1), unit: "secs" });
+  rows.push({ item: "Overall", value: perSecond(s.tokensPerSecond), unit: "tokens/sec" });
+  if (s.visibleTokensPerSecond !== undefined) rows.push({ item: "Since 1st word", value: perSecond(s.visibleTokensPerSecond), unit: "tokens/sec" });
+  return rows;
 }
 
 /**
@@ -522,13 +521,14 @@ export function pauseBreak(text: string): string {
   return text.endsWith("\n") ? "\n" : "\n\n";
 }
 
-/** A line of a reply's particulars, or its cost table. */
-export type Detail = string | CostRow[];
+/** A line of a reply's particulars, its cost table, or its speed table. */
+export type Detail = string | CostRow[] | { speed: SpeedRow[] };
 
 /**
  * The full particulars of a reply, shown in place of its cost and speed when you tap them:
  * the model that answered and the thinking level it was given, a table of what it cost (with
- * its token counts and web use), the speed with its breakdown, and whether it was stopped early.
+ * its token counts and web use), "Speed:" with a table of its breakdown, and whether it was
+ * stopped early.
  */
 export function turnDetails(e: Entry, models?: ModelInfo[], lookingUpHost = false): Detail[] {
   if (e.speaker === "human") return [];
@@ -544,7 +544,7 @@ export function turnDetails(e: Entry, models?: ModelInfo[], lookingUpHost = fals
   const costs = costRows(e, modelPrices(e, models));
   if (costs.length) lines.push(costs);
   const speed = turnSpeed(e);
-  if (speed) lines.push(`Speed: ${speedDetails(e, speed)}`);
+  if (speed) lines.push("Speed:", { speed: speedRows(speed) });
   if (e.status === "stopped") lines.push("Stopped early.");
   return lines;
 }

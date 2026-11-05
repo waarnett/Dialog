@@ -43,7 +43,7 @@ import {
   pauseBreak,
   webUseText,
   waitingLabel,
-  speedDetails,
+  speedRows,
   describeAttachment,
   formatBytes,
   hasFileParts,
@@ -343,10 +343,17 @@ test("tokens per second: overall, and visible text once it starts", () => {
   const sp = turnSpeed(e)!;
   assert.equal(speedLabel(sp), "69 tokens/s");
   assert.equal(Math.round(sp.visibleTokensPerSecond!), 31);
-  assert.equal(
-    speedDetails(e, sp),
-    "1,480 tokens written (1,310 of them thinking) in 21.3 s from pressing Speak to the last word: 69 tokens per second overall. " +
-      "The first words appeared after 15.8 s; after that, text arrived at about 31 tokens per second.",
+  // The particulars' table: the total time, the first words, and both rates.
+  assert.deepEqual(speedRows(sp), [
+    { item: "Total time", value: "21.3", unit: "secs" },
+    { item: "Time to 1st word", value: "15.8", unit: "secs" },
+    { item: "Overall", value: "69", unit: "tokens/sec" },
+    { item: "Since 1st word", value: "31", unit: "tokens/sec" },
+  ]);
+  assert.deepEqual(
+    speedRows(turnSpeed(bot(A, "x", { usage, timing: { totalMs: 2000 } }))!).map((r) => r.item),
+    ["Total time", "Overall"],
+    "no first words: just the total time and the overall rate",
   );
   // Too little streaming time to judge the visible rate; no usage or no timing: no speed at all.
   assert.equal(turnSpeed(bot(A, "x", { usage, timing: { totalMs: 16000, firstTextMs: 15800 } }))!.visibleTokensPerSecond, undefined);
@@ -365,7 +372,7 @@ test("web use in the particulars: searches, and pages read from OpenRouter's rec
   const s = setup();
   const [A] = s.seats as [Seat];
   const lines = turnDetails(bot(A, "x", { cost: 0.03, usage: { ...usage, webSearches: 1, webToolsUsed: 2 }, timing: { totalMs: 2000 } }));
-  assert.deepEqual(lines.map((l) => (typeof l === "string" ? l.split(":")[0] : "costs")), ["Model", "costs", "Speed"]);
+  assert.deepEqual(lines.map((l) => (typeof l === "string" ? l.split(":")[0] : Array.isArray(l) ? "costs" : "speeds")), ["Model", "costs", "Speed", "speeds"]);
 });
 
 test("the cost table: reading and writing worked out from the prices (about), the web what's left of the total, all to the cent", () => {

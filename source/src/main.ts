@@ -39,12 +39,12 @@ import {
   DEFAULT_HOUSE_RULES,
   formatCost,
   isSettled,
-  speedDetails,
   speedLabel,
   waitingLabel,
   turnSpeed,
   turnDetails,
   type CostRow,
+  type SpeedRow,
   webUseText,
   privateGroup,
   privateLabel,
@@ -168,7 +168,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.20";
+const VERSION = "2.21.2";
 
 const els = {
   transcript: byId("transcript"),
@@ -723,6 +723,15 @@ function costTable(rows: CostRow[]): HTMLElement {
   );
 }
 
+/** A reply's speed, row by row, under "Speed:": what, the figure (lined up on the right), and its unit. */
+function speedTable(rows: SpeedRow[]): HTMLElement {
+  return h(
+    "span",
+    { class: "speeds" },
+    ...rows.flatMap((r) => [h("span", { class: "item" }, r.item), h("span", { class: "value" }, r.value), h("span", { class: "unit" }, r.unit)]),
+  );
+}
+
 /** For pointing at a participant's name: the model that answered and the thinking level asked for. */
 function replyModelTitle(e: Entry): string | undefined {
   const model = e.model ?? e.seatModel;
@@ -927,7 +936,9 @@ function renderEntry(e: Entry): HTMLElement {
       h(
         "button",
         { type: "button", class: "foot open", "aria-expanded": "true", onclick: toggle },
-        ...details.map((line) => (typeof line === "string" ? h("span", { class: "detail" }, line) : costTable(line))),
+        ...details.map((line) =>
+          typeof line === "string" ? h("span", { class: "detail" }, line) : Array.isArray(line) ? costTable(line) : speedTable(line.speed),
+        ),
         more(),
       ),
     );

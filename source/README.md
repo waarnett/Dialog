@@ -353,8 +353,9 @@ are saved and copied along with the turns, and can be ticked for Save Selected.
   model's listed prices and marks them "about". Amounts are to the cent.
 - **Speed** is the tokens the model wrote (thinking included) per second, from pressing
   Speak to the last word. It includes thinking, web searches and network delay, so it
-  measures how fast the participant answers you. The particulars also show how long the
-  first words took, and how fast the text came after that.
+  measures how fast the participant answers you. In the particulars, under "Speed:", a
+  small table lists the total time, the time to the first word, tokens per second overall,
+  and tokens per second since the first word.
 - **× on a turn** (it appears when you hover) removes it, so no participant sees it again.
 - **A stopped reply** keeps what arrived, and the others see it.
 - **When a reply fails**, Dialog shows OpenRouter's message and whatever details it sent

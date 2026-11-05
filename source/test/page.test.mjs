@@ -277,7 +277,12 @@ test("a full conversation in the page", async () => {
     ["Reading", "50 tokens", "", "about", "$0.00", "Writing", "10 tokens", "(4 of them thinking)", "about", "$0.00", "Total", "", "", "", "$0.01"],
   );
   assert.equal(foot().children[1].className, "costs", "between the model and the speed");
-  assert.match(lines[1], /^Speed: 10 tokens written \(4 of them thinking\) in \d+\.\d s from pressing Speak to the last word: [\d,]+ tokens per second overall\. The first words appeared after \d+\.\d s/);
+  assert.equal(lines[1], "Speed:");
+  // Under it, the speed table: what, the figure and its unit.
+  const speeds = [...foot().querySelectorAll(".speeds > span")].map((x) => x.textContent);
+  assert.deepEqual(speeds.filter((_, i) => i % 3 === 0), ["Total time", "Time to 1st word", "Overall", "Since 1st word"].slice(0, speeds.length / 3));
+  assert.match(speeds[1], /^\d+\.\d$/);
+  assert.equal(speeds[2], "secs");
   assert.equal(glance().querySelector(".cost").textContent, "$0.0100", "the margin keeps its two lines");
   foot().click();
   assert.equal(foot(), null, "tapping the particulars hides them");
@@ -2328,7 +2333,7 @@ test("a message ending with “privately” is private to whom it's for, by Retu
   const details = saved.match(/<div class="foot details">.*?<\/div>/)?.[0] ?? "";
   assert.match(
     details,
-    /<div class="foot details"><p>Model: resolved\/model \(for anthropic\/claude-opus-5\.5\); thinking: high \(default\)\. ?<\/p><table class="costs"><tr><th>Reading<\/th><td class="tokens">50 tokens<\/td><td><\/td><td class="about">about<\/td><td class="amount">\$0\.00<\/td><\/tr><tr><th>Writing<\/th><td class="tokens">10 tokens<\/td><td>\(4 of them thinking\)<\/td><td class="about">about<\/td><td class="amount">\$0\.00<\/td><\/tr><tr class="total"><th>Total<\/th><td class="tokens"><\/td><td><\/td><td class="about"><\/td><td class="amount">\$0\.00<\/td><\/tr><\/table><p>Speed: /,
+    /<div class="foot details"><p>Model: resolved\/model \(for anthropic\/claude-opus-5\.5\); thinking: high \(default\)\. ?<\/p><table class="costs"><tr><th>Reading<\/th><td class="tokens">50 tokens<\/td><td><\/td><td class="about">about<\/td><td class="amount">\$0\.00<\/td><\/tr><tr><th>Writing<\/th><td class="tokens">10 tokens<\/td><td>\(4 of them thinking\)<\/td><td class="about">about<\/td><td class="amount">\$0\.00<\/td><\/tr><tr class="total"><th>Total<\/th><td class="tokens"><\/td><td><\/td><td class="about"><\/td><td class="amount">\$0\.00<\/td><\/tr><\/table><p>Speed:<\/p><table class="speeds"><tr><th>Total time<\/th>/,
   );
 
   await sleep(20);

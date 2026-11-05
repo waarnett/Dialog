@@ -779,6 +779,24 @@
         border-top: 1px solid var(--line);
       }
 
+      /* The speed table, set in under "Speed:": what, the figure (lined up on the right), and its unit. */
+      .entry button.foot.open .speeds {
+        display: grid;
+        grid-template-columns: auto auto auto;
+        justify-content: start;
+        margin: 0 0 0.15rem 1.5rem;
+        white-space: nowrap;
+      }
+
+      .entry button.foot.open .speeds>.item {
+        padding-right: 0.8rem;
+      }
+
+      .entry button.foot.open .speeds>.value {
+        text-align: right;
+        padding-right: 0.3rem;
+      }
+
       .entry button.foot.open .more {
         display: block;
         text-align: right;
@@ -2726,26 +2744,29 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           return `waiting for ${name}\u2026${waited}`;
         }
 
-        function speedDetails(e, s) {
-          const u = e.usage;
-          const n = (x) => x.toLocaleString("en-US");
-          const parts = [];
-          if (u) {
-            parts.push(
-              `${n(u.completionTokens)} tokens written` + (u.reasoningTokens ?
-                ` (${n(u.reasoningTokens)} of them thinking)` : "") +
-              ` in ${s.seconds.toFixed(1)} s from pressing Speak to the last word: ${n(Math.round(s.tokensPerSecond))} tokens per second overall.`
-            );
-          }
-          if (s.firstTextSeconds !== void 0) {
-            let line = `The first words appeared after ${s.firstTextSeconds.toFixed(1)} s`;
-            if (s.visibleTokensPerSecond !== void 0) {
-              line +=
-                `; after that, text arrived at about ${n(Math.round(s.visibleTokensPerSecond))} tokens per second`;
-            }
-            parts.push(line + ".");
-          }
-          return parts.join(" ");
+        function speedRows(s) {
+          const perSecond = (x) => Math.round(x).toLocaleString("en-US");
+          const rows = [{
+            item: "Total time",
+            value: s.seconds.toFixed(1),
+            unit: "secs"
+          }];
+          if (s.firstTextSeconds !== void 0) rows.push({
+            item: "Time to 1st word",
+            value: s.firstTextSeconds.toFixed(1),
+            unit: "secs"
+          });
+          rows.push({
+            item: "Overall",
+            value: perSecond(s.tokensPerSecond),
+            unit: "tokens/sec"
+          });
+          if (s.visibleTokensPerSecond !== void 0) rows.push({
+            item: "Since 1st word",
+            value: perSecond(s.visibleTokensPerSecond),
+            unit: "tokens/sec"
+          });
+          return rows;
         }
 
         function costRows(e, model) {
@@ -2839,7 +2860,9 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           const costs = costRows(e, modelPrices(e, models2));
           if (costs.length) lines.push(costs);
           const speed = turnSpeed(e);
-          if (speed) lines.push(`Speed: ${speedDetails(e, speed)}`);
+          if (speed) lines.push("Speed:", {
+            speed: speedRows(speed)
+          });
           if (e.status === "stopped") lines.push("Stopped early.");
           return lines;
         }
@@ -4264,8 +4287,11 @@ body {
           const lines = [];
           if (e.cost !== void 0) lines.push(`<span>${formatCost(e.cost)}</span>`);
           const speed = turnSpeed(e);
-          if (speed) lines.push(
-            `<span title="${esc(speedDetails(e, speed))}">${speedLabel(speed)}</span>`);
+          if (speed) {
+            const breakdown = ["Speed:", ...speedRows(speed).map((r) =>
+              `${r.item}: ${r.value} ${r.unit}`)].join("\n");
+            lines.push(`<span title="${esc(breakdown)}">${speedLabel(speed)}</span>`);
+          }
           return lines.length ? `<span class="glance">${lines.join("")}</span>` : "";
         }
 
@@ -4275,11 +4301,17 @@ body {
           return `<table class="costs">${rows.map(row).join("")}</table>`;
         }
 
+        function speedTableHtml(rows) {
+          const row = (r) =>
+            `<tr><th>${esc(r.item)}</th><td class="value">${esc(r.value)}</td><td>${esc(r.unit)}</td></tr>`;
+          return `<table class="speeds">${rows.map(row).join("")}</table>`;
+        }
+
         function footHtml(e, opts) {
           if (opts.details?.has(e.id)) {
             const lines = turnDetails(e, opts.models);
             if (lines.length)
-            return `<div class="foot details">${lines.map((l) => typeof l === "string" ? `<p>${esc(l)}</p>` : costTableHtml(l)).join("")}</div>`;
+            return `<div class="foot details">${lines.map((l) => typeof l === "string" ? `<p>${esc(l)}</p>` : Array.isArray(l) ? costTableHtml(l) : speedTableHtml(l.speed)).join("")}</div>`;
           }
           return e.status === "stopped" ? `<div class="foot"><span>stopped early</span></div>` :
             "";
@@ -4643,6 +4675,10 @@ details.file summary { cursor: pointer; }
 .foot.details .costs td.tokens { text-align: right; white-space: nowrap; }
 .foot.details .costs td.about { padding-right: 0.3rem; }
 .foot.details .costs td.amount { padding-right: 0; white-space: nowrap; }
+.foot.details table.speeds { border-collapse: collapse; margin: 0 0 0.15rem 1.5rem; font-variant-numeric: tabular-nums; }
+.foot.details .speeds th { font-weight: normal; text-align: left; padding: 0 0.8rem 0 0; }
+.foot.details .speeds td { padding: 0 0.3rem 0 0; white-space: nowrap; }
+.foot.details .speeds td.value { text-align: right; }
 .foot.details .costs tr.total > * { border-top: 1px solid var(--line); }
 footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 @media (max-width: 640px) {
@@ -5990,7 +6026,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.20";
+        var VERSION = "2.21.2";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -6468,6 +6504,21 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           );
         }
 
+        function speedTable(rows) {
+          return h(
+            "span", {
+              class: "speeds"
+            },
+            ...rows.flatMap((r) => [h("span", {
+              class: "item"
+            }, r.item), h("span", {
+              class: "value"
+            }, r.value), h("span", {
+              class: "unit"
+            }, r.unit)])
+          );
+        }
+
         function replyModelTitle(e) {
           const model = e.model ?? e.seatModel;
           const thinking = e.seatEffort === void 0 ? "" :
@@ -6714,9 +6765,11 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
                   "aria-expanded": "true",
                   onclick: toggle
                 },
-                ...details.map((line) => typeof line === "string" ? h("span", {
-                  class: "detail"
-                }, line) : costTable(line)),
+                ...details.map(
+                  (line) => typeof line === "string" ? h("span", {
+                    class: "detail"
+                  }, line) : Array.isArray(line) ? costTable(line) : speedTable(line.speed)
+                ),
                 more()
               )
             );

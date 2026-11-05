@@ -14,7 +14,8 @@ import {
   privateLabel,
   turnDetails,
   type CostRow,
-  speedDetails,
+  type SpeedRow,
+  speedRows,
   speedLabel,
   thinkingLabel,
   totalCost,
@@ -160,7 +161,11 @@ function glanceHtml(e: Entry): string {
   const lines: string[] = [];
   if (e.cost !== undefined) lines.push(`<span>${formatCost(e.cost)}</span>`);
   const speed = turnSpeed(e);
-  if (speed) lines.push(`<span title="${esc(speedDetails(e, speed))}">${speedLabel(speed)}</span>`);
+  if (speed) {
+    // Pointing at the speed shows its breakdown, as in the particulars, a line for each row.
+    const breakdown = ["Speed:", ...speedRows(speed).map((r) => `${r.item}: ${r.value} ${r.unit}`)].join("\n");
+    lines.push(`<span title="${esc(breakdown)}">${speedLabel(speed)}</span>`);
+  }
   return lines.length ? `<span class="glance">${lines.join("")}</span>` : "";
 }
 
@@ -172,11 +177,17 @@ function costTableHtml(rows: CostRow[]): string {
   return `<table class="costs">${rows.map(row).join("")}</table>`;
 }
 
+/** A reply's speed, row by row, under "Speed:": what, the figure (lined up on the right), and its unit. */
+function speedTableHtml(rows: SpeedRow[]): string {
+  const row = (r: SpeedRow) => `<tr><th>${esc(r.item)}</th><td class="value">${esc(r.value)}</td><td>${esc(r.unit)}</td></tr>`;
+  return `<table class="speeds">${rows.map(row).join("")}</table>`;
+}
+
 /** After the text: the full particulars if they were open on screen, or else whether the reply was cut short. */
 function footHtml(e: Entry, opts: ExportOptions): string {
   if (opts.details?.has(e.id)) {
     const lines = turnDetails(e, opts.models);
-    if (lines.length) return `<div class="foot details">${lines.map((l) => (typeof l === "string" ? `<p>${esc(l)}</p>` : costTableHtml(l))).join("")}</div>`;
+    if (lines.length) return `<div class="foot details">${lines.map((l) => (typeof l === "string" ? `<p>${esc(l)}</p>` : Array.isArray(l) ? costTableHtml(l) : speedTableHtml(l.speed))).join("")}</div>`;
   }
   return e.status === "stopped" ? `<div class="foot"><span>stopped early</span></div>` : "";
 }
@@ -571,6 +582,10 @@ details.file summary { cursor: pointer; }
 .foot.details .costs td.tokens { text-align: right; white-space: nowrap; }
 .foot.details .costs td.about { padding-right: 0.3rem; }
 .foot.details .costs td.amount { padding-right: 0; white-space: nowrap; }
+.foot.details table.speeds { border-collapse: collapse; margin: 0 0 0.15rem 1.5rem; font-variant-numeric: tabular-nums; }
+.foot.details .speeds th { font-weight: normal; text-align: left; padding: 0 0.8rem 0 0; }
+.foot.details .speeds td { padding: 0 0.3rem 0 0; white-space: nowrap; }
+.foot.details .speeds td.value { text-align: right; }
 .foot.details .costs tr.total > * { border-top: 1px solid var(--line); }
 footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 @media (max-width: 640px) {

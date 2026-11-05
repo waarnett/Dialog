@@ -402,6 +402,16 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
 .entry button.foot.open .costs > .about { padding-right: 0.3rem; }
 .entry button.foot.open .costs .amount { white-space: nowrap; }
 .entry button.foot.open .costs .total { border-top: 1px solid var(--line); }
+/* The speed table, set in under "Speed:": what, the figure (lined up on the right), and its unit. */
+.entry button.foot.open .speeds {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  justify-content: start;
+  margin: 0 0 0.15rem 1.5rem;
+  white-space: nowrap;
+}
+.entry button.foot.open .speeds > .item { padding-right: 0.8rem; }
+.entry button.foot.open .speeds > .value { text-align: right; padding-right: 0.3rem; }
 .entry button.foot.open .more { display: block; text-align: right; margin-top: -1.2em; }
 
 .entry .del {

@@ -288,10 +288,18 @@ test("a reply whose particulars are open on screen is saved with them; a private
         '<table class="costs"><tr><th>Reading</th><td class="tokens">12,345 tokens</td><td>(10,000 at the re-read discount, 2,000 stored for re-reading)</td><td class="about">about</td><td class="amount">$0.02</td></tr>' +
         '<tr><th>Writing</th><td class="tokens">1,480 tokens</td><td>(1,310 of them thinking)</td><td class="about">about</td><td class="amount">$0.03</td></tr>' +
         '<tr class="total"><th>Total</th><td class="tokens"></td><td></td><td class="about"></td><td class="amount">$0.02</td></tr></table>' +
-        "<p>Speed: 1,480 tokens written (1,310 of them thinking) in 21.3 s from pressing Speak to the last word: 69 tokens per second overall.",
+        "<p>Speed:</p>" +
+        '<table class="speeds"><tr><th>Total time</th><td class="value">21.3</td><td>secs</td></tr>' +
+        '<tr><th>Time to 1st word</th><td class="value">15.8</td><td>secs</td></tr>' +
+        '<tr><th>Overall</th><td class="value">69</td><td>tokens/sec</td></tr>' +
+        '<tr><th>Since 1st word</th><td class="value">31</td><td>tokens/sec</td></tr></table>',
     ),
   );
   assert.ok(html.includes('<span class="glance"><span>$0.0213</span>'), "the open one keeps its margin lines too");
+  assert.ok(
+    html.includes('<span title="Speed:\nTotal time: 21.3 secs\nTime to 1st word: 15.8 secs\nOverall: 69 tokens/sec\nSince 1st word: 31 tokens/sec">69 tokens/s</span>'),
+    "pointing at the speed: its breakdown, a line for each row",
+  );
   assert.ok(html.includes('<span class="glance"><span>$0.0010</span></span></div>'), "the others: just the margin lines");
   assert.equal((html.match(/class="foot/g) ?? []).length, 1, "only the open one has anything after its text");
   assert.ok(html.includes('<span class="direction">(privately, to Claude and Grok, independently)</span>'));
