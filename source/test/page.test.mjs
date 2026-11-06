@@ -1377,6 +1377,15 @@ test("LaTeX math is drawn as math once a reply is complete, survives the safety 
   assert.equal(maths[1].querySelectorAll("mfrac").length, 2);
   assert.ok(!body.querySelector("script") && !body.innerHTML.includes("bad()"), "scripts still removed");
 
+  // A reply whose last words and its end arrive within one screen refresh: the redraw of the
+  // words still arriving, already scheduled, must not undo the finished reply's math.
+  replies.push({ pieces: ["Countably many (", "$\\aleph_0$", ")."], cost: 0.001 });
+  $$("#seat-list .seat")[0].querySelector("button.speak").click();
+  await until(() => entries().length === 3 && notBusy(), "a quick reply");
+  await sleep(50); // a few screen refreshes
+  assert.equal(entries()[2].querySelectorAll(".math-source").length, 0, "not left as written");
+  assert.equal(entries()[2].querySelector(".body math mi")?.textContent, "ℵ", "drawn as math");
+
   // Saved: the math as math, with its stylesheet.
   $("#btn-save").click();
   await until(() => blobs.length === 2, "saved with math");

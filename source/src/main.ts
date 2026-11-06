@@ -168,7 +168,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.22";
+const VERSION = "2.23.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -1157,7 +1157,8 @@ function renderTranscript(forceScroll = false): void {
 /**
  * While replies stream in, redraw only their text, at most once per screen refresh. Several
  * may be arriving at once (an independent round), so every reply with new text since the
- * last refresh is redrawn.
+ * last refresh is redrawn. A reply that has ended since is skipped: it has already been
+ * drawn whole (its math as math), and redrawing it as still arriving would undo that.
  */
 let streamFrame = 0;
 const streamChanged = new Set<Entry>();
@@ -1167,7 +1168,8 @@ function scheduleStreamUpdate(entry: Entry): void {
   streamFrame = requestAnimationFrame(() => {
     streamFrame = 0;
     for (const e of streamChanged) {
-      const body = els.transcript.querySelector(`[data-id="${e.id}"] .body`);
+      if (e.status !== "streaming") continue;
+      const body =els.transcript.querySelector(`[data-id="${e.id}"] .body`);
       if (body) fillArrivingBody(body as HTMLElement, e);
       // The thinking: its box is added when the first of it arrives.
       if (body && e.thinking) {
