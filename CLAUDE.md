@@ -27,6 +27,7 @@ npm run release      # publish: build, then copy dist/index.html and dist/README
 
 `release` does not run the tests. After any code or guide change: test, then release, so the
 committed top-level pages always match the source. The build and the tests must finish with no errors and no warnings.
+A change to `VERSION` alone needs only the release (which builds), not the tests.
 
 Then commit (only when Bill asks). Pushing to `main` updates the live site within a minute or
 two, so confirm with Bill before pushing.
@@ -44,7 +45,8 @@ sees a different version after every turn that changes the code.
   two-number version on `origin/main` (`git show origin/main:source/src/main.ts`), the first
   change goes to the next second number with a third of 1 (on origin 2.2 → 2.3.1, 2.3.2 …).
 - Before pushing, drop the third number (2.3.4 → 2.3), make sure the result is above the
-  version on `origin/main`, then test, release and commit that before the push.
+  version on `origin/main`, then release and commit that before the push (no tests: the
+  version alone has changed since they last passed).
 
 ## Gotchas
 
