@@ -210,8 +210,6 @@ export interface Opening {
 
 export interface Settings {
   apiKey: string;
-  /** Optional OpenRouter management key, used only to read the account's remaining credit. */
-  managementKey: string;
   /** The address of LM Studio's server on this computer, e.g. "http://localhost:1234"; "" for none. */
   localServer: string;
   humanName: string;

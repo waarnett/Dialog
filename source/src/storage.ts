@@ -94,6 +94,15 @@ let ownSettings = "";
 export function loadSettings(): Settings {
   const mine = read(tab, SETTINGS_KEY);
   const s = parseSettings(mine ?? read(shared, SETTINGS_KEY));
+  // Forget a management key kept by an older version: OpenRouter no longer accepts one from a
+  // browser, and it can create new keys, so it shouldn't linger here.
+  for (const area of [tab, shared]) {
+    const v = read(area, SETTINGS_KEY);
+    if (isObj(v) && "managementKey" in v) {
+      delete v.managementKey;
+      write(area, SETTINGS_KEY, v);
+    }
+  }
   ownSettings = JSON.stringify(s);
   tabSettings = mine ? ownSettings : "";
   return s;
@@ -106,7 +115,6 @@ function parseSettings(v: unknown): Settings {
   const seats = Array.isArray(v.seats) ? v.seats.map(cleanSeat).filter((s): s is Seat => s !== null) : d.seats;
   return {
     apiKey: str(v.apiKey, ""),
-    managementKey: str(v.managementKey, ""),
     localServer: str(v.localServer, ""),
     humanName: str(v.humanName, d.humanName) || d.humanName,
     aboutHuman: str(v.aboutHuman, ""),
@@ -139,7 +147,7 @@ const FILE_FORMAT = "dialog-settings";
 
 /**
  * The settings as the text of a file: your name, About you, the house rules, every
- * participant and the LM Studio address. The keys only if asked for: anyone holding them
+ * participant and the LM Studio address. The API key only if asked for: anyone holding it
  * could spend your credit.
  */
 export function settingsFileText(s: Settings, includeKeys: boolean, savedAt = new Date()): string {
@@ -153,10 +161,7 @@ export function settingsFileText(s: Settings, includeKeys: boolean, savedAt = ne
     localServer: s.localServer,
     seats: s.seats.map(({ id, name, model, effort, role, color, asleep }) => ({ id, name, model, effort, role, color, ...(asleep ? { asleep } : {}) })),
   };
-  if (includeKeys) {
-    out.apiKey = s.apiKey;
-    out.managementKey = s.managementKey;
-  }
+  if (includeKeys) out.apiKey = s.apiKey;
   return JSON.stringify(out, null, 2) + "\n";
 }
 
@@ -185,10 +190,10 @@ export function settingsFromFile(text: string, current: Settings): RestoredSetti
   // A participant typed in by hand may lack the identifier Dialog gives each one.
   const seats = Array.isArray(v.seats) ? v.seats.map((x) => (isObj(x) && typeof x.id !== "string" ? { ...x, id: newId() } : x)) : [];
   const parsed = parseSettings({ ...v, seats });
-  const key = (k: "apiKey" | "managementKey") => (typeof v[k] === "string" && v[k].trim() ? v[k].trim() : current[k]);
   const localServer = typeof v.localServer === "string" ? v.localServer.trim() : current.localServer;
-  const settings: Settings = { ...parsed, apiKey: key("apiKey"), managementKey: key("managementKey"), localServer };
-  const hasKeys = [v.apiKey, v.managementKey].some((k) => typeof k === "string" && k.trim() !== "");
+  // An older file may also hold a management key, which Dialog no longer uses.
+  const hasKeys = typeof v.apiKey === "string" && v.apiKey.trim() !== "";
+  const settings: Settings = { ...parsed, apiKey: hasKeys ? (v.apiKey as string).trim() : current.apiKey, localServer };
   const savedAt = typeof v.savedAt === "string" && !Number.isNaN(Date.parse(v.savedAt)) ? new Date(v.savedAt) : undefined;
   return { settings, savedAt, hasKeys };
 }

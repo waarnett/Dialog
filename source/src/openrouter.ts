@@ -544,38 +544,3 @@ export async function fetchGeneration(apiKey: string, requestId: string): Promis
     ...(typeof d.num_fetches === "number" ? { pagesRead: d.num_fetches } : {}),
   };
 }
-
-export interface CreditInfo {
-  /** Credit bought, all time. */
-  purchased: number;
-  /** Credit used, all time, by every key on the account. */
-  used: number;
-  remaining: number;
-}
-
-/**
- * The account's remaining credit. OpenRouter shows this only to a management key, which
- * can manage keys but can't talk to models; Dialog uses it for nothing else.
- */
-export async function fetchCredits(managementKey: string): Promise<CreditInfo> {
-  const res = await send(`${BASE}/credits`, { headers: { Authorization: `Bearer ${managementKey}` } });
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j: unknown = await res.json();
-      if (isObj(j) && isObj(j.error) && typeof j.error.message === "string") detail = j.error.message;
-    } catch {
-      /* not JSON */
-    }
-    const hint =
-      res.status === 401 || res.status === 403
-        ? "OpenRouter didn't accept the management key (it may be mistyped, expired, or an ordinary key)."
-        : `HTTP error ${res.status}.`;
-    throw new OpenRouterError([hint, detail && `(OpenRouter: ${detail})`].filter(Boolean).join(" "), res.status);
-  }
-  const j: unknown = await res.json();
-  const d = isObj(j) && isObj(j.data) ? j.data : {};
-  const purchased = num(d.total_credits);
-  const used = num(d.total_usage);
-  return { purchased, used, remaining: purchased - used };
-}

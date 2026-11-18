@@ -44,7 +44,6 @@ function makeHarness({ savedModels, models = MODELS, url = "http://localhost/ind
   const hostCalls = []; // request ids looked up
   const blobs = [];
   const downloads = []; // file names the page asked the browser to save
-  const authByUrl = {}; // which key was sent where
   const errors = [];
 
   function sse(reply, signal) {
@@ -100,15 +99,7 @@ function makeHarness({ savedModels, models = MODELS, url = "http://localhost/ind
       return host ? new Response(JSON.stringify({ data: { id, provider_name: host } })) : new Response("{}", { status: 404 });
     }
     if (url.endsWith("/key")) {
-      authByUrl.key = init.headers?.Authorization;
       return new Response(JSON.stringify({ data: { usage: 1.5, usage_monthly: 1.25, limit: 20, limit_remaining: 18.5, limit_reset: null } }));
-    }
-    if (url.endsWith("/credits")) {
-      authByUrl.credits = init.headers?.Authorization;
-      if (init.headers?.Authorization !== "Bearer mk-good") {
-        return new Response(JSON.stringify({ error: { message: "Only management keys can perform this operation" } }), { status: 403 });
-      }
-      return new Response(JSON.stringify({ data: { total_credits: 10, total_usage: 4.24 } }));
     }
     if (url.endsWith("/chat/completions")) {
       chatCalls.push(JSON.parse(init.body));
@@ -162,7 +153,7 @@ function makeHarness({ savedModels, models = MODELS, url = "http://localhost/ind
       for (const [k, v] of Object.entries(tab)) window.sessionStorage.setItem(k, v);
     },
   });
-  return { dom, w: dom.window, d: dom.window.document, chatCalls, modelCalls, state, replies, blobs, downloads, authByUrl, errors, hostCalls };
+  return { dom, w: dom.window, d: dom.window.document, chatCalls, modelCalls, state, replies, blobs, downloads, errors, hostCalls };
 }
 
 async function until(cond, what, ms = 3000) {
@@ -214,7 +205,13 @@ test("a full conversation in the page", async () => {
   await until(() => $("#key-info").textContent.includes("This month"), "key info");
   assert.equal($("#key-info").textContent, "This month: $1.25");
   assert.match($("#key-info").title, /All time: \$1\.50\. Its limit is \$20\.00, never resetting, with \$18\.50 of it unused\. A limit is a cap, not money/);
-  assert.equal($("#credit-info").textContent, "", "no credit shown without a management key");
+  // A link to OpenRouter's Credits page, which shows the remaining credit (Dialog can't read it).
+  const credits = $("#credit-info a");
+  assert.equal(credits.textContent, "Credits");
+  assert.equal(credits.href, "https://openrouter.ai/settings/credits");
+  assert.equal(credits.target, "_blank");
+  assert.equal(credits.rel, "noopener noreferrer");
+  assert.equal($("#set-mkey"), null, "no management key in Settings");
 
   // 1. Bill adds a public message; nobody answers yet.
   type("What is time?");
@@ -503,7 +500,6 @@ test("first run: no key, Claude and Gemini seated; adding seats names them after
     "https://openrouter.ai/",
     "https://openrouter.ai/settings/credits",
     "https://openrouter.ai/settings/keys",
-    "https://openrouter.ai/settings/management-keys",
   ]);
   assert.equal($$("#transcript .empty .how > ol > li:first-child li").length, 6, "the key's steps, one by one");
   assert.match(steps()[0], /top bar shows what this conversation has cost/);
@@ -687,44 +683,6 @@ test("About you, and attaching files by drag and drop", async () => {
   assert.deepEqual(errors.map(String), []);
 });
 
-test("a management key shows the account's remaining credit, and is sent nowhere else", async () => {
-  const { w, d, authByUrl, chatCalls, replies } = makeHarness();
-  const $ = (sel) => d.querySelector(sel);
-  await until(() => $("#key-info").textContent.includes("This month"), "key info");
-
-  $("#btn-settings").click();
-  $("#set-mkey").value = "mk-good";
-  $("#set-mkey").dispatchEvent(new w.Event("input"));
-  $("#settings-dialog").close?.();
-  $("#settings-dialog").dispatchEvent(new w.Event("close"));
-  await until(() => $("#credit-info").textContent.startsWith("Credit left"), "credit shown");
-  assert.equal($("#credit-info").textContent, "Credit left: $5.76");
-  assert.equal(
-    $("#credit-info").title,
-    "Your OpenRouter account: $10.00 of credit bought, $4.24 used (by all your keys), $5.76 left. Click to add credit on OpenRouter's Credits page.",
-  );
-  const link = $("#credit-info a");
-  assert.equal(link.href, "https://openrouter.ai/settings/credits", "a link to OpenRouter's Credits page");
-  assert.equal(link.target, "_blank");
-  assert.equal(link.rel, "noopener noreferrer");
-  assert.equal(authByUrl.credits, "Bearer mk-good");
-  assert.equal(authByUrl.key, "Bearer sk-test", "the ordinary key is still used for its own spending");
-
-  replies.push({ pieces: ["Hi."], cost: 0.001 });
-  d.querySelector("#seat-list .seat button.speak").click();
-  await until(() => chatCalls.length === 1, "a reply requested");
-  assert.ok(!JSON.stringify(chatCalls[0]).includes("mk-good"), "management key never goes to the models");
-
-  // A wrong or expired management key is reported plainly.
-  $("#btn-settings").click();
-  $("#set-mkey").value = "mk-bad";
-  $("#set-mkey").dispatchEvent(new w.Event("input"));
-  $("#settings-dialog").close?.();
-  $("#settings-dialog").dispatchEvent(new w.Event("close"));
-  await until(() => $("#credit-info").textContent === "Credit: couldn't check", "error shown");
-  assert.match($("#credit-info").title, /didn't accept the management key/);
-});
-
 test("the send keys hand the turn to the previous speaker; tools; a withdrawn model; Settings closes from outside", async () => {
   const { w, d, chatCalls, replies, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);
@@ -851,12 +809,12 @@ test("settings can be saved to a file and restored from one", async () => {
     ["Grok", "x-ai/grok-4.7", "low", ""],
   ]);
   assert.ok(!("apiKey" in saved));
-  await until(() => /without your keys/.test(status().textContent), "saved status");
+  await until(() => /without your key\b/.test(status().textContent), "saved status");
   // …or with them, when ticked.
   $("#set-include-keys").checked = true;
   $("#set-save-file").click();
   assert.equal(JSON.parse(await blobs.at(-1).text()).apiKey, "sk-test");
-  await until(() => /with your keys\. Keep it private/.test(status().textContent), "saved-with-keys status");
+  await until(() => /with your key\. Keep it private/.test(status().textContent), "saved-with-keys status");
 
   // Restore from a file: name, participants and rules replaced; the key kept.
   const choose = (file) => {
@@ -967,7 +925,7 @@ test("a saved conversation can be resumed with Restore… and Add from… (top b
   await until(() => entries().length === 4, "resumed turns");
   assert.equal(resumeButton().hidden, true);
   assert.match(confirms.at(-1), /^Resume the conversation in “Dialog 2026 Oct 23 1405\.html”, saved \d{4} \w{3} \d\d at \d\d:\d\d\? It has 4 turns, with Claude, Grok\./);
-  assert.match(confirms.at(-1), /Your keys stay as they are\./);
+  assert.match(confirms.at(-1), /Your key stays as it is\./);
   assert.deepEqual($$("#seat-list .seat .seat-head input").map((i) => i.value), ["Claude", "Grok"]);
   assert.equal($("#set-name").value, "Bill");
   assert.equal($("#set-key").value, "sk-test");
@@ -1432,7 +1390,7 @@ test("Escape closes the model picker; the Save dialog is used where the browser 
   $("#btn-settings").click();
   const before = downloads.length;
   $("#set-save-file").click();
-  await until(() => /Saved “My settings\.json”, without your keys/.test($("#set-file-status").textContent), "saved via the dialog");
+  await until(() => /Saved “My settings\.json”, without your key/.test($("#set-file-status").textContent), "saved via the dialog");
   assert.match(written[0].suggested, /^Dialog settings \d{4} \w{3} \d\d \d{4}\.json$/);
   assert.equal(JSON.stringify(written[0].types), JSON.stringify([{ description: "Dialog settings", accept: { "application/json": [".json"] } }]));
   assert.equal(JSON.parse(written[1]).format, "dialog-settings");

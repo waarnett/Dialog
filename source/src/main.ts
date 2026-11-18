@@ -72,7 +72,7 @@ import {
   wakesLine,
 } from "./engine";
 import { fetchLocalModels, isLocalModel, LOCAL_EXAMPLE } from "./lmstudio";
-import { fetchCredits, fetchGeneration, fetchKeyInfo, fetchModels, OpenRouterError, streamChat, type CreditInfo, type KeyInfo, type ModelInfo } from "./openrouter";
+import { fetchGeneration, fetchKeyInfo, fetchModels, OpenRouterError, streamChat, type KeyInfo, type ModelInfo } from "./openrouter";
 import * as store from "./storage";
 import type { Addressee, Attachment, Entry, MadeFile, MadeKind, Seat } from "./types";
 
@@ -113,9 +113,6 @@ let localError = "";
 let modelSort: ModelSort = store.loadModelSort();
 let keyInfo: KeyInfo | null = null;
 let keyInfoFailed = false;
-/** The account's remaining credit, if a management key is set and worked. */
-let credit: CreditInfo | null = null;
-let creditError = "";
 /**
  * The replies arriving now, by seat. Usually one seat speaks at a time; in an independent
  * round ("…independently, team") all of them speak at once.
@@ -168,7 +165,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.23";
+const VERSION = "2.24.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -211,8 +208,6 @@ const els = {
   setVersion: byId("set-version"),
   setKey:byId<HTMLInputElement>("set-key"),
   setKeyShow: byId<HTMLButtonElement>("set-key-show"),
-  setMkey: byId<HTMLInputElement>("set-mkey"),
-  setMkeyShow: byId<HTMLButtonElement>("set-mkey-show"),
   setLocal: byId<HTMLInputElement>("set-local"),
   creditInfo: byId("credit-info"),
   setName: byId<HTMLInputElement>("set-name"),
@@ -319,20 +314,13 @@ const CREDITS_PAGE = "https://openrouter.ai/settings/credits";
 
 function renderTopbar(): void {
   els.sessionCost.textContent = `This conversation: ${formatCost(totalCost(session.entries))}`;
-  // The account's remaining credit: only visible with a management key (optional, in Settings).
-  if (credit) {
-    // A link to OpenRouter's Credits page, where you can buy more.
-    els.creditInfo.replaceChildren(
-      h("a", { href: CREDITS_PAGE, target: "_blank", rel: "noopener noreferrer" }, `Credit left: ${formatCost(credit.remaining)}`),
-    );
-    els.creditInfo.title =
-      `Your OpenRouter account: ${formatCost(credit.purchased)} of credit bought, ${formatCost(credit.used)} used ` +
-      `(by all your keys), ${formatCost(credit.remaining)} left. Click to add credit on OpenRouter's Credits page.`;
-  } else {
-    els.creditInfo.textContent = creditError ? "Credit: couldn't check" : "";
-    if (creditError) els.creditInfo.title = creditError;
-    else els.creditInfo.removeAttribute("title");
-  }
+  // A link to OpenRouter's Credits page, which shows the account's remaining credit. OpenRouter
+  // tells that only to a management key, and refuses a management key sent from a browser.
+  els.creditInfo.replaceChildren(
+    ...(settings.apiKey.trim()
+      ? [h("a", { href: CREDITS_PAGE, target: "_blank", rel: "noopener noreferrer", title: "See your remaining credit, or add more, on OpenRouter's Credits page" }, "Credits")]
+      : []),
+  );
 
   // What OpenRouter tells an ordinary key: its own spending (this month, all time) and its cap.
   if (keyInfo) {
@@ -496,11 +484,8 @@ function keySteps(): HTMLElement {
       h(
         "li",
         {},
-        "From then on the top bar shows what this conversation has cost, and what the key has spent this month. " +
-          "To see your remaining credit there too (optional), create a management key on OpenRouter’s ",
-        openRouterLink("settings/management-keys", "Management Keys page"),
-        ", with an expiration date, and paste it into OpenRouter management key in Settings. " +
-          "Keep it safe: it can create new keys, so anyone who got hold of it could spend your credit.",
+        "From then on the top bar shows what this conversation has cost, and what the key has spent this month; " +
+          "its Credits link opens OpenRouter’s Credits page, which shows your remaining credit.",
       ),
     ),
     "While you’re in Settings, put in your name" +
@@ -2602,24 +2587,6 @@ async function refreshKeyInfo(): Promise<void> {
       ),
     );
   }
-  const mkey = settings.managementKey.trim();
-  if (!mkey) {
-    credit = null;
-    creditError = "";
-  } else {
-    tasks.push(
-      fetchCredits(mkey).then(
-        (c) => {
-          credit = c;
-          creditError = "";
-        },
-        (err: unknown) => {
-          credit = null;
-          creditError = err instanceof Error ? err.message : String(err);
-        },
-      ),
-    );
-  }
   await Promise.all(tasks);
   renderTopbar();
 }
@@ -2641,9 +2608,6 @@ function fillSettingsForm(): void {
   els.setKey.value = settings.apiKey;
   els.setKey.type = "password";
   els.setKeyShow.textContent = "Show";
-  els.setMkey.value = settings.managementKey;
-  els.setMkey.type = "password";
-  els.setMkeyShow.textContent = "Show";
   els.setLocal.value = settings.localServer;
   els.setName.value = settings.humanName;
   els.setAbout.value = settings.aboutHuman;
@@ -2661,7 +2625,7 @@ function settingsFileName(at: Date): string {
   return `Dialog settings ${formatDate(at)} ${formatTime(at).replace(":", "")}.json`;
 }
 
-/** Save the settings (and the keys, if ticked) as a file. */
+/** Save the settings (and the key, if ticked) as a file. */
 function saveSettingsFile(): void {
   const at = new Date();
   const name = settingsFileName(at);
@@ -2670,8 +2634,8 @@ function saveSettingsFile(): void {
     if (!saved) return; // cancelled
     showFileStatus(
       withKeys
-        ? `Saved “${saved}”, with your keys. Keep it private: anyone who has it could spend your credit.`
-        : `Saved “${saved}”, without your keys.`,
+        ? `Saved “${saved}”, with your key. Keep it private: anyone who has it could spend your credit.`
+        : `Saved “${saved}”, without your key.`,
     );
   });
 }
@@ -2698,7 +2662,7 @@ function restoreSettingsFile(file: File): void {
     const ok = confirm(
       `Replace your current settings with those in “${file.name}”${when}?\n\n` +
         `Your name (${next.humanName}), About you, the house rules and the participants (${who}) will be replaced. ` +
-        (restored.hasKeys ? "The file includes keys, which will replace yours. " : "Your keys stay as they are. ") +
+        (restored.hasKeys ? "The file includes a key, which will replace yours. " : "Your key stays as it is. ") +
         "The conversation itself isn't changed.",
     );
     if (!ok) return;
@@ -2822,7 +2786,7 @@ function saveConversation(): void {
 /**
  * Resume a conversation from a file saved with Save All or Save Selected (offered only while
  * the conversation is empty, so nothing is in progress): its turns, and its participants, house rules,
- * name and About you in place of the current ones. The keys and LM Studio address stay.
+ * name and About you in place of the current ones. The key and LM Studio address stay.
  * False if it wasn't resumed: the file couldn't be read, or you pressed Cancel.
  */
 async function resumeConversation(file: File): Promise<boolean> {
@@ -2855,7 +2819,7 @@ function resume(resumed: store.ResumedConversation, which: string, recentId?: st
   const who = seats.length ? seats.map((s) => s.name).join(", ") : "no participants";
   const ok = confirm(
     `Resume the conversation ${which}? It has ${n} ${n === 1 ? "turn" : "turns"}, with ${who}.\n\n` +
-      "Your participants, house rules, name and About you will be replaced with the ones saved with it. Your keys stay as they are.",
+      "Your participants, house rules, name and About you will be replaced with the ones saved with it. Your key stays as it is.",
   );
   if (!ok) return false;
   stopAll();
@@ -3214,10 +3178,6 @@ function wire(): void {
     settings.apiKey = els.setKey.value.trim();
     persistSoon();
   });
-  els.setMkey.addEventListener("input", () => {
-    settings.managementKey = els.setMkey.value.trim();
-    persistSoon();
-  });
   els.setVersion.textContent = `Version ${VERSION}`;
   els.setLocal.placeholder = LOCAL_EXAMPLE;
   // Clicking into the empty box fills in the usual address, selected so typing replaces it.
@@ -3233,11 +3193,6 @@ function wire(): void {
   els.setLocal.addEventListener("input", () => {
     settings.localServer = els.setLocal.value.trim();
     persistSoon();
-  });
-  els.setMkeyShow.addEventListener("click", () => {
-    const show = els.setMkey.type === "password";
-    els.setMkey.type = show ? "text" : "password";
-    els.setMkeyShow.textContent = show ? "Hide" : "Show";
   });
   els.setKeyShow.addEventListener("click", () => {
     const show = els.setKey.type === "password";

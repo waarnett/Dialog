@@ -144,7 +144,6 @@ export function defaultSettings(): Settings {
   }
   return {
     apiKey: "",
-    managementKey: "",
     localServer: "",
     humanName: "Grasshopper",
     aboutHuman: "",

@@ -56,7 +56,6 @@ test("older web-search settings are dropped: every seat now searches and reads p
 test("settings file: written without keys unless asked; read back, keeping current keys when the file has none", () => {
   const s = defaultSettings();
   s.apiKey = "sk-mine";
-  s.managementKey = "mk-mine";
   s.humanName = "Bill";
   s.aboutHuman = "Retired engineer.";
   s.houseRules = "Be civil.";
@@ -67,13 +66,13 @@ test("settings file: written without keys unless asked; read back, keeping curre
   const json = JSON.parse(plain);
   assert.equal(json.format, "dialog-settings");
   assert.equal(json.savedAt, "2026-10-09T17:22:00.000Z");
-  assert.ok(!("apiKey" in json) && !("managementKey" in json), "no keys unless asked");
-  assert.ok(!plain.includes("sk-mine") && !plain.includes("mk-mine"));
+  assert.ok(!("apiKey" in json), "no key unless asked");
+  assert.ok(!plain.includes("sk-mine"));
   assert.deepEqual(json.seats, [{ id: "A", name: "Claude", model: "anthropic/claude-opus-5.5", effort: "high", role: "Be brief.", color: "#c96442" }]);
 
   const withKeys = JSON.parse(settingsFileText(s, true, at));
   assert.equal(withKeys.apiKey, "sk-mine");
-  assert.equal(withKeys.managementKey, "mk-mine");
+  assert.ok(!("managementKey" in withKeys));
 
   // Read into a browser that has other keys and other settings.
   const other = defaultSettings();
@@ -89,7 +88,32 @@ test("settings file: written without keys unless asked; read back, keeping curre
   const r2 = settingsFromFile(settingsFileText(s, true, at), other);
   assert.equal(r2.hasKeys, true);
   assert.equal(r2.settings.apiKey, "sk-mine");
-  assert.equal(r2.settings.managementKey, "mk-mine");
+
+  // An older file may hold a management key: it's ignored, and alone it isn't a key to restore.
+  const old = JSON.stringify({ ...json, managementKey: "mk-old" });
+  const r3 = settingsFromFile(old, other);
+  assert.equal(r3.hasKeys, false);
+  assert.equal(r3.settings.apiKey, "sk-other");
+  assert.ok(!("managementKey" in r3.settings));
+});
+
+test("a management key kept by an older version is forgotten, in this tab and shared", () => {
+  mem.clear();
+  tabMem.clear();
+  const old = JSON.stringify({ apiKey: "sk-mine", managementKey: "mk-old", humanName: "Bill" });
+  mem.set("dialog.settings.v1", old);
+  tabMem.set("dialog.settings.v1", old);
+  const s = loadSettings();
+  assert.equal(s.apiKey, "sk-mine");
+  assert.equal(s.humanName, "Bill");
+  assert.ok(!("managementKey" in s));
+  for (const m of [mem, tabMem]) {
+    const stored = m.get("dialog.settings.v1") ?? "";
+    assert.ok(!stored.includes("mk-old"), "gone from storage");
+    assert.equal(JSON.parse(stored).apiKey, "sk-mine", "the API key stays");
+  }
+  mem.clear();
+  tabMem.clear();
 });
 
 test("settings file: the LM Studio address goes in; a file without one keeps the current address", () => {
@@ -242,7 +266,6 @@ test("the model picker's sort is remembered; anything else stored reads as by na
 test("saved conversation: the page carries everything needed to resume it, but no keys or LM Studio address", () => {
   const s = defaultSettings();
   s.apiKey = "sk-mine";
-  s.managementKey = "mk-mine";
   s.localServer = "http://localhost:1234";
   s.humanName = "Bill";
   s.aboutHuman = "Retired engineer.";
@@ -279,7 +302,7 @@ test("saved conversation: the page carries everything needed to resume it, but n
   assert.ok(saved.endsWith("</script>\n</body></html>\n"), "the data goes just before the end of the page");
   assert.equal(saved.split("</script>").length - 1, 1, "nothing inside can end the block early");
   assert.ok(!saved.includes("<!--"));
-  for (const secret of ["sk-mine", "mk-mine", "localhost:1234", "unsaved", "Mulling"]) assert.ok(!saved.includes(secret), secret);
+  for (const secret of ["sk-mine", "localhost:1234", "unsaved", "Mulling"]) assert.ok(!saved.includes(secret), secret);
 
   // Resumed into a browser with other settings: those from the file, but this browser's keys and address.
   const here = defaultSettings();

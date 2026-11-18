@@ -49,11 +49,8 @@ Safari and Chrome both work.
    to OpenRouter.
 
    **What you're spending.** From then on the top bar shows what this conversation has cost
-   and what the key has spent this month (see The top bar, below). To see your **remaining
-   credit** there too (optional), create a management key on OpenRouter's
-   [Management Keys page](https://openrouter.ai/settings/management-keys), with an
-   expiration date, and paste it into **OpenRouter management key** in Settings. Keep it
-   safe: it can create new keys, so anyone who got hold of it could spend your credit.
+   and what the key has spent this month (see The top bar, below). Its **Credits** link
+   opens OpenRouter's Credits page, which shows your **remaining credit**.
 4. **Participants.** The first time you open Dialog, two are already seated, under
    Participants on the right: **Claude**, the latest Claude Opus, and **Gemini**, the latest
    Gemini Pro. Each always gets the newest model in its family, as OpenRouter releases them.
@@ -77,8 +74,9 @@ guide and shows Dialog's version number.
   click to stays through later turns. This guide shows the version number under its own Dialog at the top.
 - **This conversation:** what its replies have cost, as OpenRouter reports it. OpenRouter's
   5.5% fee on credit purchases comes on top.
-- **Credit left** (only with a management key; see Settings): your account's remaining
-  credit. Hover for credit bought and used; click to open OpenRouter's Credits page.
+- **Credits**: opens OpenRouter's Credits page, which shows your account's remaining
+  credit and where you can add more. (OpenRouter doesn't let a web page like Dialog read
+  your remaining credit itself.)
 - **This month:** what this key has spent since the 1st (months begin at midnight UTC).
   Hover for its all-time spending and its limit.
 - **Save All** or **Save Selected**, **Restore…** (only while the conversation is empty),
@@ -427,7 +425,7 @@ participant may offer one.
 - **Cost:** like an attached file, it is re-read by every participant every turn until it is
   removed or replaced. Removing files nobody needs saves money.
 - **Safety:** a web page a model wrote could hold anything, so **Open** shows it walled off
-  from Dialog, with no way to reach your keys or your conversation. A **saved** copy has no
+  from Dialog, with no way to reach your key or your conversation. A **saved** copy has no
   such wall: open it by double-clicking only if you've read it or trust it as you would any
   download.
 
@@ -469,7 +467,7 @@ participant may offer one.
   The **↑** and **↓** keys move through the list; **Return** chooses. Dialog asks before
   resuming one; **Cancel** takes you back to the list. Choose one and carry on where it left
   off. Everything comes back as it was, including the participants, house
-  rules, your name and About you. Your keys are never in a saved conversation, so yours stay.
+  rules, your name and About you. Your key is never in a saved conversation, so yours stays.
 - **Where files go:** Chrome lets you choose the folder and name. Safari saves to Downloads,
   unless you set Safari Settings › General › File download location to "Ask for each
   download".
@@ -490,10 +488,6 @@ participant may offer one.
 ## Settings
 
 - **OpenRouter API key**, with **Show** to check what you pasted.
-- **OpenRouter management key** (optional), used only to show your remaining credit in the
-  top bar. Create one at openrouter.ai/settings/management-keys, with an expiration date. Be
-  aware that a management key can create new keys: someone who got hold of it could spend
-  your remaining credit.
 - **LM Studio server** (optional): see Models on this computer, below.
 - **Your name**: what the participants call you (Grasshopper until you change it).
 - **About you**: a few sentences every participant starts with, after the house rules and
@@ -510,10 +504,10 @@ participant may offer one.
   edit.
 - **Save settings to a file…** saves your name, About you, the house rules and every
   participant (name, model, thinking level, role, color, asleep or not), as a backup or to
-  move to another browser. **Include my keys in the saved file** adds your keys; keep such a
-  file private.
+  move to another browser. **Include my API key in the saved file** adds your key; keep such
+  a file private.
 - **Restore from a file…** reads such a file and asks before replacing your settings (and
-  your keys, if the file has them). The conversation isn't changed.
+  your key, if the file has it). The conversation isn't changed.
 - **Done**, Escape or a click outside closes Settings. Changes are kept as you type.
 
 ## Models on this computer (LM Studio)
@@ -577,14 +571,13 @@ conversation expensive; start a new one when the old one has served its purpose.
 
 ## Where your data lives
 
-The conversation, files, settings and keys are kept in your browser, on this computer only.
+The conversation, files, settings and key are kept in your browser, on this computer only.
 Each tab keeps its own conversation until it closes; your latest settings are kept for the
 next tab, and your last 25 conversations for Restore…. Each browser keeps its own: Chrome
 doesn't see what Safari has. Use Save settings to a file and Save All to carry things across.
 
 Messages go only to OpenRouter, which passes each to the model you chose, or, for an
-LM Studio participant, only to LM Studio on this computer. The management key goes only to
-OpenRouter's credit check. The makers' logos are fetched from OpenRouter's site (and for a
+LM Studio participant, only to LM Studio on this computer. The makers' logos are fetched from OpenRouter's site (and for a
 few makers from Google's icon service); those requests carry nothing of yours.
 
 ## Credits

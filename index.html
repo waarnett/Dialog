@@ -2017,20 +2017,6 @@
               rel="noopener noreferrer">Credits page</a>.</small>
         </label>
 
-        <label>OpenRouter management key (optional)
-          <span class="row">
-            <input id="set-mkey" type="password" autocomplete="off" spellcheck="false"
-              placeholder="sk-or-v1-…">
-            <button id="set-mkey-show" type="button" class="subtle">Show</button>
-          </span>
-          <small>Only for showing your remaining credit in the top bar; OpenRouter reveals that to
-            no other kind of key.
-            A management key can create and change your API keys but can't talk to the models.
-            Create one at
-            openrouter.ai/settings/management-keys with an expiration date. Stored only in this
-            browser on this computer.</small>
-        </label>
-
         <label>LM Studio server (optional)
           <input id="set-local" type="text" autocomplete="off" spellcheck="false">
           <small>For models running in LM Studio on this computer, alongside OpenRouter's. Start LM
@@ -2068,13 +2054,13 @@
             <button id="set-restore-file" type="button">Restore from a file…</button>
             <input id="set-restore-input" type="file" accept=".json,application/json" hidden>
           </span>
-          <label class="check"><input id="set-include-keys" type="checkbox"> Include my keys in the
-            saved file</label>
+          <label class="check"><input id="set-include-keys" type="checkbox"> Include my API key in
+            the saved file</label>
           <small>The file holds your name, About you, the house rules and every participant (name,
             model, thinking
             level, role and color): a backup, or a way to move Dialog to another browser or
-            computer. Your keys are
-            left out unless you tick the box; anyone who has a file with your keys could spend your
+            computer. Your API key is
+            left out unless you tick the box; anyone who has a file with your key could spend your
             credit. Restoring
             replaces these settings; the conversation isn't changed.</small>
           <p id="set-file-status" class="file-status" role="status" hidden></p>
@@ -2511,7 +2497,6 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           }
           return {
             apiKey: "",
-            managementKey: "",
             localServer: "",
             humanName: "Grasshopper",
             aboutHuman: "",
@@ -4765,6 +4750,13 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         function loadSettings() {
           const mine = read(tab, SETTINGS_KEY);
           const s = parseSettings(mine ?? read(shared, SETTINGS_KEY));
+          for (const area of [tab, shared]) {
+            const v = read(area, SETTINGS_KEY);
+            if (isObj(v) && "managementKey" in v) {
+              delete v.managementKey;
+              write(area, SETTINGS_KEY, v);
+            }
+          }
           ownSettings = JSON.stringify(s);
           tabSettings = mine ? ownSettings : "";
           return s;
@@ -4777,7 +4769,6 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             null) : d.seats;
           return {
             apiKey: str(v.apiKey, ""),
-            managementKey: str(v.managementKey, ""),
             localServer: str(v.localServer, ""),
             humanName: str(v.humanName, d.humanName) || d.humanName,
             aboutHuman: str(v.aboutHuman, ""),
@@ -4828,10 +4819,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               } : {}
             }))
           };
-          if (includeKeys) {
-            out.apiKey = s.apiKey;
-            out.managementKey = s.managementKey;
-          }
+          if (includeKeys) out.apiKey = s.apiKey;
           return JSON.stringify(out, null, 2) + "\n";
         }
 
@@ -4856,17 +4844,14 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             ...v,
             seats
           });
-          const key = (k) => typeof v[k] === "string" && v[k].trim() ? v[k].trim() : current[k];
           const localServer = typeof v.localServer === "string" ? v.localServer.trim() : current
             .localServer;
+          const hasKeys = typeof v.apiKey === "string" && v.apiKey.trim() !== "";
           const settings2 = {
             ...parsed,
-            apiKey: key("apiKey"),
-            managementKey: key("managementKey"),
+            apiKey: hasKeys ? v.apiKey.trim() : current.apiKey,
             localServer
           };
-          const hasKeys = [v.apiKey, v.managementKey].some((k) => typeof k === "string" && k
-          .trim() !== "");
           const savedAt = typeof v.savedAt === "string" && !Number.isNaN(Date.parse(v.savedAt)) ?
             new Date(v.savedAt) : void 0;
           return {
@@ -5948,35 +5933,6 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             } : {}
           };
         }
-        async function fetchCredits(managementKey) {
-          const res = await send(`${BASE}/credits`, {
-            headers: {
-              Authorization: `Bearer ${managementKey}`
-            }
-          });
-          if (!res.ok) {
-            let detail = "";
-            try {
-              const j2 = await res.json();
-              if (isObj2(j2) && isObj2(j2.error) && typeof j2.error.message === "string")
-                detail = j2.error.message;
-            } catch {}
-            const hint = res.status === 401 || res.status === 403 ?
-              "OpenRouter didn't accept the management key (it may be mistyped, expired, or an ordinary key)." :
-              `HTTP error ${res.status}.`;
-            throw new OpenRouterError([hint, detail && `(OpenRouter: ${detail})`].filter(
-              Boolean).join(" "), res.status);
-          }
-          const j = await res.json();
-          const d = isObj2(j) && isObj2(j.data) ? j.data : {};
-          const purchased = num(d.total_credits);
-          const used = num(d.total_usage);
-          return {
-            purchased,
-            used,
-            remaining: purchased - used
-          };
-        }
         // src/main.ts
         var NEW_TAB = "new";
         if (location.hash === `#${NEW_TAB}`) {
@@ -5997,8 +5953,6 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         var modelSort = loadModelSort();
         var keyInfo = null;
         var keyInfoFailed = false;
-        var credit = null;
-        var creditError = "";
         var busy = /* @__PURE__ */ new Map();
         var round = null;
         var occupied = () => busy.size > 0 || round !== null;
@@ -6026,7 +5980,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.23";
+        var VERSION = "2.24.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -6068,8 +6022,6 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           setVersion: byId("set-version"),
           setKey: byId("set-key"),
           setKeyShow: byId("set-key-show"),
-          setMkey: byId("set-mkey"),
-          setMkeyShow: byId("set-mkey-show"),
           setLocal: byId("set-local"),
           creditInfo: byId("credit-info"),
           setName: byId("set-name"),
@@ -6149,21 +6101,14 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         function renderTopbar() {
           els.sessionCost.textContent =
             `This conversation: ${formatCost(totalCost(session.entries))}`;
-          if (credit) {
-            els.creditInfo.replaceChildren(
-              h("a", {
-                href: CREDITS_PAGE,
-                target: "_blank",
-                rel: "noopener noreferrer"
-              }, `Credit left: ${formatCost(credit.remaining)}`)
-            );
-            els.creditInfo.title =
-              `Your OpenRouter account: ${formatCost(credit.purchased)} of credit bought, ${formatCost(credit.used)} used (by all your keys), ${formatCost(credit.remaining)} left. Click to add credit on OpenRouter's Credits page.`;
-          } else {
-            els.creditInfo.textContent = creditError ? "Credit: couldn't check" : "";
-            if (creditError) els.creditInfo.title = creditError;
-            else els.creditInfo.removeAttribute("title");
-          }
+          els.creditInfo.replaceChildren(
+            ...settings.apiKey.trim() ? [h("a", {
+              href: CREDITS_PAGE,
+              target: "_blank",
+              rel: "noopener noreferrer",
+              title: "See your remaining credit, or add more, on OpenRouter's Credits page"
+            }, "Credits")] : []
+          );
           if (keyInfo) {
             els.keyInfo.textContent = `This month: ${formatCost(keyInfo.usageMonthly)}`;
             const limit = keyInfo.limit === null ? "It has no spending limit." :
@@ -6294,9 +6239,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
               ),
               h(
                 "li", {},
-                "From then on the top bar shows what this conversation has cost, and what the key has spent this month. To see your remaining credit there too (optional), create a management key on OpenRouter\u2019s ",
-                openRouterLink("settings/management-keys", "Management Keys page"),
-                ", with an expiration date, and paste it into OpenRouter management key in Settings. Keep it safe: it can create new keys, so anyone who got hold of it could spend your credit."
+                "From then on the top bar shows what this conversation has cost, and what the key has spent this month; its Credits link opens OpenRouter\u2019s Credits page, which shows your remaining credit."
               )
             ),
             "While you\u2019re in Settings, put in your name" + (settings.humanName ===
@@ -8451,24 +8394,6 @@ OK reads it as ${names}. Cancel sends your message as you wrote it.`)) {
               )
             );
           }
-          const mkey = settings.managementKey.trim();
-          if (!mkey) {
-            credit = null;
-            creditError = "";
-          } else {
-            tasks.push(
-              fetchCredits(mkey).then(
-                (c) => {
-                  credit = c;
-                  creditError = "";
-                },
-                (err) => {
-                  credit = null;
-                  creditError = err instanceof Error ? err.message : String(err);
-                }
-              )
-            );
-          }
           await Promise.all(tasks);
           renderTopbar();
         }
@@ -8486,9 +8411,6 @@ OK reads it as ${names}. Cancel sends your message as you wrote it.`)) {
           els.setKey.value = settings.apiKey;
           els.setKey.type = "password";
           els.setKeyShow.textContent = "Show";
-          els.setMkey.value = settings.managementKey;
-          els.setMkey.type = "password";
-          els.setMkeyShow.textContent = "Show";
           els.setLocal.value = settings.localServer;
           els.setName.value = settings.humanName;
           els.setAbout.value = settings.aboutHuman;
@@ -8514,8 +8436,8 @@ OK reads it as ${names}. Cancel sends your message as you wrote it.`)) {
             if (!saved) return;
             showFileStatus(
               withKeys ?
-              `Saved \u201C${saved}\u201D, with your keys. Keep it private: anyone who has it could spend your credit.` :
-              `Saved \u201C${saved}\u201D, without your keys.`
+              `Saved \u201C${saved}\u201D, with your key. Keep it private: anyone who has it could spend your credit.` :
+              `Saved \u201C${saved}\u201D, without your key.`
             );
           });
         }
@@ -8544,8 +8466,8 @@ OK reads it as ${names}. Cancel sends your message as you wrote it.`)) {
               `Replace your current settings with those in \u201C${file.name}\u201D${when2}?
 
 Your name (${next.humanName}), About you, the house rules and the participants (${who}) will be replaced. ` +
-              (restored.hasKeys ? "The file includes keys, which will replace yours. " :
-                "Your keys stay as they are. ") + "The conversation itself isn't changed."
+              (restored.hasKeys ? "The file includes a key, which will replace yours. " :
+                "Your key stays as it is. ") + "The conversation itself isn't changed."
             );
             if (!ok) return;
             const localBefore = settings.localServer;
@@ -8686,7 +8608,7 @@ Your name (${next.humanName}), About you, the house rules and the participants (
           const ok = confirm(
             `Resume the conversation ${which}? It has ${n} ${n === 1 ? "turn" : "turns"}, with ${who}.
 
-Your participants, house rules, name and About you will be replaced with the ones saved with it. Your keys stay as they are.`
+Your participants, house rules, name and About you will be replaced with the ones saved with it. Your key stays as it is.`
           );
           if (!ok) return false;
           stopAll();
@@ -9046,10 +8968,6 @@ Your participants, house rules, name and About you will be replaced with the one
             settings.apiKey = els.setKey.value.trim();
             persistSoon();
           });
-          els.setMkey.addEventListener("input", () => {
-            settings.managementKey = els.setMkey.value.trim();
-            persistSoon();
-          });
           els.setVersion.textContent = `Version ${VERSION}`;
           els.setLocal.placeholder = LOCAL_EXAMPLE;
           els.setLocal.addEventListener("click", () => {
@@ -9062,11 +8980,6 @@ Your participants, house rules, name and About you will be replaced with the one
           els.setLocal.addEventListener("input", () => {
             settings.localServer = els.setLocal.value.trim();
             persistSoon();
-          });
-          els.setMkeyShow.addEventListener("click", () => {
-            const show = els.setMkey.type === "password";
-            els.setMkey.type = show ? "text" : "password";
-            els.setMkeyShow.textContent = show ? "Hide" : "Show";
           });
           els.setKeyShow.addEventListener("click", () => {
             const show = els.setKey.type === "password";

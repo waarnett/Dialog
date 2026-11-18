@@ -121,16 +121,6 @@
         OpenRouter's <a href="https://openrouter.ai/settings/credits" target="_blank" rel="noopener noreferrer">Credits page</a>.</small>
     </label>
 
-    <label>OpenRouter management key (optional)
-      <span class="row">
-        <input id="set-mkey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-v1-…">
-        <button id="set-mkey-show" type="button" class="subtle">Show</button>
-      </span>
-      <small>Only for showing your remaining credit in the top bar; OpenRouter reveals that to no other kind of key.
-        A management key can create and change your API keys but can't talk to the models. Create one at
-        openrouter.ai/settings/management-keys with an expiration date. Stored only in this browser on this computer.</small>
-    </label>
-
     <label>LM Studio server (optional)
       <input id="set-local" type="text" autocomplete="off" spellcheck="false">
       <small>For models running in LM Studio on this computer, alongside OpenRouter's. Start LM Studio's server with CORS on
@@ -162,10 +152,10 @@
         <button id="set-restore-file" type="button">Restore from a file…</button>
         <input id="set-restore-input" type="file" accept=".json,application/json" hidden>
       </span>
-      <label class="check"><input id="set-include-keys" type="checkbox"> Include my keys in the saved file</label>
+      <label class="check"><input id="set-include-keys" type="checkbox"> Include my API key in the saved file</label>
       <small>The file holds your name, About you, the house rules and every participant (name, model, thinking
-        level, role and color): a backup, or a way to move Dialog to another browser or computer. Your keys are
-        left out unless you tick the box; anyone who has a file with your keys could spend your credit. Restoring
+        level, role and color): a backup, or a way to move Dialog to another browser or computer. Your API key is
+        left out unless you tick the box; anyone who has a file with your key could spend your credit. Restoring
         replaces these settings; the conversation isn't changed.</small>
       <p id="set-file-status" class="file-status" role="status" hidden></p>
     </div>
