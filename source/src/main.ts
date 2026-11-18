@@ -63,6 +63,8 @@ import {
   thinkingChoices,
   thinkingLabel,
   totalCost,
+  costSummary,
+  type CostSummary,
   changedPart,
   noteChanges,
   privateNamesFor,
@@ -165,7 +167,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.24.1";
+const VERSION = "2.24.3";
 
 const els = {
   transcript: byId("transcript"),
@@ -1132,11 +1134,45 @@ function removeMadeFile(e: Entry, f: MadeFile): void {
 function renderTranscript(forceScroll = false): void {
   const kept = els.transcript.scrollTop;
   els.transcript.replaceChildren(
-    ...(session.entries.length ? session.entries.map(renderEntry) : [emptyState()]),
+    ...(session.entries.length ? [...session.entries.map(renderEntry), ...costSummaryBox()] : [emptyState()]),
   );
   if (forceScroll || following) scrollToBottom();
   else els.transcript.scrollTop = kept; // you scrolled back: stay there
   updateComposerState(); // who ⌘↩ would ask next may have changed
+}
+
+/** Whether the costs-by-participant table under the conversation is open; kept through redraws. */
+let summaryOpen = false;
+
+/** Under the conversation: its costs and speeds by participant, folded up under a triangle. */
+function costSummaryBox(): HTMLElement[] {
+  const summary = costSummary(session.entries, allModels());
+  if (!summary) return [];
+  const box = h("details", { class: "cost-summary", open: summaryOpen }, h("summary", {}, "Costs by participant"), costSummaryTable(summary));
+  box.addEventListener("toggle", () => {
+    if (box.open === summaryOpen) return; // a redraw putting it back as it was
+    summaryOpen = box.open;
+    if (box.open && typeof box.scrollIntoView === "function") box.scrollIntoView({ block: "nearest" });
+  });
+  return [box];
+}
+
+/** The table: a column for each participant (its name in its color), a row for each figure. */
+function costSummaryTable(summary: CostSummary): HTMLElement {
+  return h(
+    "div",
+    { class: "scroll" },
+    h(
+      "table",
+      {},
+      h(
+        "thead",
+        {},
+        h("tr", {}, h("th", {}), ...summary.columns.map((c) => h("th", { class: "name", style: c.color ? `--seat-color: ${c.color}` : undefined }, c.name))),
+      ),
+      h("tbody", {}, ...summary.rows.map((r) => h("tr", {}, h("th", {}, r.item), ...r.cells.map((cell) => h("td", {}, cell))))),
+    ),
+  );
 }
 
 /**

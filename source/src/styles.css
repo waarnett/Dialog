@@ -848,3 +848,33 @@ dialog::backdrop { background: rgba(20, 20, 18, 0.4); }
   .topbar { padding: 0.5rem 0.75rem; }
   .transcript { padding: 1.25rem 1rem 2rem; }
 }
+
+/* ---- costs by participant, under the conversation ---- */
+
+.cost-summary {
+  width: 100%;
+  max-width: calc(var(--gutter) + var(--measure) + 4.5rem);
+  margin: 0 auto;
+  padding-left: calc(var(--gutter) + 1.25rem);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.cost-summary summary { cursor: pointer; width: fit-content; }
+/* Like a table in a reply, it may run past the text's measure into the free space on the right,
+   as far as the edge of the transcript, and scrolls sideways if it still doesn't fit. */
+.cost-summary .scroll {
+  width: max-content;
+  max-width: calc((100cqw + min(100cqw, var(--gutter) + var(--measure) + 4.5rem)) / 2 - var(--gutter) - 1.25rem);
+  overflow-x: auto;
+  margin-top: 0.45rem;
+}
+.cost-summary table { border-collapse: collapse; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cost-summary th, .cost-summary td { padding: 0.2rem 0.6rem; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.cost-summary tbody th { font-weight: normal; text-align: left; color: var(--muted); padding-left: 0; }
+.cost-summary thead th.name { font-weight: 600; color: color-mix(in srgb, var(--seat-color, var(--ink)) 78%, var(--ink)); }
+/* The model ids are long: they may wrap, at their slashes and hyphens. */
+.cost-summary tbody tr:first-child td { white-space: normal; overflow-wrap: anywhere; min-width: 8rem; }
+@media (max-width: 640px) {
+  .cost-summary { padding-left: 0; }
+  .cost-summary .scroll { max-width: 100%; }
+}

@@ -19,6 +19,8 @@ import {
   speedLabel,
   thinkingLabel,
   totalCost,
+  costSummary,
+  type CostSummary,
   turnSpeed,
   turnStamp,
   changedPart,
@@ -183,6 +185,14 @@ function speedTableHtml(rows: SpeedRow[]): string {
   return `<table class="speeds">${rows.map(row).join("")}</table>`;
 }
 
+/** Under the conversation: its costs and speeds by participant, folded up under a triangle, as in Dialog. */
+function summaryHtml(summary: CostSummary | null): string {
+  if (!summary) return "";
+  const head = summary.columns.map((c) => `<th class="name"${c.color ? ` style="--seat-color: ${esc(c.color)}"` : ""}>${esc(c.name)}</th>`).join("");
+  const rows = summary.rows.map((r) => `<tr><th>${esc(r.item)}</th>${r.cells.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("");
+  return `<details class="cost-summary"><summary>Costs by participant</summary><div class="scroll"><table><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table></div></details>`;
+}
+
 /** After the text: the full particulars if they were open on screen, or else whether the reply was cut short. */
 function footHtml(e: Entry, opts: ExportOptions): string {
   if (opts.details?.has(e.id)) {
@@ -333,6 +343,7 @@ export function conversationHtml(session: Session, settings: Settings, opts: Exp
     `<section class="participants"><h2>Participants</h2><ul>${people.join("")}</ul>`,
     `<p class="note">${notes.join(" ")}</p></section>`,
     `<section class="conversation"><h2>Conversation</h2>${turns.join("")}</section>`,
+    summaryHtml(costSummary(only ? entries : session.entries, opts.models)),
     `<footer>${cost}, as reported by OpenRouter, before its fee on credit purchases.</footer>`,
   ].join("");
   return page(`Dialog, ${formatDate(started)}${only ? " (selected turns)" : ""}`, inner);
@@ -587,9 +598,19 @@ details.file summary { cursor: pointer; }
 .foot.details .speeds td { padding: 0 0.3rem 0 0; white-space: nowrap; }
 .foot.details .speeds td.value { text-align: right; }
 .foot.details .costs tr.total > * { border-top: 1px solid var(--line); }
+.cost-summary { margin-left: 9.75rem; font-family: var(--font-ui); font-size: 0.85rem; color: var(--muted); }
+.cost-summary summary { cursor: pointer; width: fit-content; }
+.cost-summary .scroll { width: max-content; max-width: calc((100vw + min(100vw, 58rem)) / 2 - 12.75rem); overflow-x: auto; margin-top: 0.45rem; }
+.cost-summary table { border-collapse: collapse; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cost-summary th, .cost-summary td { padding: 0.2rem 0.6rem; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.cost-summary tbody th { font-weight: normal; text-align: left; color: var(--muted); padding-left: 0; }
+.cost-summary thead th.name { font-weight: 600; color: color-mix(in srgb, var(--seat-color, var(--ink)) 78%, var(--ink)); }
+.cost-summary tbody tr:first-child td { white-space: normal; overflow-wrap: anywhere; min-width: 8rem; }
 footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 @media (max-width: 640px) {
   .turn { grid-template-columns: 1fr; }
+  .cost-summary { margin-left: 0; }
+  .cost-summary .scroll { max-width: 100%; }
   .body table { max-width: 100%; }
   .who { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; text-align: left; }
   .who .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }

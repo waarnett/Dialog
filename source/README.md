@@ -354,6 +354,14 @@ are saved and copied along with the turns, and can be ticked for Save Selected.
   measures how fast the participant answers you. In the particulars, under "Speed:", a
   small table lists the total time, the time to the first word, tokens per second overall,
   and tokens per second since the first word.
+- **Costs by participant**, under the last turn: click the triangle for a table with a
+  column for each participant and, with more than one, an **All** column. It gives the model
+  and thinking level, the tokens read and written, what reading, writing and the web cost,
+  the total, the time taken, the average time to the first word, and tokens per second
+  overall and since the first word. A participant whose model or thinking level you changed
+  gets a column for each. Amounts worked out from the listed prices are marked "about"; "—"
+  means not known (for instance, no cost for a model in LM Studio). The table stays open as
+  the conversation goes on, and a saved conversation has it too, covering the turns saved.
 - **× on a turn** (it appears when you hover) removes it, so no participant sees it again.
 - **A stopped reply** keeps what arrived, and the others see it.
 - **When a reply fails**, Dialog shows OpenRouter's message and whatever details it sent

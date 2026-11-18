@@ -10,6 +10,8 @@ import {
   stageEntry,
   wakesLine,
   costRows,
+  costSummary,
+  thinkingLabel,
   buildMessages,
   copySeat,
   defaultSettings,
@@ -1045,4 +1047,47 @@ test("no participant ever sees an aside to the readers", () => {
   // Only asides so far: as if nothing had been said.
   const only = buildMessages(A, s, [note]);
   assert.match(String(only.at(-1)?.content), /asked you to open the conversation/);
+});
+
+test("costs by participant: a column per participant, model and thinking level, then All", () => {
+  const s = setup();
+  const [A, B] = s.seats as [Seat, Seat];
+  const grok = { id: "x-ai/grok-4.7", name: "Grok", inputPrice: 2, outputPrice: 10, contextLength: 1, inputModalities: ["text"], tools: true };
+  const u = (promptTokens: number, completionTokens: number, reasoningTokens: number) => ({ promptTokens, completionTokens, reasoningTokens, cachedTokens: 0, cacheWriteTokens: 0 });
+  assert.equal(costSummary([human("Hi")]), null, "nothing until a reply reports something");
+  const entries: Entry[] = [
+    human("What is time?"),
+    // Claude on Opus, high: OpenRouter's own split of the cost; the second reply searched the web.
+    bot(A, "a", { seatEffort: "high", cost: 0.03, usage: { ...u(1000, 200, 50), readCost: 0.01, writeCost: 0.02 }, timing: { totalMs: 4000, firstTextMs: 1500 } }),
+    // Grok: no split, so it is worked out from the listed prices ("about"); no timing.
+    bot(B, "b", { seatEffort: "low", cost: 0.05, usage: u(10000, 1000, 0) }),
+    bot(A, "c", { seatEffort: "high", cost: 0.08, usage: { ...u(3000, 400, 0), readCost: 0.03, writeCost: 0.04, webSearches: 1 }, timing: { totalMs: 6000, firstTextMs: 2500 } }),
+    // Claude, moved to Sonnet: a column of its own; no cost reported.
+    bot(A, "d", { model: "anthropic/claude-sonnet-5.5", seatEffort: "high", usage: u(500, 100, 0) }),
+    bot(A, "e", { seatEffort: "high", status: "streaming" }),
+    bot(B, "f", { seatEffort: "low", status: "error", error: "x" }),
+  ];
+  const summary = costSummary(entries, [grok])!;
+  assert.deepEqual(summary.columns.map((c) => c.name), ["Claude", "Grok", "Claude", "All"]);
+  const high = thinkingLabel({ effort: "high" }, undefined);
+  const table = Object.fromEntries(summary.rows.map((r) => [r.item, r.cells]));
+  assert.deepEqual(table, {
+    Model: ["anthropic/claude-opus-5.5", "x-ai/grok-4.7", "anthropic/claude-sonnet-5.5", ""],
+    "Thinking level": [high, thinkingLabel({ effort: "low" }, grok), high, ""],
+    "Read tokens": ["4,000", "10,000", "500", "14,500"],
+    "Write tokens": ["600", "1,000", "100", "1,700"],
+    "Read $": ["$0.0400", "about $0.0200", "—", "about $0.0600"],
+    "Write $": ["$0.0600", "about $0.0100", "—", "about $0.0700"],
+    "Web $": ["$0.0100", "—", "—", "about $0.0100"],
+    "Total $": ["$0.11", "$0.0500", "—", "$0.16"],
+    "Total time": ["10.0 s", "—", "—", "10.0 s"],
+    "Time to 1st": ["2.0 s", "—", "—", "2.0 s"],
+    "Tokens/sec overall": ["60", "—", "—", "60"],
+    "Tokens/sec since 1st": ["92", "—", "—", "92"],
+  });
+  // One participant: no All column.
+  assert.deepEqual(costSummary(entries.slice(0, 2))!.columns.map((c) => c.name), ["Claude"]);
+  // A minute or more: minutes and seconds.
+  const long = costSummary([bot(A, "x", { usage: u(1, 1, 0), timing: { totalMs: 75000 } })])!;
+  assert.deepEqual(long.rows.find((r) => r.item === "Total time")!.cells, ["1 min 15 s"]);
 });

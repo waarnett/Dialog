@@ -81,6 +81,9 @@ test("whole conversation: participants, private marks, files, sources, costs; fa
   // Costs
   assert.ok(html.includes('<span class="glance"><span>$0.0200</span></span></div>'), "cost in the margin, under the name");
   assert.ok(html.includes("Total reported cost: $0.0350"));
+  // Costs by participant, under a triangle after the conversation.
+  assert.match(html, /<\/section><details class="cost-summary"><summary>Costs by participant<\/summary><div class="scroll"><table><thead><tr><th><\/th><th class="name">Claude<\/th><th class="name">Grok<\/th><th class="name">All<\/th><\/tr><\/thead>/);
+  assert.ok(html.includes("<tr><th>Total $</th><td>$0.0200</td><td>$0.0150</td><td>$0.0350</td></tr>"));
 });
 
 test("each participant is one line: name and the start of the role, the rest under a triangle", () => {
@@ -210,6 +213,7 @@ test("only the ticked turns, and only the participants who speak in them", () =>
   assert.ok(!html.includes("Quoted under Bill"));
   assert.match(html, /1 turn chosen from a conversation started 2026 Oct 0\d at \d\d:\d\d\. Saved 2026 Oct 07 at 22:05\./);
   assert.ok(html.includes("Reported cost of these turns: $0.0200"));
+  assert.ok(html.includes('<th class="name">Claude</th></tr>'), "costs by participant: only the ticked turns");
   assert.ok(html.includes("<title>Dialog, 2026 Oct 0"));
 
   const two = conversationHtml(session, s, { render, only: new Set([q.id, b.id]) });

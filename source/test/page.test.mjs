@@ -683,6 +683,42 @@ test("About you, and attaching files by drag and drop", async () => {
   assert.deepEqual(errors.map(String), []);
 });
 
+test("under the conversation, a triangle opens its costs by participant, and stays open as replies come", async () => {
+  const { w, d, replies, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const box = () => $("#transcript .cost-summary");
+  const heads = () => [...box().querySelectorAll("thead th")].map((th) => th.textContent);
+  const notBusy = () => $$(".seat .speak").every((b) => !b.disabled && !b.hidden);
+  await until(() => $("#key-info").textContent.includes("This month"), "key info");
+  assert.equal(box(), null, "nothing before a reply");
+
+  replies.push({ pieces: ["Hi."], cost: 0.001 });
+  $$(".seat .speak")[0].click();
+  await until(() => box() && notBusy(), "the summary after a reply");
+  assert.equal(box().open, false, "folded up");
+  assert.equal(box().querySelector("summary").textContent, "Costs by participant");
+  assert.deepEqual(heads(), ["", "Claude"]);
+  assert.deepEqual(
+    [...box().querySelectorAll("tbody th")].map((th) => th.textContent),
+    ["Model", "Thinking level", "Read tokens", "Write tokens", "Read $", "Write $", "Web $", "Total $", "Total time", "Time to 1st", "Tokens/sec overall", "Tokens/sec since 1st"],
+  );
+  const cells = (item) => [...[...box().querySelectorAll("tbody tr")].find((tr) => tr.querySelector("th").textContent === item).querySelectorAll("td")].map((td) => td.textContent);
+  assert.deepEqual(cells("Read tokens"), ["50"]);
+  assert.deepEqual(cells("Total $"), ["$0.0010"]);
+
+  box().open = true;
+  box().dispatchEvent(new w.Event("toggle"));
+  replies.push({ pieces: ["Hello."], cost: 0.002 });
+  $$(".seat .speak")[1].click();
+  await until(() => heads().length === 4 && notBusy(), "a column for Grok, and All");
+  assert.deepEqual(heads(), ["", "Claude", "Grok", "All"]);
+  assert.equal(box().open, true, "still open after the redraw");
+  assert.deepEqual(cells("Total $"), ["$0.0010", "$0.0020", "$0.0030"]);
+  await sleep(20);
+  assert.deepEqual(errors.map(String), []);
+});
+
 test("the send keys hand the turn to the previous speaker; tools; a withdrawn model; Settings closes from outside", async () => {
   const { w, d, chatCalls, replies, errors } = makeHarness();
   const $ = (sel) => d.querySelector(sel);

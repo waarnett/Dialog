@@ -1877,6 +1877,73 @@
           padding: 1.25rem 1rem 2rem;
         }
       }
+
+      /* ---- costs by participant, under the conversation ---- */
+      .cost-summary {
+        width: 100%;
+        max-width: calc(var(--gutter) + var(--measure) + 4.5rem);
+        margin: 0 auto;
+        padding-left: calc(var(--gutter) + 1.25rem);
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .cost-summary summary {
+        cursor: pointer;
+        width: fit-content;
+      }
+
+      /* Like a table in a reply, it may run past the text's measure into the free space on the right,
+   as far as the edge of the transcript, and scrolls sideways if it still doesn't fit. */
+      .cost-summary .scroll {
+        width: max-content;
+        max-width: calc((100cqw + min(100cqw, var(--gutter) + var(--measure) + 4.5rem)) / 2 - var(--gutter) - 1.25rem);
+        overflow-x: auto;
+        margin-top: 0.45rem;
+      }
+
+      .cost-summary table {
+        border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink);
+      }
+
+      .cost-summary th,
+      .cost-summary td {
+        padding: 0.2rem 0.6rem;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .cost-summary tbody th {
+        font-weight: normal;
+        text-align: left;
+        color: var(--muted);
+        padding-left: 0;
+      }
+
+      .cost-summary thead th.name {
+        font-weight: 600;
+        color: color-mix(in srgb, var(--seat-color, var(--ink)) 78%, var(--ink));
+      }
+
+      /* The model ids are long: they may wrap, at their slashes and hyphens. */
+      .cost-summary tbody tr:first-child td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        min-width: 8rem;
+      }
+
+      @media (max-width: 640px) {
+        .cost-summary {
+          padding-left: 0;
+        }
+
+        .cost-summary .scroll {
+          max-width: 100%;
+        }
+      }
     </style>
   </head>
 
@@ -2761,17 +2828,11 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
           const u = e.usage;
           if (u) {
             const n = (x) => x.toLocaleString("en-US");
-            const exact = u.readCost !== void 0 && u.writeCost !== void 0;
-            let read2 = u.readCost;
-            let write2 = u.writeCost;
-            if (!exact && model && model.inputPrice >= 0 && model.outputPrice >= 0) {
-              const plain = Math.max(0, u.promptTokens - u.cachedTokens - u.cacheWriteTokens);
-              read2 = (plain * model.inputPrice + u.cachedTokens * (model.cacheReadPrice ?? model
-                .inputPrice) + u.cacheWriteTokens * (model.cacheWritePrice ?? model
-                .inputPrice)) / 1e6;
-              write2 = u.completionTokens * model.outputPrice / 1e6;
-            }
-            const about = !exact && read2 !== void 0;
+            const {
+              read: read2,
+              write: write2,
+              about
+            } = readWriteCost(u, model);
             const cache = [];
             if (u.cachedTokens) cache.push(`${n(u.cachedTokens)} at the re-read discount`);
             if (u.cacheWriteTokens) cache.push(`${n(u.cacheWriteTokens)} stored for re-reading`);
@@ -2810,6 +2871,24 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
             amount: amount(e.cost)
           });
           return rows;
+        }
+
+        function readWriteCost(u, model) {
+          const exact = u.readCost !== void 0 && u.writeCost !== void 0;
+          let read2 = u.readCost;
+          let write2 = u.writeCost;
+          if (!exact && model && model.inputPrice >= 0 && model.outputPrice >= 0) {
+            const plain = Math.max(0, u.promptTokens - u.cachedTokens - u.cacheWriteTokens);
+            read2 = (plain * model.inputPrice + u.cachedTokens * (model.cacheReadPrice ?? model
+                .inputPrice) + u.cacheWriteTokens * (model.cacheWritePrice ?? model.inputPrice)) /
+              1e6;
+            write2 = u.completionTokens * model.outputPrice / 1e6;
+          }
+          return {
+            read: read2,
+            write: write2,
+            about: !exact && read2 !== void 0
+          };
         }
 
         function webUseText(u) {
@@ -2860,6 +2939,159 @@ The greatest danger is a perfectly cogent presentation that is simply wrong. No 
 
         function totalCost(entries) {
           return entries.reduce((sum, e) => sum + (e.cost ?? 0), 0);
+        }
+
+        function costSummary(entries, models2) {
+          const replies = entries.filter(
+            (e) => e.speaker !== "human" && e.speaker !== "stage" && e.status !== "streaming" &&
+            (e.cost !== void 0 || e.usage !== void 0)
+          );
+          if (!replies.length) return null;
+          const groups = /* @__PURE__ */ new Map();
+          for (const e of replies) {
+            const key = JSON.stringify([e.speaker, e.model ?? e.seatModel ?? "", e.seatEffort ??
+              ""
+            ]);
+            groups.set(key, [...groups.get(key) ?? [], e]);
+          }
+          const columns = [...groups.values()].map((list) => {
+            const first = list[0];
+            const last = list[list.length - 1];
+            const model = first.model ?? first.seatModel ?? "";
+            const listing = models2?.find((m) => m.id === (first.seatModel ?? model).trim());
+            return {
+              head: {
+                name: last.speakerName,
+                ...last.speakerColor ? {
+                  color: last.speakerColor
+                } : {}
+              },
+              model: model || "\u2014",
+              thinking: first.seatEffort === void 0 ? "\u2014" : thinkingLabel({
+                effort: first.seatEffort
+              }, listing),
+              list
+            };
+          });
+          if (columns.length > 1) columns.push({
+            head: {
+              name: "All"
+            },
+            model: "",
+            thinking: "",
+            list: replies
+          });
+          const figures = columns.map((c) => summaryFigures(c.list, models2));
+          const row = (item, cell) => ({
+            item,
+            cells: figures.map(cell)
+          });
+          const n = (x) => x.toLocaleString("en-US");
+          const money = (x, known, about) => known ? (about ? "about " : "") + formatCost(x) :
+            "\u2014";
+          const seconds = (ms) => {
+            const s = ms / 1e3;
+            return s < 60 ? `${s.toFixed(1)} s` :
+              `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`;
+          };
+          const perSecond = (tokens, ms) => ms > 0 ? n(Math.round(tokens / (ms / 1e3))) :
+          "\u2014";
+          return {
+            columns: columns.map((c) => c.head),
+            rows: [{
+                item: "Model",
+                cells: columns.map((c) => c.model)
+              },
+              {
+                item: "Thinking level",
+                cells: columns.map((c) => c.thinking)
+              },
+              row("Read tokens", (f) => f.usage ? n(f.readTokens) : "\u2014"),
+              row("Write tokens", (f) => f.usage ? n(f.writeTokens) : "\u2014"),
+              row("Read $", (f) => money(f.read, f.readWriteKnown, f.about)),
+              row("Write $", (f) => money(f.write, f.readWriteKnown, f.about)),
+              row("Web $", (f) => money(f.web, f.webUsed && f.readWriteKnown, f.about)),
+              row("Total $", (f) => money(f.total, f.costKnown, false)),
+              row("Total time", (f) => f.timedMs > 0 ? seconds(f.timedMs) : "\u2014"),
+              row("Time to 1st", (f) => f.firstCount ? seconds(f.firstMs / f.firstCount) :
+                "\u2014"),
+              row("Tokens/sec overall", (f) => perSecond(f.speedTokens, f.speedMs)),
+              row("Tokens/sec since 1st", (f) => perSecond(f.visibleTokens, f.streamMs))
+            ]
+          };
+        }
+
+        function summaryFigures(list, models2) {
+          const f = {
+            usage: false,
+            readTokens: 0,
+            writeTokens: 0,
+            read: 0,
+            write: 0,
+            web: 0,
+            total: 0,
+            costKnown: false,
+            readWriteKnown: true,
+            about: false,
+            webUsed: false,
+            timedMs: 0,
+            firstMs: 0,
+            firstCount: 0,
+            speedTokens: 0,
+            speedMs: 0,
+            visibleTokens: 0,
+            streamMs: 0
+          };
+          let priced = 0;
+          for (const e of list) {
+            const u = e.usage;
+            if (u) {
+              f.usage = true;
+              f.readTokens += u.promptTokens;
+              f.writeTokens += u.completionTokens;
+            }
+            if (e.cost !== void 0) {
+              f.costKnown = true;
+              f.total += e.cost;
+              if (u) {
+                priced++;
+                const {
+                  read: read2,
+                  write: write2,
+                  about
+                } = readWriteCost(u, modelPrices(e, models2));
+                if (read2 === void 0 || write2 === void 0) f.readWriteKnown = false;
+                else {
+                  f.read += read2;
+                  f.write += write2;
+                  f.about ||= about;
+                  if (webUseText(u)) {
+                    f.webUsed = true;
+                    f.web += Math.max(0, e.cost - read2 - write2);
+                  }
+                }
+              }
+            }
+            const t = e.timing;
+            if (t && t.totalMs > 0) {
+              f.timedMs += t.totalMs;
+              if (t.firstTextMs !== void 0) {
+                f.firstMs += t.firstTextMs;
+                f.firstCount++;
+              }
+              const speed = turnSpeed(e);
+              if (speed && u) {
+                f.speedTokens += u.completionTokens;
+                f.speedMs += t.totalMs;
+                if (speed.visibleTokensPerSecond !== void 0 && t.firstTextMs !== void 0) {
+                  f.visibleTokens += u.completionTokens - u.reasoningTokens;
+                  f.streamMs += t.totalMs - t.firstTextMs;
+                }
+              }
+            }
+          }
+          if (!priced) f.readWriteKnown = false;
+          return f;
         }
         var MAKING_FILES_NOTE =
           `Making files: if {humanName} asks for a file, or a file is clearly the best way to deliver something (a document, a table, a drawing, a small web page), you can make one. Write it on lines of its own between <file name="name.ext"> and </file>, with the whole contents in between and nothing else around them, not even a code fence. Use .md, .txt, .svg or .html; make a web page complete in one file, with its styles and scripts inside it. {humanName} sees each file as a card with buttons to open or save it, and the other participants see it too. Mention the file in your reply, but don't repeat its contents outside the tags. To revise a file, write it again in full under the same name; the newer version replaces the older one for everyone.`;
@@ -4292,6 +4524,17 @@ body {
           return `<table class="speeds">${rows.map(row).join("")}</table>`;
         }
 
+        function summaryHtml(summary) {
+          if (!summary) return "";
+          const head = summary.columns.map((c) =>
+            `<th class="name"${c.color ? ` style="--seat-color: ${esc(c.color)}"` : ""}>${esc(c.name)}</th>`
+            ).join("");
+          const rows = summary.rows.map((r) =>
+            `<tr><th>${esc(r.item)}</th>${r.cells.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`
+            ).join("");
+          return `<details class="cost-summary"><summary>Costs by participant</summary><div class="scroll"><table><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table></div></details>`;
+        }
+
         function footHtml(e, opts) {
           if (opts.details?.has(e.id)) {
             const lines = turnDetails(e, opts.models);
@@ -4437,6 +4680,7 @@ body {
             `<section class="participants"><h2>Participants</h2><ul>${people.join("")}</ul>`,
             `<p class="note">${notes.join(" ")}</p></section>`,
             `<section class="conversation"><h2>Conversation</h2>${turns.join("")}</section>`,
+            summaryHtml(costSummary(only ? entries : session2.entries, opts.models)),
             `<footer>${cost}, as reported by OpenRouter, before its fee on credit purchases.</footer>`
           ].join("");
           return page(`Dialog, ${formatDate(started)}${only ? " (selected turns)" : ""}`, inner);
@@ -4665,9 +4909,19 @@ details.file summary { cursor: pointer; }
 .foot.details .speeds td { padding: 0 0.3rem 0 0; white-space: nowrap; }
 .foot.details .speeds td.value { text-align: right; }
 .foot.details .costs tr.total > * { border-top: 1px solid var(--line); }
+.cost-summary { margin-left: 9.75rem; font-family: var(--font-ui); font-size: 0.85rem; color: var(--muted); }
+.cost-summary summary { cursor: pointer; width: fit-content; }
+.cost-summary .scroll { width: max-content; max-width: calc((100vw + min(100vw, 58rem)) / 2 - 12.75rem); overflow-x: auto; margin-top: 0.45rem; }
+.cost-summary table { border-collapse: collapse; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cost-summary th, .cost-summary td { padding: 0.2rem 0.6rem; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.cost-summary tbody th { font-weight: normal; text-align: left; color: var(--muted); padding-left: 0; }
+.cost-summary thead th.name { font-weight: 600; color: color-mix(in srgb, var(--seat-color, var(--ink)) 78%, var(--ink)); }
+.cost-summary tbody tr:first-child td { white-space: normal; overflow-wrap: anywhere; min-width: 8rem; }
 footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 @media (max-width: 640px) {
   .turn { grid-template-columns: 1fr; }
+  .cost-summary { margin-left: 0; }
+  .cost-summary .scroll { max-width: 100%; }
   .body table { max-width: 100%; }
   .who { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; text-align: left; }
   .who .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }
@@ -5980,7 +6234,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.24.1";
+        var VERSION = "2.24.3";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -6936,11 +7190,50 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
         function renderTranscript(forceScroll = false) {
           const kept = els.transcript.scrollTop;
           els.transcript.replaceChildren(
-            ...session.entries.length ? session.entries.map(renderEntry) : [emptyState()]
+            ...session.entries.length ? [...session.entries.map(renderEntry), ...
+            costSummaryBox()] : [emptyState()]
           );
           if (forceScroll || following) scrollToBottom();
           else els.transcript.scrollTop = kept;
           updateComposerState();
+        }
+        var summaryOpen = false;
+
+        function costSummaryBox() {
+          const summary = costSummary(session.entries, allModels());
+          if (!summary) return [];
+          const box = h("details", {
+            class: "cost-summary",
+            open: summaryOpen
+          }, h("summary", {}, "Costs by participant"), costSummaryTable(summary));
+          box.addEventListener("toggle", () => {
+            if (box.open === summaryOpen) return;
+            summaryOpen = box.open;
+            if (box.open && typeof box.scrollIntoView === "function") box.scrollIntoView({
+              block: "nearest"
+            });
+          });
+          return [box];
+        }
+
+        function costSummaryTable(summary) {
+          return h(
+            "div", {
+              class: "scroll"
+            },
+            h(
+              "table", {},
+              h(
+                "thead", {},
+                h("tr", {}, h("th", {}), ...summary.columns.map((c) => h("th", {
+                  class: "name",
+                  style: c.color ? `--seat-color: ${c.color}` : void 0
+                }, c.name)))
+              ),
+              h("tbody", {}, ...summary.rows.map((r) => h("tr", {}, h("th", {}, r.item), ...r
+                .cells.map((cell) => h("td", {}, cell)))))
+            )
+          );
         }
         var streamFrame = 0;
         var streamChanged = /* @__PURE__ */ new Set();

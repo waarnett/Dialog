@@ -459,19 +459,7 @@ export function costRows(e: Entry, model?: ModelInfo): CostRow[] {
   const u = e.usage;
   if (u) {
     const n = (x: number) => x.toLocaleString("en-US");
-    const exact = u.readCost !== undefined && u.writeCost !== undefined;
-    let read = u.readCost;
-    let write = u.writeCost;
-    if (!exact && model && model.inputPrice >= 0 && model.outputPrice >= 0) {
-      const plain = Math.max(0, u.promptTokens - u.cachedTokens - u.cacheWriteTokens);
-      read =
-        (plain * model.inputPrice +
-          u.cachedTokens * (model.cacheReadPrice ?? model.inputPrice) +
-          u.cacheWriteTokens * (model.cacheWritePrice ?? model.inputPrice)) /
-        1e6;
-      write = (u.completionTokens * model.outputPrice) / 1e6;
-    }
-    const about = !exact && read !== undefined;
+    const { read, write, about } = readWriteCost(u, model);
     const cache: string[] = [];
     if (u.cachedTokens) cache.push(`${n(u.cachedTokens)} at the re-read discount`);
     if (u.cacheWriteTokens) cache.push(`${n(u.cacheWriteTokens)} stored for re-reading`);
@@ -491,6 +479,26 @@ export function costRows(e: Entry, model?: ModelInfo): CostRow[] {
   }
   rows.push({ item: "Total", tokens: "", note: "", about: false, amount: amount(e.cost) });
   return rows;
+}
+
+/**
+ * What a reply's reading and writing cost: as OpenRouter reported, or else worked out from the
+ * token counts and the model's listed prices (`about`). Undefined when neither is possible.
+ */
+function readWriteCost(u: Usage, model?: ModelInfo): { read?: number; write?: number; about: boolean } {
+  const exact = u.readCost !== undefined && u.writeCost !== undefined;
+  let read = u.readCost;
+  let write = u.writeCost;
+  if (!exact && model && model.inputPrice >= 0 && model.outputPrice >= 0) {
+    const plain = Math.max(0, u.promptTokens - u.cachedTokens - u.cacheWriteTokens);
+    read =
+      (plain * model.inputPrice +
+        u.cachedTokens * (model.cacheReadPrice ?? model.inputPrice) +
+        u.cacheWriteTokens * (model.cacheWritePrice ?? model.inputPrice)) /
+      1e6;
+    write = (u.completionTokens * model.outputPrice) / 1e6;
+  }
+  return { read, write, about: !exact && read !== undefined };
 }
 
 /**
@@ -560,6 +568,169 @@ function modelPrices(e: Entry, models?: ModelInfo[]): ModelInfo | undefined {
 
 export function totalCost(entries: Entry[]): number {
   return entries.reduce((sum, e) => sum + (e.cost ?? 0), 0);
+}
+
+// ---------------------------------------------------------------------------
+// Costs by participant, under the conversation
+
+/** A column of the costs-by-participant table: a participant (its name and color), or "All". */
+export interface SummaryColumn {
+  name: string;
+  color?: string;
+}
+
+/** A row of that table: what ("Read tokens"), and a cell for each column. */
+export interface SummaryRow {
+  item: string;
+  cells: string[];
+}
+
+export interface CostSummary {
+  columns: SummaryColumn[];
+  rows: SummaryRow[];
+}
+
+/**
+ * The conversation's costs and speeds by participant: a column for each participant, or one
+ * for each model and thinking level it used if those were changed along the way, in the
+ * order they first spoke, then (with more than one column) "All". Each column adds up its
+ * replies: tokens and dollars, the time they took, the average time to the first words, and
+ * tokens per second over all of them. A figure that can't be known is "—"; dollars worked
+ * out from the listed prices (OpenRouter didn't report them) are marked "about". Null when
+ * no reply has reported anything yet.
+ */
+export function costSummary(entries: Entry[], models?: ModelInfo[]): CostSummary | null {
+  const replies = entries.filter(
+    (e) => e.speaker !== "human" && e.speaker !== "stage" && e.status !== "streaming" && (e.cost !== undefined || e.usage !== undefined),
+  );
+  if (!replies.length) return null;
+  const groups = new Map<string, Entry[]>();
+  for (const e of replies) {
+    const key = JSON.stringify([e.speaker, e.model ?? e.seatModel ?? "", e.seatEffort ?? ""]);
+    groups.set(key, [...(groups.get(key) ?? []), e]);
+  }
+  const columns: { head: SummaryColumn; model: string; thinking: string; list: Entry[] }[] = [...groups.values()].map((list) => {
+    const first = list[0] as Entry;
+    const last = list[list.length - 1] as Entry;
+    const model = first.model ?? first.seatModel ?? "";
+    const listing = models?.find((m) => m.id === (first.seatModel ?? model).trim());
+    return {
+      head: { name: last.speakerName, ...(last.speakerColor ? { color: last.speakerColor } : {}) },
+      model: model || "—",
+      thinking: first.seatEffort === undefined ? "—" : thinkingLabel({ effort: first.seatEffort }, listing),
+      list,
+    };
+  });
+  if (columns.length > 1) columns.push({ head: { name: "All" }, model: "", thinking: "", list: replies });
+
+  const figures = columns.map((c) => summaryFigures(c.list, models));
+  const row = (item: string, cell: (f: SummaryFigures) => string): SummaryRow => ({ item, cells: figures.map(cell) });
+  const n = (x: number) => x.toLocaleString("en-US");
+  const money = (x: number, known: boolean, about: boolean) => (known ? (about ? "about " : "") + formatCost(x) : "—");
+  const seconds = (ms: number) => {
+    const s = ms / 1000;
+    return s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`;
+  };
+  const perSecond = (tokens: number, ms: number) => (ms > 0 ? n(Math.round(tokens / (ms / 1000))) : "—");
+  return {
+    columns: columns.map((c) => c.head),
+    rows: [
+      { item: "Model", cells: columns.map((c) => c.model) },
+      { item: "Thinking level", cells: columns.map((c) => c.thinking) },
+      row("Read tokens", (f) => (f.usage ? n(f.readTokens) : "—")),
+      row("Write tokens", (f) => (f.usage ? n(f.writeTokens) : "—")),
+      row("Read $", (f) => money(f.read, f.readWriteKnown, f.about)),
+      row("Write $", (f) => money(f.write, f.readWriteKnown, f.about)),
+      row("Web $", (f) => money(f.web, f.webUsed && f.readWriteKnown, f.about)),
+      row("Total $", (f) => money(f.total, f.costKnown, false)),
+      row("Total time", (f) => (f.timedMs > 0 ? seconds(f.timedMs) : "—")),
+      row("Time to 1st", (f) => (f.firstCount ? seconds(f.firstMs / f.firstCount) : "—")),
+      row("Tokens/sec overall", (f) => perSecond(f.speedTokens, f.speedMs)),
+      row("Tokens/sec since 1st", (f) => perSecond(f.visibleTokens, f.streamMs)),
+    ],
+  };
+}
+
+/** What a column of the costs-by-participant table adds up from its replies. */
+interface SummaryFigures {
+  usage: boolean;
+  readTokens: number;
+  writeTokens: number;
+  read: number;
+  write: number;
+  web: number;
+  total: number;
+  /** Some reply reported a cost, so the total means something. */
+  costKnown: boolean;
+  /** Reading and writing are known for every reply with a cost. */
+  readWriteKnown: boolean;
+  /** Some of reading and writing was worked out from the listed prices. */
+  about: boolean;
+  webUsed: boolean;
+  timedMs: number;
+  /** Time to the first words, added up over the replies that know it, and how many those are. */
+  firstMs: number;
+  firstCount: number;
+  /** For tokens per second overall, as for a single reply (see turnSpeed). */
+  speedTokens: number;
+  speedMs: number;
+  /** For tokens per second once the words started. */
+  visibleTokens: number;
+  streamMs: number;
+}
+
+function summaryFigures(list: Entry[], models?: ModelInfo[]): SummaryFigures {
+  const f: SummaryFigures = {
+    usage: false, readTokens: 0, writeTokens: 0, read: 0, write: 0, web: 0, total: 0,
+    costKnown: false, readWriteKnown: true, about: false, webUsed: false,
+    timedMs: 0, firstMs: 0, firstCount: 0, speedTokens: 0, speedMs: 0, visibleTokens: 0, streamMs: 0,
+  };
+  let priced = 0; // replies with a cost and token counts
+  for (const e of list) {
+    const u = e.usage;
+    if (u) {
+      f.usage = true;
+      f.readTokens += u.promptTokens;
+      f.writeTokens += u.completionTokens;
+    }
+    if (e.cost !== undefined) {
+      f.costKnown = true;
+      f.total += e.cost;
+      if (u) {
+        priced++;
+        const { read, write, about } = readWriteCost(u, modelPrices(e, models));
+        if (read === undefined || write === undefined) f.readWriteKnown = false;
+        else {
+          f.read += read;
+          f.write += write;
+          f.about ||= about;
+          if (webUseText(u)) {
+            f.webUsed = true;
+            f.web += Math.max(0, e.cost - read - write);
+          }
+        }
+      }
+    }
+    const t = e.timing;
+    if (t && t.totalMs > 0) {
+      f.timedMs += t.totalMs;
+      if (t.firstTextMs !== undefined) {
+        f.firstMs += t.firstTextMs;
+        f.firstCount++;
+      }
+      const speed = turnSpeed(e);
+      if (speed && u) {
+        f.speedTokens += u.completionTokens;
+        f.speedMs += t.totalMs;
+        if (speed.visibleTokensPerSecond !== undefined && t.firstTextMs !== undefined) {
+          f.visibleTokens += u.completionTokens - u.reasoningTokens;
+          f.streamMs += t.totalMs - t.firstTextMs;
+        }
+      }
+    }
+  }
+  if (!priced) f.readWriteKnown = false;
+  return f;
 }
 
 // ---------------------------------------------------------------------------
