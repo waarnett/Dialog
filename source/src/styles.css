@@ -198,9 +198,12 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
   --name-color: color-mix(in srgb, var(--seat-color) 78%, var(--ink));
 }
 
+/* The margin runs down beside the reply's text (and its thinking, if shown above it), so that
+   the cost and speed can sit at the bottom, level with the end of the text. */
 .entry > header {
   grid-column: 1;
-  grid-row: 1 / span 5;
+  grid-row: 1;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -220,6 +223,7 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
   opacity: 0.45;
   transition: opacity 120ms;
 }
+.entry:has(> .thinking) > header { grid-row: 1 / span 2; }
 .entry:hover .pick, .entry .pick:checked, .entry .pick:focus-visible { opacity: 1; }
 .entry .who {
   font-weight: 600;
@@ -336,12 +340,13 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
   font-size: 0.78rem;
   color: var(--muted);
 }
-/* A reply's cost and speed, two lines in the margin: tap for the full particulars below the text. */
+/* A reply's cost and speed, two lines at the foot of the margin: tap for the full particulars below the text. */
 .entry .glance {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  margin-top: 0.3rem;
+  margin-top: auto;
+  padding-top: 0.3rem;
   font-size: 0.72rem;
   line-height: 1.35;
   color: var(--muted);
@@ -352,7 +357,7 @@ a.brand-version { color: var(--accent); text-underline-offset: 2px; }
 .entry button.glance {
   border: none;
   background: transparent;
-  padding: 0.1rem 0.25rem;
+  padding: 0.4rem 0.25rem 0.1rem;
   margin-right: -0.25rem;
   border-radius: 4px;
   cursor: pointer;
@@ -842,7 +847,9 @@ dialog::backdrop { background: rgba(20, 20, 18, 0.4); }
   .entry .thinking, .entry .body, .entry .sources, .entry .files, .entry .err, .entry .foot { grid-column: 1; }
   .entry .body table { max-width: 100%; }
   .entry .del { grid-column: 2; grid-row: 1; opacity: 1; }
-  .entry .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }
+  .entry:has(> .thinking) > header { grid-row: auto; }
+  .entry .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; padding-top: 0; }
+  .entry button.glance { padding-top: 0.1rem; }
   .empty { grid-template-columns: 1fr; justify-items: center; }
   .bust { width: 12rem; }
   .topbar { padding: 0.5rem 0.75rem; }

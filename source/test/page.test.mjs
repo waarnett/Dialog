@@ -2493,6 +2493,11 @@ test("arriving text is followed only while you're at the bottom; scrolled back, 
   Object.defineProperty(t, "scrollHeight", { get: () => 2000, configurable: true });
   Object.defineProperty(t, "clientHeight", { get: () => 500, configurable: true });
   Object.defineProperty(t, "scrollTop", { get: () => top, set: (v) => (top = Math.min(v, 1500)), configurable: true });
+  // The replies begin near the end of it, at 1,900 px (jsdom lays nothing out).
+  w.Element.prototype.getBoundingClientRect = function () {
+    const y = this.matches("article.entry") ? 1900 - top : 0;
+    return { top: y, bottom: y, left: 0, right: 0, width: 0, height: 0, x: 0, y };
+  };
   const scrollTo = (v) => {
     top = v;
     t.dispatchEvent(new w.Event("scroll"));
@@ -2524,6 +2529,57 @@ test("arriving text is followed only while you're at the bottom; scrolled back, 
   top = 1000;
   await until(() => notBusy(), "the third reply");
   assert.equal(top, 1500, "followed again");
+  assert.deepEqual(errors, []);
+});
+
+test("a long reply is followed only until its beginning reaches the top, and stays there when it ends", async () => {
+  const { w, d, replies, errors } = makeHarness();
+  const $ = (sel) => d.querySelector(sel);
+  const $$ = (sel) => [...d.querySelectorAll(sel)];
+  const notBusy = () => !$("#transcript .entry.streaming");
+  const speakBtn = (i) => $$("#seat-list .seat")[i].querySelector("button.speak");
+  await until(() => $$("#seat-list .seat").length === 2, "seats");
+  // 2,000 px of conversation in a 500 px window (jsdom lays nothing out). The newest entry
+  // begins at replyAt; the ones before it, well above.
+  const t = $("#transcript");
+  let top = 0;
+  let replyAt = 1300;
+  Object.defineProperty(t, "scrollHeight", { get: () => 2000, configurable: true });
+  Object.defineProperty(t, "clientHeight", { get: () => 500, configurable: true });
+  Object.defineProperty(t, "scrollTop", { get: () => top, set: (v) => (top = Math.min(v, 1500)), configurable: true });
+  w.Element.prototype.getBoundingClientRect = function () {
+    const entry = this.matches("article.entry");
+    const last = entry && this === $$("#transcript article.entry").at(-1);
+    const y = entry ? (last ? replyAt : 0) - top : 0;
+    return { top: y, bottom: y, left: 0, right: 0, width: 0, height: 0, x: 0, y };
+  };
+  const scrollTo = (v) => {
+    top = v;
+    t.dispatchEvent(new w.Event("scroll"));
+  };
+
+  // Its beginning, at 1,300 px, reaches the top (less a little room) before the bottom does.
+  scrollTo(1500);
+  replies.push({ pieces: ["A long ", "reply."], cost: 0.001 });
+  speakBtn(0).click();
+  top = 1000;
+  await until(() => notBusy(), "the long reply");
+  assert.equal(top, 1288, "held with its beginning at the top");
+
+  // The next reply, below it, leaves you reading it.
+  replyAt = 1900;
+  replies.push({ pieces: ["Next."], cost: 0.001 });
+  speakBtn(1).click();
+  await until(() => notBusy(), "the next reply");
+  assert.equal(top, 1288, "still where it began");
+
+  // Once you've scrolled down to the bottom yourself, replies are followed again.
+  scrollTo(1500);
+  replies.push({ pieces: ["More."], cost: 0.001 });
+  speakBtn(0).click();
+  top = 1200;
+  await until(() => notBusy(), "the last reply");
+  assert.equal(top, 1500, "followed to the bottom");
   assert.deepEqual(errors, []);
 });
 
@@ -2610,6 +2666,11 @@ test("just after your message, the browser moving the conversation back up is un
   Object.defineProperty(t, "scrollHeight", { get: () => 2000, configurable: true });
   Object.defineProperty(t, "clientHeight", { get: () => 500, configurable: true });
   Object.defineProperty(t, "scrollTop", { get: () => top, set: (v) => (top = Math.min(v, 1500)), configurable: true });
+  // The replies begin near the end of it, at 1,900 px (jsdom lays nothing out).
+  w.Element.prototype.getBoundingClientRect = function () {
+    const y = this.matches("article.entry") ? 1900 - top : 0;
+    return { top: y, bottom: y, left: 0, right: 0, width: 0, height: 0, x: 0, y };
+  };
   const scrollTo = (v) => {
     top = v;
     t.dispatchEvent(new w.Event("scroll"));

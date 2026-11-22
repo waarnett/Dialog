@@ -326,8 +326,10 @@ are saved and copied along with the turns, and can be ticked for Save Selected.
   (headings, lists, tables, code), and links open in a new tab. A wide table uses the free
   space to the right of the text, so widening the window gives it more room; if it still
   doesn't fit, it scrolls sideways.
-- **The page follows a reply** while you're at the bottom. Scroll up to read something
-  earlier and it stays put until you scroll back down.
+- **The page follows a reply** while you're at the bottom, but only until the beginning of
+  the reply reaches the top of the window, so a long one can be read from its start; it stays
+  there when the reply ends. Scroll down to the bottom yourself and it follows again. Scroll
+  up to read something earlier and it stays put until you scroll back down.
 - **Thinking.** When a model sends its thinking, a folded **Thinking** line sits above its
   reply: click to read it. Some models send all of it, many (Claude, Gemini) a summary, and
   some (OpenAI's) none. Thinking is kept only while the page is open, is never saved, and no
@@ -336,8 +338,8 @@ are saved and copied along with the turns, and can be ticked for Save Selected.
   is complete. Prices such as "$5 and $10" stay money. LaTeX that can't be read is shown in
   red; point at it for the reason.
 - **The margin** of each turn shows a tick box for saving, the time, the speaker's name and,
-  for a reply, its **cost** and **speed**. After the text come any **sources** used, and
-  "stopped early" if you stopped it.
+  for a reply, its **cost** and **speed**, at the bottom, beside the end of its text. After
+  the text come any **sources** used, and "stopped early" if you stopped it.
 - **Participants see the times too:** every turn reaches them with the time it began (the
   date as well on the first turn of each day), their own earlier replies included, so you
   can point one to a turn by its time ("what you said at 17:12").

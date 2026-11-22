@@ -158,7 +158,7 @@ function sourcesHtml(e: Entry): string {
   return `<div class="sources">Sources:<ul>${lis}</ul></div>`;
 }
 
-/** A reply's cost and speed: two lines in the margin, under its name, as on screen. */
+/** A reply's cost and speed: two lines at the foot of the margin, level with the end of the text, as on screen. */
 function glanceHtml(e: Entry): string {
   const lines: string[] = [];
   if (e.cost !== undefined) lines.push(`<span>${formatCost(e.cost)}</span>`);
@@ -551,8 +551,10 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 .who .name { font-weight: 600; color: var(--name-color); line-height: 1.3; overflow-wrap: anywhere; }
 .who .direction { font-family: var(--font-text); font-style: italic; font-size: 0.85rem; color: var(--muted); line-height: 1.3; }
 .who .model { font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
-.who .glance { display: flex; flex-direction: column; align-items: flex-end; margin-top: 0.3rem; font-size: 0.72rem; line-height: 1.35; color: var(--muted); font-variant-numeric: tabular-nums; }
-.speech { min-width: 0; }
+.who .glance { display: flex; flex-direction: column; align-items: flex-end; margin-top: auto; padding-top: 0.3rem; font-size: 0.72rem; line-height: 1.35; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* The speech's parts lie in the grid themselves, so that the margin runs only beside the text and the cost and speed sit level with its end. */
+.speech { display: contents; }
+.speech > * { grid-column: 2; min-width: 0; align-self: start; }
 .body { font-size: 1.0625rem; padding-left: 1.1rem; border-left: 2px solid color-mix(in srgb, var(--seat-color) 45%, transparent); overflow-wrap: anywhere; }
 .human .body { border-left-color: color-mix(in srgb, var(--ink) 22%, transparent); }
 .body > :first-child { margin-top: 0; } .body > :last-child { margin-bottom: 0; }
@@ -613,7 +615,8 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
   .cost-summary .scroll { max-width: 100%; }
   .body table { max-width: 100%; }
   .who { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; text-align: left; }
-  .who .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; }
+  .speech > * { grid-column: 1; }
+  .who .glance { flex-direction: row; gap: 0.6rem; margin-top: 0; padding-top: 0; }
 }
 @media print {
   body { background: #fff; }

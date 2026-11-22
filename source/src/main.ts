@@ -167,7 +167,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.24";
+const VERSION = "2.25.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -424,9 +424,11 @@ const SETTLING_MS = 1000;
  */
 function followScrolling(): void {
   const top = els.transcript.scrollTop;
-  if (atBottom()) following = true;
-  else if (top < lastScrollTop) {
-    if (performance.now() < settlingUntil) return scrollToBottom();
+  if (atBottom()) {
+    following = true;
+    if (anchorId && !arriving(anchorId)) anchorId = undefined; // you've read to its end
+  } else if (top < lastScrollTop) {
+    if (performance.now() < settlingUntil) return followLatest();
     following = false;
   }
   lastScrollTop = top;
@@ -440,6 +442,33 @@ function atBottom(): boolean {
 function scrollToBottom(): void {
   els.transcript.scrollTop = els.transcript.scrollHeight;
   following = true;
+  anchorId = undefined;
+}
+
+/**
+ * The reply whose beginning the conversation won't scroll past: following a long reply as it
+ * arrives stops once its first line reaches the top, so it can be read from the start. It stays
+ * the limit after the reply ends, until you have scrolled down to the bottom yourself.
+ */
+let anchorId: string | undefined;
+/** Room left above a reply held at the top, so its time and name aren't against the edge. */
+const ANCHOR_ROOM = 12;
+
+/**
+ * Follow the latest words: down towards the bottom, but no further than puts the beginning of
+ * the reply arriving (see anchorId) at the top. It never scrolls back up.
+ */
+function followLatest(): void {
+  const t = els.transcript;
+  if (!anchorId) anchorId = session.entries.find((e) => e.status === "streaming")?.id;
+  let target = t.scrollHeight - t.clientHeight;
+  const reply = anchorId ? [...t.querySelectorAll<HTMLElement>("article.entry")].find((a) => a.dataset.id === anchorId) : undefined;
+  if (reply) target = Math.min(target, t.scrollTop + reply.getBoundingClientRect().top - t.getBoundingClientRect().top - ANCHOR_ROOM);
+  else anchorId = undefined; // removed
+  if (target > t.scrollTop) t.scrollTop = target;
+  following = true;
+  lastScrollTop = t.scrollTop;
+  if (anchorId && !arriving(anchorId) && atBottom()) anchorId = undefined; // ended, and all in view
 }
 
 /** A link to one of OpenRouter's pages, opened in a new tab. */
@@ -813,7 +842,7 @@ function renderEntry(e: Entry): HTMLElement {
   else body.innerHTML = renderMarkdown(e.text, isHuman);
   if (!streaming && !e.text.trim() && (e.attachments?.length || e.made?.length)) body.hidden = true; // just files
 
-  // What the reply cost and how fast it came: two lines in the margin, under the name.
+  // What the reply cost and how fast it came: two lines in the margin, level with the end of the text.
   // Tapping (or clicking) them shows the full particulars below the text; tapping again hides them.
   const glance: HTMLElement[] = [];
   if (e.cost !== undefined) glance.push(h("span", { class: "cost" }, formatCost(e.cost)));
@@ -1136,7 +1165,8 @@ function renderTranscript(forceScroll = false): void {
   els.transcript.replaceChildren(
     ...(session.entries.length ? [...session.entries.map(renderEntry), ...costSummaryBox()] : [emptyState()]),
   );
-  if (forceScroll || following) scrollToBottom();
+  if (forceScroll) scrollToBottom();
+  else if (following) followLatest();
   else els.transcript.scrollTop = kept; // you scrolled back: stay there
   updateComposerState(); // who ⌘↩ would ask next may have changed
 }
@@ -1200,7 +1230,7 @@ function scheduleStreamUpdate(entry: Entry): void {
       }
     }
     streamChanged.clear();
-    if (following) scrollToBottom();
+    if (following) followLatest();
   });
 }
 
