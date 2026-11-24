@@ -242,8 +242,9 @@ test("only the first sentence of About you is shown", () => {
 });
 
 test("file names", () => {
-  assert.equal(conversationFileName(new Date(2026, 9, 7, 22, 5)), "Dialog 2026 Oct 07 2205.html");
-  assert.equal(conversationFileName(new Date(2026, 9, 7, 22, 5), true), "Dialog 2026 Oct 07 2205 selected.html");
+  assert.equal(conversationFileName(new Date(2026, 9, 7, 22, 5)), "Dialog 2026 10 07 2205.html");
+  assert.equal(conversationFileName(new Date(2026, 9, 7, 22, 5), true), "Dialog 2026 10 07 2205 selected.html");
+  assert.equal(conversationFileName(new Date(2026, 0, 5, 9, 3)), "Dialog 2026 01 05 0903.html", "two digits throughout");
 });
 
 test("files the participants made: drawings shown, contents in a section to open, no live code", () => {

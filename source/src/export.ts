@@ -7,6 +7,7 @@ import {
   ASIDE_LABEL,
   describeAttachment,
   describeMadeFile,
+  fileStamp,
   formatCost,
   formatDate,
   formatTime,
@@ -56,9 +57,9 @@ export function escapeHtml(s: string): string {
 }
 const esc = escapeHtml;
 
-/** "Dialog 2026 Oct 07 2205.html", or "Dialog 2026 Oct 07 2205 selected.html" for chosen turns. */
+/** "Dialog 2026 10 07 2205.html", or "Dialog 2026 10 07 2205 selected.html" for chosen turns. */
 export function conversationFileName(savedAt = new Date(), selected = false): string {
-  return `Dialog ${formatDate(savedAt)} ${formatTime(savedAt).replace(":", "")}${selected ? " selected" : ""}.html`;
+  return `Dialog ${fileStamp(savedAt)}${selected ? " selected" : ""}.html`;
 }
 
 // Words whose full stop doesn't end a sentence.

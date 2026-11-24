@@ -173,6 +173,11 @@ export function formatDate(d: Date): string {
   return `${d.getFullYear()} ${MONTHS[d.getMonth()]} ${pad2(d.getDate())}`;
 }
 
+/** For naming saved files, sorting by date and time: "2026 10 07 2205". */
+export function fileStamp(d: Date): string {
+  return `${d.getFullYear()} ${pad2(d.getMonth() + 1)} ${pad2(d.getDate())} ${pad2(d.getHours())}${pad2(d.getMinutes())}`;
+}
+
 /** A UTC offset, from minutes ahead of UTC: "UTC-7", "UTC+5:30", "UTC+0". */
 export function formatUtcOffset(minutesAhead: number): string {
   const a = Math.abs(minutesAhead);

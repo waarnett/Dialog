@@ -51,6 +51,7 @@ import {
   privateWithFor,
   type Addressing,
   formatAsOf,
+  fileStamp,
   formatDate,
   MODEL_SORTS,
   type ModelSort,
@@ -167,7 +168,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.26";
+const VERSION = "2.27.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -2687,9 +2688,9 @@ function showFileStatus(message: string, isError = false): void {
   els.setFileStatus.classList.toggle("error", isError);
 }
 
-/** "Dialog settings 2026 Oct 09 1722.json" */
+/** "Dialog settings 2026 10 09 1722.json" */
 function settingsFileName(at: Date): string {
-  return `Dialog settings ${formatDate(at)} ${formatTime(at).replace(":", "")}.json`;
+  return `Dialog settings ${fileStamp(at)}.json`;
 }
 
 /** Save the settings (and the key, if ticked) as a file. */

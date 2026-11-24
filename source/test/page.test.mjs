@@ -358,7 +358,7 @@ test("a full conversation in the page", async () => {
   $("#btn-save").click();
   assert.equal(blobs.length, 1);
   assert.equal(blobs[0].type, "text/html;charset=utf-8");
-  assert.match(downloads[0], /^Dialog \d{4} \w{3} \d\d \d{4}\.html$/);
+  assert.match(downloads[0], /^Dialog \d{4} \d\d \d\d \d{4}\.html$/);
   const raw = await blobs[0].text();
   assert.ok(raw.startsWith("<!doctype html>"));
   assert.match(raw, /\n {8}<article class="turn human">\n/, "pretty-printed: one tag per line, indented");
@@ -391,7 +391,7 @@ test("a full conversation in the page", async () => {
   thinkingBox().open = false;
   thinkingBox().dispatchEvent(new w.Event("toggle"));
   $("#btn-save").click();
-  assert.match(downloads[1], /^Dialog \d{4} \w{3} \d\d \d{4} selected\.html$/);
+  assert.match(downloads[1], /^Dialog \d{4} \d\d \d\d \d{4} selected\.html$/);
   const one = squash(await blobs[1].text());
   assert.ok(one.includes("<p>Time is change.</p>"));
   assert.ok(!one.includes("chronology") && !one.includes('class="thinking"'), "folded thinking not saved");
@@ -847,7 +847,7 @@ test("settings can be saved to a file and restored from one", async () => {
   // Saved without the keys…
   assert.equal($("#set-include-keys").checked, false, "keys are left out unless asked");
   $("#set-save-file").click();
-  assert.match(downloads.at(-1), /^Dialog settings \d{4} \w{3} \d\d \d{4}\.json$/);
+  assert.match(downloads.at(-1), /^Dialog settings \d{4} \d\d \d\d \d{4}\.json$/);
   assert.equal(blobs.at(-1).type, "application/json");
   const saved = JSON.parse(await blobs.at(-1).text());
   assert.equal(saved.format, "dialog-settings");
@@ -1439,7 +1439,7 @@ test("Escape closes the model picker; the Save dialog is used where the browser 
   const before = downloads.length;
   $("#set-save-file").click();
   await until(() => /Saved “My settings\.json”, without your key/.test($("#set-file-status").textContent), "saved via the dialog");
-  assert.match(written[0].suggested, /^Dialog settings \d{4} \w{3} \d\d \d{4}\.json$/);
+  assert.match(written[0].suggested, /^Dialog settings \d{4} \d\d \d\d \d{4}\.json$/);
   assert.equal(JSON.stringify(written[0].types), JSON.stringify([{ description: "Dialog settings", accept: { "application/json": [".json"] } }]));
   assert.equal(JSON.parse(written[1]).format, "dialog-settings");
   assert.equal(downloads.length, before, "no download as well");
