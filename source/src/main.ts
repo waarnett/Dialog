@@ -167,7 +167,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.25";
+const VERSION = "2.26.1";
 
 const els = {
   transcript: byId("transcript"),
@@ -411,8 +411,9 @@ let following = true;
 let lastScrollTop = 0;
 
 /**
- * Until when a move upward isn't yours: for a moment after you add a message, the browser can
- * still take the conversation back to where it was. Touching the conversation ends this.
+ * Until when a move upward isn't yours: for a moment after the conversation is drawn afresh
+ * while following (you add a message, a reply ends), the browser (Safari) can still take it
+ * back to where an earlier drawing left it. Touching the conversation ends this.
  */
 let settlingUntil = 0;
 const SETTLING_MS = 1000;
@@ -1168,6 +1169,7 @@ function renderTranscript(forceScroll = false): void {
   if (forceScroll) scrollToBottom();
   else if (following) followLatest();
   else els.transcript.scrollTop = kept; // you scrolled back: stay there
+  if (following) settlingUntil = performance.now() + SETTLING_MS; // see settlingUntil
   updateComposerState(); // who ⌘↩ would ask next may have changed
 }
 
@@ -1260,7 +1262,6 @@ function addHumanEntry(text: string, privateWith?: string | string[], attachment
   });
   persist();
   renderTranscript(true);
-  settlingUntil = performance.now() + SETTLING_MS;
   renderTopbar();
   if (attachments?.some((a) => a.unsaved)) {
     showAttachMessage(
@@ -2837,16 +2838,25 @@ async function download(content: string, fileName: string, type = "text/html;cha
 
 function exportOptions(): ExportOptions {
   const logo = document.querySelector<HTMLImageElement>(".topbar .medallion")?.src;
-  // Replies whose particulars are open on screen are saved with them too.
-  return { models: allModels(), render: renderMarkdown, logo, savedAt: new Date(), details: opened };
+  // Replies whose particulars or thinking are open on screen are saved with them too.
+  return { models: allModels(), render: renderMarkdown, logo, savedAt: new Date(), details: opened, thinking: thinkingOpen };
 }
 
-/** Save the whole conversation, or just the ticked turns, as one HTML file that can be resumed. */
-function saveConversation(): void {
+/**
+ * Save the whole conversation, or just the ticked turns, as one HTML file that can be resumed.
+ * Once the ticked turns are saved, their ticks are cleared, so the next save is of everything
+ * again (they stay if you press Cancel).
+ */
+async function saveConversation(): Promise<void> {
   updateSaveButton(); // forget ticks on turns that are gone
-  const opts = { ...exportOptions(), only: picked.size ? picked : undefined };
+  const only = picked.size ? new Set(picked) : undefined;
+  const opts = { ...exportOptions(), only };
   const page = store.withConversationData(prettyHtml(conversationHtml(session, settings, opts)), session, settings, opts.only, opts.savedAt);
-  void download(page, conversationFileName(opts.savedAt, picked.size > 0), undefined, undefined, SAVES_PICKER);
+  const saved = await download(page, conversationFileName(opts.savedAt, only !== undefined), undefined, undefined, SAVES_PICKER);
+  if (!only || saved === null) return;
+  for (const id of only) picked.delete(id);
+  for (const box of els.transcript.querySelectorAll<HTMLInputElement>("input.pick")) box.checked = picked.has(box.closest<HTMLElement>("article.entry")?.dataset.id ?? "");
+  updateSaveButton();
 }
 
 /**
@@ -3208,7 +3218,7 @@ function wire(): void {
       setBrandStep((brandStep + 1) % 3);
     });
   }
-  els.btnSave.addEventListener("click", saveConversation);
+  els.btnSave.addEventListener("click", () => void saveConversation());
   els.btnNew.addEventListener("click", newConversation);
   els.btnRestore.addEventListener("click", () => void openRestore());
   els.restoreCancel.addEventListener("click", closeRestore);

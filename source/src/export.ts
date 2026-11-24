@@ -47,6 +47,8 @@ export interface ExportOptions {
    * (model, thinking, token counts, speed) in place of the short cost and speed.
    */
   details?: ReadonlySet<string>;
+  /** Replies (by id) whose thinking is open on screen: saved with it, open above the text. */
+  thinking?: ReadonlySet<string>;
 }
 
 export function escapeHtml(s: string): string {
@@ -226,6 +228,10 @@ function turnHtml(e: Entry, settings: Settings, listed: Seat[], opts: ExportOpti
   const dir = direction(e, settings);
   const model = modelNote(e, listed, opts.models);
   const body = e.text.trim() ? `<div class="body">${opts.render(e.text, isHuman)}</div>` : "";
+  const thinking =
+    opts.thinking?.has(e.id) && e.thinking?.trim()
+      ? `<details class="thinking" open><summary>Thinking</summary><div class="thought">${opts.render(e.thinking, false)}</div></details>`
+      : "";
   return [
     `<article class="${cls}"${color ? ` style="--seat-color: ${esc(color)}"` : ""}>`,
     `<div class="who">`,
@@ -235,7 +241,7 @@ function turnHtml(e: Entry, settings: Settings, listed: Seat[], opts: ExportOpti
     model ? `<span class="model">${esc(model)}</span>` : "",
     glanceHtml(e),
     `</div>`,
-    `<div class="speech">${body}${filesHtml(e.attachments ?? [])}${madeHtml(e)}${sourcesHtml(e)}${footHtml(e, opts)}</div>`,
+    `<div class="speech">${thinking}${body}${filesHtml(e.attachments ?? [])}${madeHtml(e)}${sourcesHtml(e)}${footHtml(e, opts)}</div>`,
     `</article>`,
   ].join("");
 }
@@ -555,6 +561,14 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 /* The speech's parts lie in the grid themselves, so that the margin runs only beside the text and the cost and speed sit level with its end. */
 .speech { display: contents; }
 .speech > * { grid-column: 2; min-width: 0; align-self: start; }
+/* A reply's thinking, if it was open on screen when saved: above the text, the margin running down beside both. */
+.turn:has(> .speech > .thinking) > .who { grid-row: 1 / span 2; }
+.thinking { margin-bottom: 0.4rem; padding-left: 1.2rem; font-size: 0.85rem; color: var(--muted); }
+.thinking summary { cursor: pointer; width: fit-content; font-family: var(--font-ui); }
+.thinking .thought { margin-top: 0.3rem; line-height: 1.5; overflow-wrap: anywhere; }
+.thinking .thought > :first-child { margin-top: 0; } .thinking .thought > :last-child { margin-bottom: 0; }
+.thinking .thought p { margin: 0 0 0.6em; }
+.thinking .thought pre { overflow-x: auto; }
 .body { font-size: 1.0625rem; padding-left: 1.1rem; border-left: 2px solid color-mix(in srgb, var(--seat-color) 45%, transparent); overflow-wrap: anywhere; }
 .human .body { border-left-color: color-mix(in srgb, var(--ink) 22%, transparent); }
 .body > :first-child { margin-top: 0; } .body > :last-child { margin-bottom: 0; }

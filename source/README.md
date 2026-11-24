@@ -328,12 +328,13 @@ are saved and copied along with the turns, and can be ticked for Save Selected.
   doesn't fit, it scrolls sideways.
 - **The page follows a reply** while you're at the bottom, but only until the beginning of
   the reply reaches the top of the window, so a long one can be read from its start; it stays
-  there when the reply ends. Scroll down to the bottom yourself and it follows again. Scroll
+  there when the reply ends (if Safari moves it back up by itself just then, Dialog puts it
+  back). Scroll down to the bottom yourself and it follows again. Scroll
   up to read something earlier and it stays put until you scroll back down.
 - **Thinking.** When a model sends its thinking, a folded **Thinking** line sits above its
   reply: click to read it. Some models send all of it, many (Claude, Gemini) a summary, and
-  some (OpenAI's) none. Thinking is kept only while the page is open, is never saved, and no
-  participant ever sees it.
+  some (OpenAI's) none. Thinking is kept only while the page is open, and no participant ever
+  sees it. It goes into a saved conversation only if it is open when you save.
 - **Mathematics** in LaTeX, as models often write it, is shown as mathematics once the reply
   is complete. Prices such as "$5 and $10" stay money. LaTeX that can't be read is shown in
   red; point at it for the reason.
@@ -449,9 +450,11 @@ participant may offer one.
   another model or thinking level is marked with the one it used. (A conversation begun on
   an earlier version of Dialog lists everyone as of the time of saving, and says so.) Then every turn with its time
   (the date as well on the first turn of each day), private exchanges and asides included and marked; attached images and files; the participants' files;
-  sources; and each reply's cost and speed. Failed replies and thinking are left out.
+  sources; and each reply's cost and speed. Thinking that is open on screen is saved too,
+  open above its reply; folded-up thinking and failed replies are left out.
 - **Save Selected:** tick the box beside some turns (it shows when you point at a turn) and
-  the button becomes Save Selected, which saves just those turns.
+  the button becomes Save Selected, which saves just those turns. Once they're saved the
+  ticks are cleared, so the button reads Save All again.
 - **Restore…** brings a conversation back. It appears in the top bar while the conversation
   is empty (after New conversation, say) and lists, newest first, one line each with when it
   was saved and the first sentence of your first message:

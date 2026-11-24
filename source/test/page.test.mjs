@@ -371,7 +371,9 @@ test("a full conversation in the page", async () => {
   assert.ok(html.includes('class="medallion" src="data:image/png;base64,'), "the medallion travels with the file");
   assert.ok(html.includes('<script type="application/json" id="dialog-conversation">'), "the data to resume it");
   assert.ok(!/<script/i.test(readable(html)), "and no other script");
-  assert.ok(!raw.includes("chronology"), "thinking is never saved");
+  // The thinking, open on screen, is saved open above the reply; but not in the data for resuming.
+  assert.ok(html.includes('<details class="thinking" open><summary>Thinking</summary><div class="thought"><p>Pondering <strong>chronology</strong> at length.</p></div></details><div class="body"><p>Time is change.</p>'), "open thinking saved");
+  assert.equal(raw.split("chronology").length, 2, "once only: not in the data for resuming");
 
   // 8b. Tick turns to save just those.
   assert.equal($$(".entry .foot button").length, 0, "no per-turn save buttons any more");
@@ -385,10 +387,20 @@ test("a full conversation in the page", async () => {
   tick(1, true);
   assert.equal($("#btn-save").textContent, "Save Selected");
   assert.match($("#btn-save").title, /Save the ticked turn as an HTML file/);
+  // Folded-up thinking isn't saved.
+  thinkingBox().open = false;
+  thinkingBox().dispatchEvent(new w.Event("toggle"));
   $("#btn-save").click();
   assert.match(downloads[1], /^Dialog \d{4} \w{3} \d\d \d{4} selected\.html$/);
   const one = squash(await blobs[1].text());
   assert.ok(one.includes("<p>Time is change.</p>"));
+  assert.ok(!one.includes("chronology") && !one.includes('class="thinking"'), "folded thinking not saved");
+  thinkingBox().open = true;
+  thinkingBox().dispatchEvent(new w.Event("toggle"));
+  // Once saved, the ticks are cleared, so the next save is of everything again.
+  await until(() => $("#btn-save").textContent === "Save All", "ticks cleared after saving");
+  assert.equal(picks().filter((b) => b.checked).length, 0, "no box ticked");
+  tick(1, true);
   assert.ok(!one.includes("What is time?"), "only the ticked turn");
   assert.ok(one.includes('<span class="name">Claude</span>') && !one.includes('<span class="name">Grok</span>'), "only its speaker");
   assert.ok(one.includes("1 turn chosen from a conversation"));
@@ -2511,7 +2523,8 @@ test("arriving text is followed only while you're at the bottom; scrolled back, 
   await until(() => notBusy(), "the first reply");
   assert.equal(top, 1500, "followed to the bottom");
 
-  // Scrolled back a little, to read: the next reply comes in below, and the view stays put throughout.
+  // Scrolled back a little (with the wheel), to read: the next reply comes in below, and the view stays put throughout.
+  t.dispatchEvent(new w.Event("wheel"));
   scrollTo(1450);
   replies.push({ thinking: ["Hmm."], pieces: ["Three ", "four."], cost: 0.001, pause: true });
   speakBtn(1).click();
@@ -2565,6 +2578,10 @@ test("a long reply is followed only until its beginning reaches the top, and sta
   top = 1000;
   await until(() => notBusy(), "the long reply");
   assert.equal(top, 1288, "held with its beginning at the top");
+  // Just after it ends, the browser (Safari) can take the conversation back up to an earlier
+  // stopping point by itself; that is undone, and it stays held.
+  scrollTo(900);
+  assert.equal(top, 1288, "taken back to its beginning");
 
   // The next reply, below it, leaves you reading it.
   replyAt = 1900;

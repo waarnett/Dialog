@@ -4586,6 +4586,9 @@ body {
           const model = modelNote(e, listed, opts.models);
           const body = e.text.trim() ? `<div class="body">${opts.render(e.text, isHuman)}</div>` :
             "";
+          const thinking = opts.thinking?.has(e.id) && e.thinking?.trim() ?
+            `<details class="thinking" open><summary>Thinking</summary><div class="thought">${opts.render(e.thinking, false)}</div></details>` :
+            "";
           return [
             `<article class="${cls}"${color ? ` style="--seat-color: ${esc(color)}"` : ""}>`,
             `<div class="who">`,
@@ -4595,7 +4598,7 @@ body {
             model ? `<span class="model">${esc(model)}</span>` : "",
             glanceHtml(e),
             `</div>`,
-            `<div class="speech">${body}${filesHtml(e.attachments ?? [])}${madeHtml(e)}${sourcesHtml(e)}${footHtml(e, opts)}</div>`,
+            `<div class="speech">${thinking}${body}${filesHtml(e.attachments ?? [])}${madeHtml(e)}${sourcesHtml(e)}${footHtml(e, opts)}</div>`,
             `</article>`
           ].join("");
         }
@@ -4883,6 +4886,14 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; }
 /* The speech's parts lie in the grid themselves, so that the margin runs only beside the text and the cost and speed sit level with its end. */
 .speech { display: contents; }
 .speech > * { grid-column: 2; min-width: 0; align-self: start; }
+/* A reply's thinking, if it was open on screen when saved: above the text, the margin running down beside both. */
+.turn:has(> .speech > .thinking) > .who { grid-row: 1 / span 2; }
+.thinking { margin-bottom: 0.4rem; padding-left: 1.2rem; font-size: 0.85rem; color: var(--muted); }
+.thinking summary { cursor: pointer; width: fit-content; font-family: var(--font-ui); }
+.thinking .thought { margin-top: 0.3rem; line-height: 1.5; overflow-wrap: anywhere; }
+.thinking .thought > :first-child { margin-top: 0; } .thinking .thought > :last-child { margin-bottom: 0; }
+.thinking .thought p { margin: 0 0 0.6em; }
+.thinking .thought pre { overflow-x: auto; }
 .body { font-size: 1.0625rem; padding-left: 1.1rem; border-left: 2px solid color-mix(in srgb, var(--seat-color) 45%, transparent); overflow-wrap: anywhere; }
 .human .body { border-left-color: color-mix(in srgb, var(--ink) 22%, transparent); }
 .body > :first-child { margin-top: 0; } .body > :last-child { margin-bottom: 0; }
@@ -6254,7 +6265,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.25";
+        var VERSION = "2.26.1";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -7236,6 +7247,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           if (forceScroll) scrollToBottom();
           else if (following) followLatest();
           else els.transcript.scrollTop = kept;
+          if (following) settlingUntil = performance.now() + SETTLING_MS;
           updateComposerState();
         }
         var summaryOpen = false;
@@ -7330,7 +7342,6 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           });
           persist();
           renderTranscript(true);
-          settlingUntil = performance.now() + SETTLING_MS;
           renderTopbar();
           if (attachments?.some((a) => a.unsaved)) {
             showAttachMessage(
@@ -8900,20 +8911,26 @@ Your name (${next.humanName}), About you, the house rules and the participants (
             render: renderMarkdown,
             logo,
             savedAt: /* @__PURE__ */ new Date(),
-            details: opened
+            details: opened,
+            thinking: thinkingOpen
           };
         }
-
-        function saveConversation() {
+        async function saveConversation() {
           updateSaveButton();
+          const only = picked.size ? new Set(picked) : void 0;
           const opts = {
             ...exportOptions(),
-            only: picked.size ? picked : void 0
+            only
           };
           const page2 = withConversationData(prettyHtml(conversationHtml(session, settings,
             opts)), session, settings, opts.only, opts.savedAt);
-          void download(page2, conversationFileName(opts.savedAt, picked.size > 0), void 0,
-            void 0, SAVES_PICKER);
+          const saved = await download(page2, conversationFileName(opts.savedAt, only !==
+            void 0), void 0, void 0, SAVES_PICKER);
+          if (!only || saved === null) return;
+          for (const id of only) picked.delete(id);
+          for (const box of els.transcript.querySelectorAll("input.pick")) box.checked = picked
+            .has(box.closest("article.entry")?.dataset.id ?? "");
+          updateSaveButton();
         }
         async function resumeConversation(file) {
           let text;
@@ -9266,7 +9283,7 @@ Your participants, house rules, name and About you will be replaced with the one
               setBrandStep((brandStep + 1) % 3);
             });
           }
-          els.btnSave.addEventListener("click", saveConversation);
+          els.btnSave.addEventListener("click", () => void saveConversation());
           els.btnNew.addEventListener("click", newConversation);
           els.btnRestore.addEventListener("click", () => void openRestore());
           els.restoreCancel.addEventListener("click", closeRestore);
