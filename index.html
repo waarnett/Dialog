@@ -4462,7 +4462,7 @@ body {
           if (e.aside) return `(${ASIDE_LABEL})`;
           const privately = privateLabel(e, settings2.seats, settings2.humanName);
           if (privately) return `(${privately})`;
-          if (e.addressedTo) return `(${addresseeLabel(e.addressedTo)})`;
+          if (e.addressedTo && !e.typed) return `(${addresseeLabel(e.addressedTo)})`;
           return e.independent ? "(answering independently)" : "";
         }
 
@@ -4588,8 +4588,9 @@ body {
           ].filter(Boolean).join(" ");
           const dir = direction(e, settings2);
           const model = modelNote(e, listed, opts.models);
-          const body = e.text.trim() ? `<div class="body">${opts.render(e.text, isHuman)}</div>` :
-            "";
+          const said = isHuman && typeof e.typed === "string" && e.typed.trim() ? e.typed : e
+          .text;
+          const body = said.trim() ? `<div class="body">${opts.render(said, isHuman)}</div>` : "";
           const thinking = opts.thinking?.has(e.id) && e.thinking?.trim() ?
             `<details class="thinking" open><summary>Thinking</summary><div class="thought">${opts.render(e.thinking, false)}</div></details>` :
             "";
@@ -4646,8 +4647,8 @@ body {
           const opening2 = session2.opening;
           const listed = opening2 ? [...opening2.seats, ...arrivalsSince(opening2, castOf(
             settings2).seats)] : settings2.seats;
-          const seats = only ? listed.filter((s) => speakers.has(s.id)) : listed;
-          const showHuman = !only || speakers.has("human");
+          const seats = listed.filter((s) => speakers.has(s.id));
+          const showHuman = speakers.has("human");
           const human = opening2 ?? settings2;
           const about = firstSentence(human.aboutHuman);
           const people = [];
@@ -6269,7 +6270,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             if (c !== null && c !== void 0 && c !== false) el.append(c);
           return el;
         }
-        var VERSION = "2.27";
+        var VERSION = "2.28";
         var els = {
           transcript: byId("transcript"),
           sessionCost: byId("session-cost"),
@@ -7326,8 +7327,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           updateSeatStatus();
         }
 
-        function addHumanEntry(text, privateWith, attachments, addressedTo, aside) {
+        function addHumanEntry(text, privateWith, attachments, addressedTo, aside, typed) {
           settleChanges(session, settings);
+          const asTyped = typed?.trim();
           session.entries.push({
             id: newId(),
             speaker: "human",
@@ -7338,6 +7340,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             }), settings.seats),
             addressedTo,
             text,
+            ...asTyped && asTyped !== text.trim() ? {
+              typed: asTyped
+            } : {},
             attachments,
             ...aside ? {
               aside
@@ -7806,7 +7811,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           }
           const group = seats.map((s) => s.id);
           addHumanEntry(a.text, privateWithFor(group), takePending(), privateAddressee(seats,
-            a));
+            a), false, els.composerText.value);
           els.composerText.value = "";
           updateComposerState();
           if (seats.length === 1) await speak(seats[0].id, group, {
@@ -7830,7 +7835,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
           const everyone = a.everyone && a.call && roundOrder().length ? a.call : void 0;
           if (a.everyone && !everyone) {
             const files2 = takePending();
-            if (a.text || files2) addHumanEntry(a.text, void 0, files2);
+            if (a.text || files2) addHumanEntry(a.text, void 0, files2, void 0, false, typed);
             els.composerText.value = "";
             updateComposerState();
             return;
@@ -7860,7 +7865,7 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; border-top
             how: a.call ?? "in turn"
           };
           const files = takePending();
-          if (a.text || files) addHumanEntry(a.text, void 0, files, to);
+          if (a.text || files) addHumanEntry(a.text, void 0, files, to, false, typed);
           els.composerText.value = "";
           updateComposerState();
           if (everyone) await runRound(everyone);
@@ -7915,7 +7920,7 @@ OK reads it as ${names}. Cancel sends your message as you wrote it.`)) {
               const seats = privateTargets(a);
               if (!seats.length || occupied() || !a.text && !pending.length) return;
               addHumanEntry(a.text, privateWithFor(seats.map((s) => s.id)), takePending(),
-                privateAddressee(seats, a));
+                privateAddressee(seats, a), false, text);
               els.composerText.value = "";
               updateComposerState();
               return;

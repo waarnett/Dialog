@@ -92,7 +92,7 @@ test("each participant is one line: name and the start of the role, the rest und
   (s.seats[0] as Seat).role = "**Doubt** <everything>. Then say why.\n\nKeep it short.";
   // A stand-in that handles bold, as the page's Markdown renderer would.
   const bold = (md: string) => render(md).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  const html = conversationHtml({ startedAt: T, entries: [] }, s, { render: bold });
+  const html = conversationHtml({ startedAt: T, entries: [human("Hi"), bot(s.seats[0] as Seat, "Hello.")] }, s, { render: bold });
 
   assert.ok(html.includes('<span class="gist role-start">Doubt &lt;everything&gt;.</span></summary>'), "the first sentence, plain and still escaped");
   assert.ok(html.includes("<blockquote><p><strong>Doubt</strong> &lt;everything&gt;. Then say why."), "the whole role under the triangle");
@@ -109,7 +109,7 @@ test("the participants are listed as they were at the start; stage directions an
 
   // The first turn fixes the record.
   settleChanges(session, s);
-  session.entries.push(human("Hello"), bot(A, "First.", { seatEffort: "default" }));
+  session.entries.push(human("Hello"), bot(A, "First.", { seatEffort: "default" }), bot(B, "Me too."));
 
   // Then everything changes: you, a role, a model, a thinking level, a name; one leaves, one comes.
   s.humanName = "William";
@@ -147,9 +147,12 @@ test("the participants are listed as they were at the start; stage directions an
   const picked = list(conversationHtml(session, s, { render, only: new Set([session.entries[1]!.id]) }));
   assert.ok(picked.includes('<span class="name">Claude</span>') && !picked.includes("Grok") && !picked.includes("Gemini") && !picked.includes("human moderator"));
 
-  // Someone added since the last turn is listed too, since the direction says they joined.
-  s.seats.push({ id: "D", name: "Late", model: "x-ai/grok-4.7", role: "", effort: "default", color: "#222222", asleep: true });
+  // Someone added since the last turn isn't listed until they say something; then they are, as they joined.
+  const D: Seat = { id: "D", name: "Late", model: "x-ai/grok-4.7", role: "", effort: "default", color: "#222222", asleep: true };
+  s.seats.push(D);
   noteChanges(session, s);
+  assert.ok(!list(conversationHtml(session, s, { render })).includes('<span class="name">Late</span>'));
+  session.entries.push(bot(D, "Hello, all."));
   const late = list(conversationHtml(session, s, { render }));
   assert.ok(late.includes('<span class="name">Late</span>') && late.includes("joined later, asleep on joining"));
 });
@@ -157,7 +160,7 @@ test("the participants are listed as they were at the start; stage directions an
 test("a conversation with no record of its start lists everyone as of saving, and says so", () => {
   const s = setup();
   (s.seats[1] as Seat).asleep = true;
-  const session: Session = { startedAt: T, entries: [human("Hello")] };
+  const session: Session = { startedAt: T, entries: [human("Hello"), bot(s.seats[0] as Seat, "Hi.")] };
   settleChanges(session, s);
   assert.equal(session.opening, undefined, "too late to record the start");
   (s.seats[0] as Seat).role = "Be long-winded.";
@@ -186,11 +189,45 @@ test("a reply is marked with its model and thinking level when either differs fr
   ]);
 });
 
+test("Save All lists only the participants who have spoken", () => {
+  const s = setup();
+  const [A] = s.seats as [Seat, Seat];
+  const list = (html: string) => html.slice(html.indexOf('class="participants"'), html.indexOf('class="conversation"'));
+  const session: Session = { startedAt: T, entries: [] };
+  settleChanges(session, s);
+  session.entries.push(human("Hello"), bot(A, "Hi."));
+  const people = list(conversationHtml(session, s, { render }));
+  assert.ok(people.includes('<span class="name">Bill</span>') && people.includes('<span class="name">Claude</span>'));
+  assert.ok(!people.includes("Grok"), "never spoke: left off");
+  // A failed reply doesn't count as speaking.
+  session.entries.push(bot(s.seats[1] as Seat, "broken", { status: "error", error: "x" }));
+  assert.ok(!list(conversationHtml(session, s, { render })).includes("Grok"));
+  // Only the participants speak: you aren't listed.
+  const bots = list(conversationHtml({ startedAt: T, entries: [bot(A, "Alone.")] }, s, { render }));
+  assert.ok(!bots.includes("human moderator") && bots.includes("Claude"));
+});
+
+test("your messages are saved as you typed them, with the words that said who should reply", () => {
+  const s = setup();
+  const [A] = s.seats as [Seat, Seat];
+  const entries: Entry[] = [
+    human("What do you think?", { typed: "What do you think, Claude?", addressedTo: { seatId: "A", name: "Claude" } }),
+    bot(A, "Yes."),
+    human("Older message.", { addressedTo: { seatId: "A", name: "Claude" } }),
+    human("Just us.", { typed: "Just us, Claude privately", privateWith: "A", addressedTo: { seatId: "A", name: "Claude" } }),
+  ];
+  const html = conversationHtml({ startedAt: T, entries }, s, { render });
+  assert.ok(html.includes("<p>What do you think, Claude?</p>") && !html.includes("<p>What do you think?</p>"));
+  assert.equal(html.split('<span class="direction">(to Claude)</span>').length - 1, 1, "the label only where the words aren't kept");
+  assert.ok(html.includes("<p>Older message.</p>"));
+  assert.ok(html.includes("<p>Just us, Claude privately</p>") && html.includes("(privately, to Claude)"), "private stays marked");
+});
+
 test("names and roles are escaped", () => {
   const s = setup();
   s.humanName = "<b>Bill</b>";
   (s.seats[0] as Seat).name = 'Claude "<i>"';
-  const html = conversationHtml({ startedAt: T, entries: [human("hi", { speakerName: s.humanName })] }, s, { render });
+  const html = conversationHtml({ startedAt: T, entries: [human("hi", { speakerName: s.humanName }), bot(s.seats[0] as Seat, "yo")] }, s, { render });
   assert.ok(!html.includes("<b>Bill</b>") && html.includes("&lt;b&gt;Bill&lt;/b&gt;"));
   assert.ok(html.includes("Claude &quot;&lt;i&gt;&quot;"));
 });

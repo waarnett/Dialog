@@ -443,13 +443,17 @@ participant may offer one.
 ## Saving, restoring and tabs
 
 - **Save All** saves the whole conversation as one web page, readable in any browser:
-  the participants, one line each with the name and the first sentence of the role, and a
-  triangle that opens the model, thinking level and whole role. The list shows everyone as
-  they were at the start of the conversation, or on joining if they came later, and that
-  includes anyone since removed; stage directions show later changes, and a reply given with
+  the participants who speak in it (you included), one line each with the name and the first
+  sentence of the role, and a triangle that opens the model, thinking level and whole role.
+  Anyone who never said anything is left off the list. It shows each as they were at the start
+  of the conversation, or on joining if they came later, and that includes anyone since
+  removed; stage directions show later changes, and a reply given with
   another model or thinking level is marked with the one it used. (A conversation begun on
   an earlier version of Dialog lists everyone as of the time of saving, and says so.) Then every turn with its time
-  (the date as well on the first turn of each day), private exchanges and asides included and marked; attached images and files; the participants' files;
+  (the date as well on the first turn of each day), private exchanges and asides included and marked;
+  your messages exactly as you typed them, with the words at the end that said who should reply
+  ("…, Grok", "…, team independently", "…privately"), which the participants themselves never
+  see; attached images and files; the participants' files;
   sources; and each reply's cost and speed. Thinking that is open on screen is saved too,
   open above its reply; folded-up thinking and failed replies are left out.
 - **Save Selected:** tick the box beside some turns (it shows when you point at a turn) and

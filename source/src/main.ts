@@ -168,7 +168,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * Dialog's version, shown on the welcome screen and in Settings. The second number goes up
  * with each release; between releases a third counts the changes made since (dropped on release).
  */
-const VERSION = "2.27";
+const VERSION = "2.28";
 
 const els = {
   transcript: byId("transcript"),
@@ -1247,8 +1247,16 @@ function deleteEntry(id: string): void {
   updateSeatStatus();
 }
 
-function addHumanEntry(text: string, privateWith?: string | string[], attachments?: Attachment[], addressedTo?: Addressee, aside?: boolean): void {
+function addHumanEntry(
+  text: string,
+  privateWith?: string | string[],
+  attachments?: Attachment[],
+  addressedTo?: Addressee,
+  aside?: boolean,
+  typed?: string,
+): void {
   settleChanges(session, settings);
+  const asTyped = typed?.trim();
   session.entries.push({
     id: newId(),
     speaker: "human",
@@ -1257,6 +1265,7 @@ function addHumanEntry(text: string, privateWith?: string | string[], attachment
     privateNames: privateNamesFor(privateGroup({ privateWith }), settings.seats),
     addressedTo,
     text,
+    ...(asTyped && asTyped !== text.trim() ? { typed: asTyped } : {}),
     attachments,
     ...(aside ? { aside } : {}),
     time: new Date().toISOString(),
@@ -1751,7 +1760,7 @@ async function sendPrivately(a: Addressing, fallback?: Seat): Promise<void> {
     return;
   }
   const group = seats.map((s) => s.id);
-  addHumanEntry(a.text, privateWithFor(group), takePending(), privateAddressee(seats, a));
+  addHumanEntry(a.text, privateWithFor(group), takePending(), privateAddressee(seats, a), false, els.composerText.value);
   els.composerText.value = "";
   updateComposerState();
   if (seats.length === 1) await speak(seats[0]!.id, group, { useComposer: false });
@@ -1785,7 +1794,7 @@ async function sendAndAsk(): Promise<void> {
   if (a.everyone && !everyone) {
     // "…, team" with everyone asleep: add the message (without "team"); no one replies.
     const files = takePending();
-    if (a.text || files) addHumanEntry(a.text, undefined, files);
+    if (a.text || files) addHumanEntry(a.text, undefined, files, undefined, false, typed);
     els.composerText.value = "";
     updateComposerState();
     return;
@@ -1808,7 +1817,7 @@ async function sendAndAsk(): Promise<void> {
       ? { seatId: a.seats[0]!.id, name: a.seats[0]!.name }
       : { seats: a.seats.map((s) => ({ id: s.id, name: s.name })), how: a.call ?? "in turn" };
   const files = takePending();
-  if (a.text || files) addHumanEntry(a.text, undefined, files, to);
+  if (a.text || files) addHumanEntry(a.text, undefined, files, to, false, typed);
   els.composerText.value = "";
   updateComposerState();
   if (everyone) await runRound(everyone); // "…, team"
@@ -1867,7 +1876,7 @@ async function onComposerSubmit(ev: Event): Promise<void> {
       // With no one to keep it private to, it isn't added at all.
       const seats = privateTargets(a);
       if (!seats.length || occupied() || (!a.text && !pending.length)) return;
-      addHumanEntry(a.text, privateWithFor(seats.map((s) => s.id)), takePending(), privateAddressee(seats, a));
+      addHumanEntry(a.text, privateWithFor(seats.map((s) => s.id)), takePending(), privateAddressee(seats, a), false, text);
       els.composerText.value = "";
       updateComposerState();
       return;

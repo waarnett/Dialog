@@ -134,6 +134,11 @@ export interface Entry {
   /** The names of the private group (by seat id) when the entry was made, so that its label never changes. */
   privateNames?: Record<string, string>;
   text: string;
+  /**
+   * Your message exactly as you typed it, when Dialog took words meant for it off the end
+   * ("…, Grok", "…, team", "…privately"): shown in a saved page; never given to any participant.
+   */
+  typed?: string;
   /** Files the human added with this entry. */
   attachments?: Attachment[];
   /** Your aside to the readers ("…, Bill", or To: Aside): shown and saved, but never given to any participant. */

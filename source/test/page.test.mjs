@@ -1528,7 +1528,8 @@ test("participants can be reordered by dragging the handle, or with the arrow ke
 });
 
 test("the send keys ask the participant named at the end of the message", async () => {
-  const { w, d, chatCalls, replies, errors } = makeHarness();
+  const harness = makeHarness();
+  const { w, d, chatCalls, replies, errors } = harness;
   const $ = (sel) => d.querySelector(sel);
   const $$ = (sel) => [...d.querySelectorAll(sel)];
   const entries = () => $$("#transcript .entry");
@@ -1563,6 +1564,7 @@ test("the send keys ask the participant named at the end of the message", async 
   assert.equal(entries()[2].querySelector(".body").textContent.trim(), "Do you agree.", "the name is for Dialog, not part of the message");
   assert.equal(entries()[2].querySelector(".direction").textContent, "(to Claude)");
   assert.match(JSON.stringify(chatCalls.at(-1).messages), /Bill says \(to Claude\):\\nDo you agree\./);
+  assert.ok(!JSON.stringify(chatCalls).includes("agree, claude"), "the words as typed never reach a participant");
 
   // ⌘↩ (Ctrl+Enter here) just adds, even with a name at the end.
   type("Interesting, Grok");
@@ -1594,6 +1596,12 @@ test("the send keys ask the participant named at the end of the message", async 
   assert.equal(entries().length, 6);
   assert.equal(chatCalls.length, 2, "nobody asked");
   assert.equal(hint(), "Enter adds, then Claude replies · Ctrl+Enter just adds");
+
+  // Save All: your messages as you typed them, names at the end and all.
+  const { blobs } = harness;
+  $("#btn-save").click();
+  const saved = await blobs.at(-1).text();
+  assert.ok(saved.includes("best telescope for a beginner, Grok?") && saved.includes("Do you agree, claude."));
 
   await sleep(20);
   assert.deepEqual(errors.map(String), [], "no script errors");

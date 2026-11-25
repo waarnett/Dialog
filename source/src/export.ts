@@ -41,7 +41,7 @@ export interface ExportOptions {
   render: (markdown: string, keepLineBreaks: boolean) => string;
   /** The Socrates medallion (a data: URL) for the heading; omitted if absent. */
   logo?: string;
-  /** Save only these turns (by id), and list only the participants who speak in them. */
+  /** Save only these turns (by id). Either way, only the participants who speak in the saved turns are listed. */
   only?: ReadonlySet<string>;
   /**
    * Replies (by id) whose full particulars are open on screen: saved with those particulars
@@ -103,7 +103,8 @@ function direction(e: Entry, settings: Pick<Settings, "seats" | "humanName">): s
   if (e.aside) return `(${ASIDE_LABEL})`;
   const privately = privateLabel(e, settings.seats, settings.humanName);
   if (privately) return `(${privately})`;
-  if (e.addressedTo) return `(${addresseeLabel(e.addressedTo)})`;
+  // Your own words at the end of the message, kept as typed, already say whom it was for.
+  if (e.addressedTo && !e.typed) return `(${addresseeLabel(e.addressedTo)})`;
   return e.independent ? "(answering independently)" : "";
 }
 
@@ -228,7 +229,9 @@ function turnHtml(e: Entry, settings: Settings, listed: Seat[], opts: ExportOpti
     .join(" ");
   const dir = direction(e, settings);
   const model = modelNote(e, listed, opts.models);
-  const body = e.text.trim() ? `<div class="body">${opts.render(e.text, isHuman)}</div>` : "";
+  // Your messages as you typed them, with any words at the end that said who should reply.
+  const said = isHuman && typeof e.typed === "string" && e.typed.trim() ? e.typed : e.text;
+  const body = said.trim() ? `<div class="body">${opts.render(said, isHuman)}</div>` : "";
   const thinking =
     opts.thinking?.has(e.id) && e.thinking?.trim()
       ? `<details class="thinking" open><summary>Thinking</summary><div class="thought">${opts.render(e.thinking, false)}</div></details>`
@@ -283,7 +286,7 @@ function personHtml(name: string, gist: string, rest: string, color?: string): s
 
 /**
  * The conversation as a page: participants and settings, then the turns. Normally every
- * turn and every seat; with `opts.only`, just those turns and the people who speak in them.
+ * turn; with `opts.only`, just those. Only the people who speak in the saved turns are listed.
  * Failed replies are always left out. Of "About you", only the first sentence is shown.
  * The list shows how things stood at the first turn (for a later arrival, on joining), or as
  * of saving for a conversation from before that was recorded.
@@ -298,8 +301,8 @@ export function conversationHtml(session: Session, settings: Settings, opts: Exp
   const opening = session.opening;
   // Besides those on record: anyone added since the last turn, whose arrival is noted but not yet settled.
   const listed: OpeningSeat[] = opening ? [...opening.seats, ...arrivalsSince(opening, castOf(settings).seats)] : settings.seats;
-  const seats = only ? listed.filter((s) => speakers.has(s.id)) : listed;
-  const showHuman = !only || speakers.has("human");
+  const seats = listed.filter((s) => speakers.has(s.id));
+  const showHuman = speakers.has("human");
   const human = opening ?? settings;
   const about = firstSentence(human.aboutHuman);
 
