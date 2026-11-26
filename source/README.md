@@ -513,7 +513,10 @@ participant may offer one.
   a stage direction, and only today's date keeps up by itself. The defaults explain how the
   conversation works and ask for brief, honest, careful contributions: no flattery,
   confidence given as a percentage, alternatives shown with the evidence against them, and
-  a qualified answer preferred to a confident mistake. Edit freely; **Restore default
+  a qualified answer preferred to a confident mistake. Asked to argue for a position, a
+  participant makes the best case its defenders would, as theirs; given a role, it argues as
+  that person would. Speak with an empty box and it responds to what has been said since it
+  last spoke. Edit freely; **Restore default
   rules** undoes your edits. These placeholders are filled in for each participant:
   **{name}** its name, **{humanName}** your name, **{participants}** everyone present with
   their models, **{date}** today's date with your offset from UTC ("2026 Oct 27 (UTC-7)").

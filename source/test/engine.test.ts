@@ -29,6 +29,7 @@ import {
   addressedSeat,
   addresseeLabel,
   DEFAULT_HOUSE_RULES,
+  HOUSE_RULES_OCT29,
   readAddress,
   readAside,
   nameSlips,
@@ -434,10 +435,14 @@ test("default house rules: Bill's guidance included; untouched old copies upgrad
   // The label rule as revised on 2026 Oct 29: messages labeled with their time.
   const newLabel = 'labeled with the time they began and "Name says:", e.g. "17:12 Name says:"';
   const oldLabel = 'labeled "Name says:". Your own earlier contributions appear without a label.';
-  const newLabelRule = DEFAULT_HOUSE_RULES.slice(DEFAULT_HOUSE_RULES.indexOf("- Messages from others"), DEFAULT_HOUSE_RULES.indexOf("never write one yourself.") + "never write one yourself.".length);
+  const newLabelRule = HOUSE_RULES_OCT29.slice(HOUSE_RULES_OCT29.indexOf("- Messages from others"), HOUSE_RULES_OCT29.indexOf("never write one yourself.") + "never write one yourself.".length);
   const oldLabelRule = `- Messages from others reach you ${oldLabel}`;
-  assert.ok(DEFAULT_HOUSE_RULES.includes(newLabel) && !DEFAULT_HOUSE_RULES.includes(oldLabel));
-  const before = DEFAULT_HOUSE_RULES.replace(newLabelRule, oldLabelRule);
+  assert.ok(DEFAULT_HOUSE_RULES.includes(newLabelRule) && !DEFAULT_HOUSE_RULES.includes(oldLabel));
+  // The rules added on 2026 Nov 25, and the untouched Oct 29 default upgraded to them.
+  for (const added of ["without saying anything", "would have\" claims", "the best case its defenders would make", "If you've been given a role to play", "An apparently cogent answer", "your confidence in each"])
+    assert.ok(DEFAULT_HOUSE_RULES.includes(added) && !HOUSE_RULES_OCT29.includes(added), added);
+  assert.equal(upgradeHouseRules(HOUSE_RULES_OCT29), DEFAULT_HOUSE_RULES, "the untouched Oct 29 default is upgraded");
+  const before = HOUSE_RULES_OCT29.replace(newLabelRule, oldLabelRule);
   assert.equal(upgradeHouseRules(before), DEFAULT_HOUSE_RULES, "the untouched Oct 09 default is upgraded");
   const editedBefore = upgradeHouseRules(before.replace("Keep each contribution focused", "Keep each contribution short"));
   assert.ok(editedBefore.includes(newLabel) && editedBefore.includes("Keep each contribution short"), "an edited copy gets just the new label rule");
